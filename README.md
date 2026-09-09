@@ -1,8 +1,7 @@
 # AutoERP
 
 A fork of [ERPNext](https://github.com/frappe/erpnext) (develop line, `v16.0.0-beta.1` + ~1500 commits, Feb 2026)
-rebranded as **AutoERP**. It is the ERP app behind the PalmGrade / PKS palm-oil-mill demo and the
-LPG valve reconciliation build.
+rebranded as **AutoERP**. It is the ERP app behind the PalmGrade / PKS palm-oil-mill demo.
 
 Internally the app is still called `erpnext` (`app_name = "erpnext"` in `erpnext/hooks.py`), so it
 installs into `apps/erpnext` and is installed on a site as `erpnext`. Only `app_title`, logos and desk
@@ -14,8 +13,6 @@ call working.
 | Area | Change |
 |---|---|
 | Branding | `app_title`/`app_publisher` = AutoERP, AutoERP logo + favicon (`erpnext/public/images/autoerp-*.svg`), desk icons, footer, help links, "AutoERP Settings" workspace replacing "ERPNext Settings" |
-| LPG build | `erpnext/stock/workspace/rekonsiliasi_valve_lpg/` — Rekonsiliasi Valve LPG workspace (ships to every site running this app) |
-| Tjokro demo | `erpnext/setup_tjokro_demo.py` — seeding script for the Nexio/Tjokro inventory quotation demo |
 | Tweaks | small edits to Accounts/Buying/Stock settings doctypes, `stock_ledger.py`, `reorder_item.py`, Production Plan, Company, and the CRM/Support workspaces |
 
 Everything else is upstream ERPNext. See `git log` — each of the above is its own commit.
