@@ -762,7 +762,7 @@
   {
    "depends_on": "eval:doc.book_advance_payments_in_separate_party_account",
    "description": "Only 'Payment Entries' made against this advance account are supported.",
-   "documentation_url": "https://docs.erpnext.com/docs/user/manual/en/advance-in-separate-party-account",
+   "documentation_url": "",
    "fieldname": "default_advance_received_account",
    "fieldtype": "Link",
    "ignore_user_permissions": 1,
@@ -774,7 +774,7 @@
   {
    "depends_on": "eval:doc.book_advance_payments_in_separate_party_account",
    "description": "Only 'Payment Entries' made against this advance account are supported.",
-   "documentation_url": "https://docs.erpnext.com/docs/user/manual/en/advance-in-separate-party-account",
+   "documentation_url": "",
    "fieldname": "default_advance_paid_account",
    "fieldtype": "Link",
    "ignore_user_permissions": 1,
