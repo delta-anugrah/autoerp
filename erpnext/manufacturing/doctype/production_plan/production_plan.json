@@ -232,7 +232,7 @@
   },
   {
    "default": "1",
-   "description": "If enabled, formula for <b>Required Qty</b>: <br>\nRequired Qty (BOM) - <a href=\"https://docs.frappe.io/erpnext/user/manual/en/projected-quantity\">Projected Qty</a>. <br> This helps avoid over-ordering.",
+   "description": "If enabled, formula for <b>Required Qty</b>: <br>\nRequired Qty (BOM) - Projected Qty. <br> This helps avoid over-ordering.",
    "fieldname": "ignore_existing_ordered_qty",
    "fieldtype": "Check",
    "label": "Consider Projected Qty in Calculation (RM)"
@@ -407,7 +407,7 @@
   },
   {
    "default": "1",
-   "description": "If enabled, formula for <b>Qty to Order</b>: <br>\nRequired Qty (BOM) - <a href=\"https://docs.frappe.io/erpnext/user/manual/en/projected-quantity\">Projected Qty</a>. <br> This helps avoid over-ordering.",
+   "description": "If enabled, formula for <b>Qty to Order</b>: <br>\nRequired Qty (BOM) - Projected Qty. <br> This helps avoid over-ordering.",
    "fieldname": "skip_available_sub_assembly_item",
    "fieldtype": "Check",
    "label": "Consider Projected Qty in Calculation"

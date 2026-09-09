@@ -13,8 +13,7 @@ from erpnext.setup.utils import identity as _
 
 from .default_success_action import get_default_success_action
 
-default_mail_footer = """<div style="padding: 7px; text-align: right; color: #888"><small>Sent via
-	<a style="color: #888" href="http://frappe.io/erpnext">ERPNext</a></div>"""
+default_mail_footer = """<div style="padding: 7px; text-align: right; color: #888"><small>Sent via AutoERP</small></div>"""
 
 
 def after_install():
@@ -183,32 +182,7 @@ def add_company_to_session_defaults():
 
 def add_standard_navbar_items():
 	navbar_settings = frappe.get_single("Navbar Settings")
-	erpnext_navbar_items = [
-		{
-			"item_label": _("Documentation"),
-			"item_type": "Route",
-			"route": "https://docs.erpnext.com/",
-			"is_standard": 1,
-		},
-		{
-			"item_label": _("User Forum"),
-			"item_type": "Route",
-			"route": "https://discuss.frappe.io",
-			"is_standard": 1,
-		},
-		{
-			"item_label": _("Frappe School"),
-			"item_type": "Route",
-			"route": "https://frappe.io/school?utm_source=in_app",
-			"is_standard": 1,
-		},
-		{
-			"item_label": _("Report an Issue"),
-			"item_type": "Route",
-			"route": "https://github.com/frappe/erpnext/issues",
-			"is_standard": 1,
-		},
-	]
+	erpnext_navbar_items = []
 
 	current_navbar_items = navbar_settings.help_dropdown
 	navbar_settings.set("help_dropdown", [])
@@ -235,7 +209,7 @@ def add_standard_navbar_items():
 
 
 def add_app_name():
-	frappe.db.set_single_value("System Settings", "app_name", "ERPNext")
+	frappe.db.set_single_value("System Settings", "app_name", "AutoERP")
 
 
 def update_roles():

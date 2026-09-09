@@ -6,7 +6,7 @@
    "label": "Won Opportunities"
   }
  ],
- "content": "[{\"id\":\"4jhDsfZ7EP\",\"type\":\"header\",\"data\":{\"text\":\"This module is scheduled for deprecation and will be completely removed in version 17, please use <a href=\\\"https://frappe.io/crm\\\">Frappe CRM</a> instead.\",\"col\":12}},{\"id\":\"-bzBQ_IbL9\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Won Opportunities\",\"col\":12}},{\"id\":\"LdM1QgUnqU\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"New Lead (Last 1 Month)\",\"col\":4}},{\"id\":\"X23-SXBcYG\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"New Opportunity (Last 1 Month)\",\"col\":4}},{\"id\":\"3rm7fH52M-\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Won Opportunity (Last 1 Month)\",\"col\":4}},{\"id\":\"K6a2Kh5Zav\",\"type\":\"spacer\",\"data\":{\"col\":12}}]",
+ "content": "[{\"id\":\"4jhDsfZ7EP\",\"type\":\"header\",\"data\":{\"text\":\"This module is scheduled for deprecation and will be completely removed in version 17, please use a dedicated CRM module instead.\",\"col\":12}},{\"id\":\"-bzBQ_IbL9\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Won Opportunities\",\"col\":12}},{\"id\":\"LdM1QgUnqU\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"New Lead (Last 1 Month)\",\"col\":4}},{\"id\":\"X23-SXBcYG\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"New Opportunity (Last 1 Month)\",\"col\":4}},{\"id\":\"3rm7fH52M-\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Won Opportunity (Last 1 Month)\",\"col\":4}},{\"id\":\"K6a2Kh5Zav\",\"type\":\"spacer\",\"data\":{\"col\":12}}]",
  "creation": "2020-01-23 14:48:30.183272",
  "custom_blocks": [],
  "docstatus": 0,

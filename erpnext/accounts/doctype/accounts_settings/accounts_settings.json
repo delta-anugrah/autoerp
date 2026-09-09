@@ -289,7 +289,7 @@
   },
   {
    "default": "0",
-   "description": "Learn about <a href=\"https://docs.frappe.io/erpnext/user/manual/en/common_party_accounting\" rel=\"noopener noreferrer\">Common Party</a>",
+   "description": "Enable Common Party Accounting to use a single party as both Customer and Supplier.",
    "fieldname": "enable_common_party_accounting",
    "fieldtype": "Check",
    "label": "Enable Common Party Accounting"
