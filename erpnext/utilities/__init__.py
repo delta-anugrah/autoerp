@@ -42,11 +42,7 @@ def get_site_info(site_info):
 
 @contextmanager
 def payment_app_import_guard():
-	marketplace_link = '<a href="https://frappecloud.com/marketplace/apps/payments">Marketplace</a>'
-	github_link = '<a href="https://github.com/frappe/payments/">GitHub</a>'
-	msg = _("payments app is not installed. Please install it from {} or {}").format(
-		marketplace_link, github_link
-	)
+	msg = _("payments app is not installed. Please install it from the Frappe Payments repository.")
 	try:
 		yield
 	except ImportError:
