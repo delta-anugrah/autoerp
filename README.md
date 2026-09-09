@@ -1,162 +1,83 @@
+# AutoERP
 
-<div align="center">
-    <a href="https://frappe.io/erpnext">
-	<img src="./erpnext/public/images/v16/erpnext.svg" alt="ERPNext Logo" height="80px" width="80xp"/>
-    </a>
-    <h2>ERPNext</h2>
-    <p align="center">
-        <p>Powerful, Intuitive and Open-Source ERP</p>
-    </p>
+A fork of [ERPNext](https://github.com/frappe/erpnext) (develop line, `v16.0.0-beta.1` + ~1500 commits, Feb 2026)
+rebranded as **AutoERP**. It is the ERP app behind the PalmGrade / PKS palm-oil-mill demo and the
+LPG valve reconciliation build.
 
-[![Learn on Frappe School](https://img.shields.io/badge/Frappe%20School-Learn%20ERPNext-blue?style=flat-square)](https://frappe.school)<br><br>
-[![CI](https://github.com/frappe/erpnext/actions/workflows/server-tests-mariadb.yml/badge.svg?event=schedule)](https://github.com/frappe/erpnext/actions/workflows/server-tests-mariadb.yml)
-[![docker pulls](https://img.shields.io/docker/pulls/frappe/erpnext-worker.svg)](https://hub.docker.com/r/frappe/erpnext-worker)
+Internally the app is still called `erpnext` (`app_name = "erpnext"` in `erpnext/hooks.py`), so it
+installs into `apps/erpnext` and is installed on a site as `erpnext`. Only `app_title`, logos and desk
+icons say AutoERP. This is deliberate — it keeps upstream merges and every `frappe.get_app("erpnext")`
+call working.
 
-</div>
+## What differs from upstream
 
-<div align="center">
-	<img src="./erpnext/public/images/v16/hero_image.png"/>
-</div>
+| Area | Change |
+|---|---|
+| Branding | `app_title`/`app_publisher` = AutoERP, AutoERP logo + favicon (`erpnext/public/images/autoerp-*.svg`), desk icons, footer, help links, "AutoERP Settings" workspace replacing "ERPNext Settings" |
+| LPG build | `erpnext/stock/workspace/rekonsiliasi_valve_lpg/` — Rekonsiliasi Valve LPG workspace (ships to every site running this app) |
+| Tjokro demo | `erpnext/setup_tjokro_demo.py` — seeding script for the Nexio/Tjokro inventory quotation demo |
+| Tweaks | small edits to Accounts/Buying/Stock settings doctypes, `stock_ledger.py`, `reorder_item.py`, Production Plan, Company, and the CRM/Support workspaces |
 
-<div align="center">
-	<a href="https://erpnext-demo.frappe.cloud/api/method/erpnext_demo.erpnext_demo.auth.login_demo">Live Demo</a>
-	-
-	<a href="https://frappe.io/erpnext">Website</a>
-	-
-	<a href="https://docs.frappe.io/erpnext/">Documentation</a>
-</div>
+Everything else is upstream ERPNext. See `git log` — each of the above is its own commit.
 
-## ERPNext
+## Tested environment
 
-100% Open-Source ERP system to help you run your business.
+| Tool | Version used |
+|---|---|
+| Python | 3.14 (`pyproject.toml` requires `>=3.14`) |
+| Node / yarn | 26.x / 1.22 |
+| MariaDB | 12.2 (10.6+ should work) |
+| Redis | 8.x |
+| bench | 5.29 |
+| frappe | `develop` @ commit `2231252` |
 
-### Motivation
+## Run it from scratch
 
-Running a business is a complex task - handling invoices, tracking stock, managing personnel and even more ad-hoc activities. In a market where software is sold separately to manage each of these tasks, ERPNext does all of the above and more, for free.
+```bash
+# 1. bench with frappe develop, pinned to the commit this fork is tested against
+bench init --frappe-branch develop --python python3.14 frappe-bench
+cd frappe-bench
+git -C apps/frappe checkout 2231252
+bench setup requirements
 
-### Key Features
+# 2. this app — note it lands in apps/erpnext, not apps/autoerp
+bench get-app https://github.com/delta-anugrah/autoerp.git
 
-- **Accounting**: All the tools you need to manage cash flow in one place, right from recording transactions to summarizing and analyzing financial reports.
-- **Order Management**: Track inventory levels, replenish stock, and manage sales orders, customers, suppliers, shipments, deliverables, and order fulfillment.
-- **Manufacturing**: Simplifies the production cycle, helps track material consumption, exhibits capacity planning, handles subcontracting, and more!
-- **Asset Management**: From purchase to perishment, IT infrastructure to equipment. Cover every branch of your organization, all in one centralized system.
-- **Projects**: Delivery both internal and external Projects on time, budget and Profitability. Track tasks, timesheets, and issues by project.
-
-<details open>
-
-<summary>More</summary>
-	<img src="https://erpnext.com/files/v16_bom.png"/>
-	<img src="https://erpnext.com/files/v16_stock_summary.png"/>
-	<img src="https://erpnext.com/files/v16_job_card.png"/>
-	<img src="https://erpnext.com/files/v16_tasks.png"/>
-</details>
-
-### Under the Hood
-
-- [**Frappe Framework**](https://github.com/frappe/frappe): A full-stack web application framework written in Python and Javascript. The framework provides a robust foundation for building web applications, including a database abstraction layer, user authentication, and a REST API.
-
-- [**Frappe UI**](https://github.com/frappe/frappe-ui): A Vue-based UI library, to provide a modern user interface. The Frappe UI library provides a variety of components that can be used to build single-page applications on top of the Frappe Framework.
-
-## Production Setup
-
-### Managed Hosting
-
-You can try [Frappe Cloud](https://frappecloud.com), a simple, user-friendly and sophisticated [open-source](https://github.com/frappe/press) platform to host Frappe applications with peace of mind.
-
-It takes care of installation, setup, upgrades, monitoring, maintenance and support of your Frappe deployments. It is a fully featured developer platform with an ability to manage and control multiple Frappe deployments.
-
-<div>
-	<a href="https://erpnext-demo.frappe.cloud/app/home" target="_blank">
-		<picture>
-			<source media="(prefers-color-scheme: dark)" srcset="https://frappe.io/files/try-on-fc-white.png">
-			<img src="https://frappe.io/files/try-on-fc-black.png" alt="Try on Frappe Cloud" height="28" />
-		</picture>
-	</a>
-</div>
-
-
-
-### Self-Hosted
-#### Docker
-
-Prerequisites: docker, docker-compose, git. Refer [Docker Documentation](https://docs.docker.com) for more details on Docker setup.
-
-Run following commands:
-
-```
-git clone https://github.com/frappe/frappe_docker
-cd frappe_docker
-docker compose -f pwd.yml up -d
+# 3. a site
+bench new-site autoerp.localhost --db-root-password <mariadb root pw> --admin-password admin
+bench --site autoerp.localhost install-app erpnext
+bench use autoerp.localhost
+bench start          # http://localhost:8000
 ```
 
-After a couple of minutes, site should be accessible on your localhost port: 8080. Use below default login credentials to access the site.
-- Username: Administrator
-- Password: admin
+Frappe's bench needs redis running on the ports in `config/redis_*.conf` (13000/11000/12000) —
+`bench start` launches them; if you run `bench serve` by hand, start them yourself:
+`redis-server config/redis_cache.conf --daemonize yes` (and the same for `redis_queue.conf`), plus
+`bench --site <site> worker` so background jobs (reposting, accounting-dimension propagation) run.
 
-See [Frappe Docker](https://github.com/frappe/frappe_docker?tab=readme-ov-file#to-run-on-arm64-architecture-follow-this-instructions) for ARM based docker setup.
+## Getting the palm-oil-mill demo data
 
+The sawit demo (company *PT Sawit Rambang Lestari*, ~7.5k documents) lives in the database, not in
+this repo. Two ways to get it:
 
-## Development Setup
-### Manual Install
+1. **Restore a backup** handed over out-of-band:
+   `bench --site <site> restore /path/to/<timestamp>-pks_localhost-database.sql.gz`
+   Backups contain user password hashes and API keys — **do not commit them anywhere**.
+2. **Rebuild it** with the seeding pipeline in
+   [`delta-anugrah/palmgrade-erp-demo`](https://github.com/delta-anugrah/palmgrade-erp-demo)
+   (`pks_00_reset.py` … `pks_08_workspace.py`, run against a fresh site via its REST API).
 
-The Easy Way: our install script for bench will install all dependencies (e.g. MariaDB). See https://github.com/frappe/bench for more details.
+## Keeping up with upstream ERPNext
 
-New passwords will be created for the ERPNext "Administrator" user, the MariaDB root user, and the frappe user (the script displays the passwords and saves them to ~/frappe_passwords.txt).
+```bash
+git remote add upstream https://github.com/frappe/erpnext.git   # once
+git fetch upstream
+git merge upstream/develop
+```
 
+Expect conflicts in the branding files listed above; keep ours.
 
-### Local
+## Working on it
 
-To setup the repository locally follow the steps mentioned below:
-
-1. Setup bench by following the [Installation Steps](https://frappeframework.com/docs/user/en/installation) and start the server
-   ```
-   bench start
-   ```
-
-2. In a separate terminal window, run the following commands:
-   ```
-   # Create a new site
-   bench new-site erpnext.localhost
-   ```
-
-3. Get the ERPNext app and install it
-   ```
-   # Get the ERPNext app
-   bench get-app https://github.com/frappe/erpnext
-
-   # Install the app
-   bench --site erpnext.localhost install-app erpnext
-   ```
-
-4. Open the URL `http://erpnext.localhost:8000/app` in your browser, you should see the app running
-
-## Learning and community
-
-1. [Frappe School](https://school.frappe.io) - Learn Frappe Framework and ERPNext from the various courses by the maintainers or from the community.
-2. [Official documentation](https://docs.erpnext.com/) - Extensive documentation for ERPNext.
-3. [Discussion Forum](https://discuss.frappe.io/c/erpnext/6) - Engage with community of ERPNext users and service providers.
-4. [Telegram Group](https://erpnext_public.t.me) - Get instant help from huge community of users.
-
-
-## Contributing
-
-1. [Issue Guidelines](https://github.com/frappe/erpnext/wiki/Issue-Guidelines)
-1. [Report Security Vulnerabilities](https://erpnext.com/security)
-1. [Pull Request Requirements](https://github.com/frappe/erpnext/wiki/Contribution-Guidelines)
-2. [Translations](https://crowdin.com/project/frappe)
-
-
-## Logo and Trademark Policy
-
-Please read our [Logo and Trademark Policy](TRADEMARK_POLICY.md).
-
-<br />
-<br />
-<div align="center" style="padding-top: 0.75rem;">
-	<a href="https://frappe.io" target="_blank">
-		<picture>
-			<source media="(prefers-color-scheme: dark)" srcset="https://frappe.io/files/Frappe-white.png">
-			<img src="https://frappe.io/files/Frappe-black.png" alt="Frappe Technologies" height="28"/>
-		</picture>
-	</a>
-</div>
+Clone this repo (collaborator access is enough — the org currently doesn't allow forking private
+repos), branch off `main`, and open a PR back here. `CLAUDE.md` has notes for AI-assisted work.

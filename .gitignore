@@ -19,3 +19,6 @@ node_modules/
 .backportrc.json
 # Aider AI Chat
 .aider*
+# local secrets / site credentials — never commit
+.env
+.env.*
