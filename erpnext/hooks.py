@@ -345,7 +345,13 @@ doc_events = {
 	},
 	"Stock Entry": {
 		"on_submit": "erpnext.stock.doctype.material_request.material_request.update_completed_and_requested_qty",
-		"on_cancel": "erpnext.stock.doctype.material_request.material_request.update_completed_and_requested_qty",
+		"on_cancel": [
+			"erpnext.stock.doctype.material_request.material_request.update_completed_and_requested_qty",
+			"erpnext.palm_mill.doctype.weighbridge_ticket.weighbridge_ticket.on_stock_document_cancel",
+		],
+	},
+	"Purchase Receipt": {
+		"on_cancel": "erpnext.palm_mill.doctype.weighbridge_ticket.weighbridge_ticket.on_stock_document_cancel",
 	},
 	"User": {
 		"after_insert": "frappe.contacts.doctype.contact.contact.update_contact",
@@ -419,6 +425,7 @@ scheduler_events = {
 	"cron": {
 		"0/15 * * * *": [
 			"erpnext.manufacturing.doctype.bom_update_log.bom_update_log.resume_bom_cost_update_jobs",
+			"erpnext.palm_mill.doctype.weighbridge_ticket.weighbridge_ticket.finalize_due_tickets",
 		],
 		"0/30 * * * *": [
 			"erpnext.stock.doctype.repost_item_valuation.repost_item_valuation.run_parallel_reposting",

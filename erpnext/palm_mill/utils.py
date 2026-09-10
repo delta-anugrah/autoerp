@@ -5,8 +5,9 @@ import re
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-import frappe
-from frappe.utils import get_datetime, get_system_timezone
+from frappe.utils import get_system_timezone
+
+from erpnext.stock.utils import get_combine_datetime
 
 PURCHASED_SOURCES = ("Plasma", "Pihak Ketiga")
 
@@ -19,10 +20,15 @@ def normalize_plate(plate: str | None) -> str:
 	return re.sub(r"[^A-Za-z0-9]", "", plate or "").upper()
 
 
-def to_site_datetime(value) -> datetime:
-	"""Parse an ISO-8601 timestamp (with or without offset) into a naive site-local datetime.
+def canonical_plate(plate: str) -> str:
+	"""Display form for a plate typed by a machine or a person: single spaces, upper case."""
+	return " ".join((plate or "").split()).upper()
 
-	Integrations send offsets; the ticket stores naive site-local date and time.
+
+def to_site_datetime(value) -> datetime:
+	"""ISO-8601 timestamp (with or without offset) -> naive site-local datetime.
+
+	Integrations send offsets; the ticket stores a naive local date and time.
 	"""
 	if isinstance(value, datetime):
 		dt = value
@@ -35,4 +41,4 @@ def to_site_datetime(value) -> datetime:
 
 def combine(date, time) -> datetime:
 	"""Ticket date + Time field (a timedelta once loaded) -> datetime."""
-	return get_datetime(f"{date} {frappe.utils.format_time(time) if time is not None else '00:00:00'}")
+	return get_combine_datetime(date, time if time is not None else "00:00:00")
