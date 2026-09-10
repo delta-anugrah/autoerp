@@ -105,15 +105,19 @@ def upsert_weighing(
 	scale_ticket_no,
 	plate_number,
 	gross_kg,
-	tare_kg,
 	time_in,
+	tare_kg=None,
 	time_out=None,
 	site=None,
 	driver_name=None,
 	vehicle_class=None,
 ):
-	"""Interface D: one weighing from the scale program. Keyed by the scale's ticket number,
-	then matched to an open ticket of the same truck within the matching window."""
+	"""Interface D: a weighing from the scale program, keyed by the scale's ticket number,
+	then matched to an open ticket of the same truck within the matching window.
+
+	Send it at the gate with the gross weight (the ticket opens in Waiting Weight) and
+	again when the truck leaves with `tare_kg` and `time_out`; the tare includes any
+	rejected bunches put back on the truck, so net is what stayed at the mill."""
 	frappe.has_permission("Weighbridge Ticket", "write", throw=True)
 	company = _company(site)
 	truck = get_or_create_truck(plate_number, source="Scale", vehicle_class=vehicle_class)
@@ -132,8 +136,8 @@ def upsert_weighing(
 			"time_in": start.time(),
 			"time_out": end.time() if end else ticket.time_out,
 			"gross_weight_kg": flt(gross_kg),
-			"tare_weight_kg": flt(tare_kg),
-			"net_weight_kg": flt(gross_kg) - flt(tare_kg),
+			"tare_weight_kg": flt(tare_kg) if tare_kg is not None else ticket.tare_weight_kg,
+			"net_weight_kg": flt(gross_kg) - flt(tare_kg) if tare_kg is not None else 0,
 			"driver_name": driver_name or ticket.driver_name,
 			"weight_received_at": now_datetime(),
 		}

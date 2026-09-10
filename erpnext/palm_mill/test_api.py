@@ -142,6 +142,36 @@ class IntegrationTestPalmMillAPI(IntegrationTestCase):
 			(ticket.sumber_tbs, ticket.scale_ticket_no, ticket.net_weight_kg), ("Pihak Ketiga", "T-2", 6600)
 		)
 
+	def test_weighing_in_two_calls(self):
+		day = frappe.utils.today()
+		gate = api.upsert_weighing(
+			scale_ticket_no="T-5",
+			plate_number="B 3001 PL",
+			gross_kg=14560,
+			time_in=f"{day}T08:03:00",
+			site=COMPANY,
+		)
+		ticket = frappe.get_doc("Weighbridge Ticket", gate["ticket"])
+		self.assertEqual(
+			(gate["status"], ticket.gross_weight_kg, ticket.net_weight_kg, ticket.time_out),
+			("Waiting Weight", 14560, 0, None),
+		)
+
+		leave = api.upsert_weighing(
+			scale_ticket_no="T-5",
+			plate_number="B 3001 PL",
+			gross_kg=14560,
+			tare_kg=5400,
+			time_in=f"{day}T08:03:00",
+			time_out=f"{day}T08:52:00",
+			site=COMPANY,
+		)
+		ticket.reload()
+		self.assertEqual(
+			(leave["ticket"], leave["status"], ticket.net_weight_kg),
+			(gate["ticket"], "Waiting Grading", 9160),
+		)
+
 	def test_visits_outside_the_window_are_separate_tickets(self):
 		day = frappe.utils.today()
 		first = api.upsert_weighing(
