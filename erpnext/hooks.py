@@ -63,7 +63,7 @@ welcome_email = "erpnext.setup.utils.welcome_email"
 setup_wizard_requires = "assets/erpnext/js/setup_wizard.js"
 setup_wizard_stages = "erpnext.setup.setup_wizard.setup_wizard.get_setup_stages"
 
-after_install = "erpnext.setup.install.after_install"
+after_install = ["erpnext.setup.install.after_install", "erpnext.palm_mill.setup.after_install"]
 
 after_app_install = "erpnext.setup.install.after_app_install"
 after_app_uninstall = "erpnext.setup.install.after_app_uninstall"

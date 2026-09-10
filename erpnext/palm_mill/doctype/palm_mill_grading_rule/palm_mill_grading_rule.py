@@ -5,7 +5,7 @@
 from frappe.model.document import Document
 
 
-class Truck(Document):
+class PalmMillGradingRule(Document):
 	# begin: auto-generated types
 	# This code is auto-generated. Do not modify anything in this block.
 
@@ -14,15 +14,11 @@ class Truck(Document):
 	if TYPE_CHECKING:
 		from frappe.types import DF
 
-		autograde_id: DF.Data | None
-		disabled: DF.Check
-		driver_name: DF.Data | None
-		pending: DF.Check
-		plate_normalized: DF.Data | None
-		plate_number: DF.Data
-		source: DF.Literal["Manual", "AutoGrade", "Scale"]
-		supplier: DF.Link | None
-		vehicle_class: DF.Literal["Colt Diesel", "Dump Truck", "Tronton"]
+		deduction_pct: DF.Percent
+		kriteria: DF.Data
+		parent: DF.Data
+		parentfield: DF.Data
+		parenttype: DF.Data
 	# end: auto-generated types
 
 	pass

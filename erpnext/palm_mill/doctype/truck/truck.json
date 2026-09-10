@@ -11,7 +11,13 @@
   "supplier",
   "vehicle_class",
   "driver_name",
-  "disabled"
+  "disabled",
+  "integration_section",
+  "plate_normalized",
+  "autograde_id",
+  "integration_column",
+  "pending",
+  "source"
  ],
  "fields": [
   {
@@ -49,12 +55,55 @@
    "fieldname": "disabled",
    "fieldtype": "Check",
    "label": "Nonaktif"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "integration_section",
+   "fieldtype": "Section Break",
+   "label": "Integrasi"
+  },
+  {
+   "description": "Huruf dan angka saja; kunci pencocokan dengan AutoGrade dan timbangan",
+   "fieldname": "plate_normalized",
+   "fieldtype": "Data",
+   "label": "Plat (Normalisasi)",
+   "no_copy": 1,
+   "read_only": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "autograde_id",
+   "fieldtype": "Data",
+   "label": "AutoGrade ID",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "integration_column",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "description": "Dibuat otomatis dari pabrik; lengkapi pemilik dan jenis kendaraan",
+   "fieldname": "pending",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Perlu Dilengkapi"
+  },
+  {
+   "default": "Manual",
+   "fieldname": "source",
+   "fieldtype": "Select",
+   "label": "Sumber Data",
+   "options": "Manual\nAutoGrade\nScale",
+   "read_only": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-09-10 07:59:19.184018",
+ "modified": "2026-09-10 08:11:50.686989",
  "modified_by": "Administrator",
  "module": "Palm Mill",
  "name": "Truck",
@@ -71,6 +120,21 @@
    "report": 1,
    "role": "System Manager",
    "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "export": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Weighbridge Operator",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "role": "Palm Mill Integration",
    "write": 1
   }
  ],
