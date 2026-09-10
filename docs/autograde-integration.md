@@ -1,6 +1,8 @@
 # AutoGrade → AutoERP integration design
 
-*Status: AutoERP side shipped 2026-09-10 in `erpnext/palm_mill` (branch `feat/palm-mill-module`). AutoGrade side: not started.*
+*Status: AutoERP side shipped 2026-09-10 in `erpnext/palm_mill` (branch `feat/palm-mill-module`), with AutoGrade as
+the single caller: the scale program feeds AutoGrade, and AutoGrade sends each visit (weights + grading) to AutoERP.
+AutoGrade side: not started.*
 
 ## 0. The question this answers
 
@@ -34,11 +36,11 @@ any sequence.
 
 | # | Where | Physically | System event | Weighbridge Ticket |
 |---|---|---|---|---|
-| 1 | Gate, weighbridge | Truck drives on loaded; plate and supplier noted | Scale → `upsert_weighing` (gross, time in). Unknown plate → pending Truck | created, **Waiting Weight** |
+| 1 | Gate, weighbridge | Truck drives on loaded; plate and supplier noted | Scale → AutoGrade (mill edge): gate weighing opens a visit. AutoGrade → `upsert_visit` (stage gate). Unknown plate → pending Truck | created, **Waiting Weight** |
 | 2 | Loading ramp | Fruit unloaded onto the grading line | Operator assigns the truck to the AutoGrade line | unchanged |
 | 3 | Grading line | Camera grades every bunch: ACC or REJ; long stalks flagged among ACC; operator can force a reject | Vision → AutoGrade (hourly batches) | unchanged |
-| 4 | Grading line | **Rejected bunches go back on the truck**; accepted fruit stays in the ramp | AutoGrade closes the assignment → `upsert_grading_session` (counts, %) | sortasi rows written; **Waiting Weight** or **Ready** |
-| 5 | Weighbridge | Truck weighs out **with the rejects on board**: the tare includes them, so net = what stayed | Scale → `upsert_weighing` (tare, time out) | net set; **Waiting Grading** or **Ready** |
+| 4 | Grading line | **Rejected bunches go back on the truck**; accepted fruit stays in the ramp | AutoGrade closes the assignment → `upsert_visit` (stage grading: counts, %) | sortasi rows written; **Waiting Weight** or **Ready** |
+| 5 | Weighbridge | Truck weighs out **with the rejects on board**: the tare includes them, so net = what stayed | Scale → AutoGrade: weigh-out. AutoGrade → `upsert_visit` (stage departed: tare, time out) | net set; **Waiting Grading** or **Ready** |
 | 6 | AutoERP | Nothing physical | `try_finalize`: potongan and payable kg from the rules, price from the Item Price, submit | **Finalised** |
 | 7 | AutoERP | Nothing physical | Purchase Receipt (Plasma / Pihak Ketiga) or Material Receipt (Inti) into the TBS warehouse, daily batch `TBS-YYYYMMDD`, item discount = potongan | receipt / stock entry linked |
 | 8 | Backoffice, later | Purchase Invoice per supplier per period, Payment Entry; supplier scorecards; production draws on the batch | standard ERPNext | — |
@@ -68,10 +70,11 @@ line returns rejects, and keep it only where rejects are accepted with a discoun
 
 - **AutoERP is the system of record** for suppliers, trucks, prices, deductions, tickets, receipts, payments.
 - **AutoGrade is a sensor/operations system.** It owns line assignments, per-bunch inspections and images.
-- **The scale program is the weight source.** It feeds AutoERP, not AutoGrade.
+- **The scale program is the weight source, and it feeds AutoGrade**, not AutoERP: one system talks to the ERP,
+  and AutoGrade knows every truck's weight for its own analytics.
 - **One truck visit = one Weighbridge Ticket** in AutoERP. Grading and weight attach to it independently;
   the ticket finalises itself when both are present, or on timeout.
-- **The integration point is AutoGrade cloud**, never the edge. The mill needs no ERP credentials or link.
+- **AutoGrade cloud is the only caller of AutoERP.** The mill edge and the scale program never hold ERP credentials.
 - **Idempotent upserts with natural keys** everywhere; retries are always safe.
 
 ## 2. Ownership and direction
@@ -83,7 +86,7 @@ line returns rejects, and keep it only where rejects are accepted with a discoun
 | Site ↔ Company / Warehouse mapping | AutoERP | configured once on the AutoGrade site record |
 | Line assignment, per-bunch inspections, images | AutoGrade | stays; ERP gets a summary and a deep link |
 | Grading session summary (per visit) | AutoGrade | AutoGrade cloud → AutoERP |
-| Gross / tare / net, time in / out | Scale program | Scale → AutoERP (or manual entry on the ticket form) |
+| Gross / tare / net, time in / out | Scale program | Scale → AutoGrade edge → cloud → AutoERP, inside the visit message (or typed on the ticket form) |
 | Deduction rules, price, sumber TBS, blok | AutoERP | internal |
 | Purchase Receipt / Stock Entry / Invoice / Payment | AutoERP | internal, created from the ticket |
 
@@ -98,8 +101,10 @@ Not synced: users, roles, machines, per-bunch rows, images, anything edge → ER
 - **Supplier.** AutoERP `Supplier.name` is the id. AutoGrade adds `suppliers.erp_name` (nullable until
   matched). No matching by display name after a one-time initial reconciliation.
 - **Site.** AutoGrade `sites` gets `erp_company` and `erp_warehouse` (receiving warehouse for TBS).
-- **Visit.** AutoGrade `line_assignments.id` → AutoERP `Weighbridge Ticket.autograde_assignment_id` (unique).
-- **Weighing.** Scale ticket number → `Weighbridge Ticket.scale_ticket_no` (unique).
+- **Visit.** AutoGrade creates a visit id when the gate weighing arrives → `Weighbridge Ticket.autograde_visit_id`
+  (unique, the primary integration key). The line assignment id and the scale ticket number are stored as
+  secondary keys (`autograde_assignment_id`, `scale_ticket_no`), so a ticket typed by hand from the scale slip is
+  adopted by the visit when AutoGrade catches up.
 - Timestamps are ISO-8601 with offset; the site timezone (AutoGrade `sites.timezone`) decides `ticket_date`.
 
 ## 4. Interfaces
@@ -137,56 +142,44 @@ The backoffice completes the truck in AutoERP (supplier, class) and the next pul
 covers vision's `UNKNOWN-xxxx` stubs: they stay `pending=1` until someone types the real plate in AutoERP,
 at which point AutoGrade merges through its existing `truck_aliases` mechanism.
 
-### C. Grading session summary — AutoGrade cloud → AutoERP
-
-Trigger: the cloud sees `line_assignments.status='closed'` (via the existing push from the edge). Vision
-uploads in hourly batches, so events can arrive after close: re-emit the summary whenever new inspections
-land for a closed assignment within 24 h. The payload is a full replacement, never a delta.
-
+### C. The visit — AutoGrade cloud → AutoERP (at each stage, and resent daily)
+One message per truck visit, sent when the gate weighing arrives, when the line assignment closes, and when
+the truck weighs out; a daily job resends yesterday's visits as a safety net. Every send is a full replacement
+of the sections it carries; `stage` is informational. `weighing.time_in` is required (it dates the ticket);
+`tare_kg` / `time_out` come at departure, `grading` when the assignment closes. Because the rejected bunches are
+back on the truck for the second weighing, net = gross − tare is what stayed at the mill.
 ```
-POST /api/method/erpnext.palm_mill.api.upsert_grading_session
-{ "assignment_id": "<uuid>", "site": "<erp_company>", "line_code": "L1",
-  "truck": {"plate_number": "B 5455 DK", "autograde_id": "<uuid>", "erp_name": "B 5455 DK"},
-  "supplier_erp_name": "KUD Sumber Makmur",
-  "started_at": "2026-09-10T08:12:00+07:00", "ended_at": "2026-09-10T08:41:00+07:00",
-  "counts": {"total": 412, "acc": 371, "rej": 41, "mentah": 41, "tangkai_panjang": 23, "manual_reject": 3},
-  "pct": {"mentah": 9.95, "tangkai_panjang": 5.58},
-  "detail_url": "https://app.smagri.id/dashboard/gradings?assignment=<uuid>",
-  "emitted_at": "2026-09-10T09:05:10+07:00" }
+POST /api/method/erpnext.palm_mill.api.upsert_visit
+{ "visit_id": "<uuid>", "site": "<erp company>", "stage": "gate | grading | departed",
+  "truck": {"plate_number": "B 7154 QY", "autograde_id": "<uuid>"}, "supplier_erp_name": "KUD Sumber Makmur",
+  "scale_ticket_no": "SCL-2026-000201",
+  "weighing": {"gross_kg": 14560, "time_in": "2026-09-10T07:41:00+07:00",
+               "tare_kg": 5400, "time_out": "2026-09-10T08:35:00+07:00", "driver_name": "Yusuf Maulana"},
+  "grading":  {"assignment_id": "<uuid>", "line_code": "L1",
+               "started_at": "2026-09-10T07:58:00+07:00", "ended_at": "2026-09-10T08:23:00+07:00",
+               "counts": {"total": 412, "acc": 371, "rej": 41, "mentah": 41, "tangkai_panjang": 23, "manual_reject": 3},
+               "pct": {"mentah": 9.95, "tangkai_panjang": 5.58},
+               "detail_url": "https://app.smagri.id/dashboard/gradings?assignment=<uuid>"},
+  "emitted_at": "2026-09-10T08:35:30+07:00" }
 ```
-
-Criteria mapping (from `getGradingAverage`): `mentah` = REJ; `tangkai_panjang` = ACC with
-`tp_confidence > 0.8`; `matang` = the rest. Sampah and brondolan are not measured by AutoGrade and are
-**not** sent (AutoGrade hardcodes them to 0).
+Criteria mapping (from `getGradingAverage`): `mentah` = REJ (returned to the truck); `tangkai_panjang` = ACC with
+`tp_confidence > 0.8`; `matang` = the rest. Sampah and brondolan are not measured by AutoGrade and are not sent.
 
 AutoERP handler:
 
-1. Resolve the Truck by `plate_normalized` (create pending as in B). Supplier = payload's, else `Truck.supplier`.
-2. Find the visit's ticket: same company and truck, `docstatus=0`, `ticket_date` = local date of
-   `started_at`, and `[time_in − 2 h, time_out + 2 h]` overlapping `[started_at, ended_at]`; else match on
-   `autograde_assignment_id`; else create a draft ticket (`sumber_tbs` from supplier group: Plasma → Plasma,
-   Agen TBS → Pihak Ketiga, no supplier → Inti).
-3. Write the `grading` child rows (Mentah / Tangkai Panjang / Matang with `persen`) plus new fields
-   `autograde_assignment_id`, `autograde_url`, `grading_total`, `grading_acc`, `grading_rej`,
-   `grading_received_at`.
-4. Call `try_finalize` (E). If the ticket is already submitted, do not rewrite: add a Comment
-   "AutoGrade revised: …" and set `grading_revised=1` for review.
+1. Resolve the Truck by `plate_normalized` (create pending as in B). Supplier = the ticket's, else the truck's,
+   else the payload's.
+2. Find the ticket: by `autograde_visit_id`, else `scale_ticket_no`, else `autograde_assignment_id`, else the
+   truck's open ticket whose window (± `match_window_hours`) overlaps the weighing, else a new draft.
+3. Apply the weighing section (gross, tare, times, driver) and, when present, the grading section: replace the
+   Mentah / Tangkai Panjang / Matang rows, keep operator-typed rows (Sampah, Lewat Matang), set the counts,
+   the AutoGrade link and `grading_received_at`.
+4. `try_finalize` (E). On a finalised ticket nothing is rewritten: identical numbers are acknowledged
+   ("visit unchanged"); changed grading sets `grading_revised` and leaves a Comment; changed weights leave a
+   Comment.
 
-### D. Weights — scale program → AutoERP
-
-```
-POST /api/method/erpnext.palm_mill.api.upsert_weighing
-{ "scale_ticket_no": "SCL-000123", "site": "<erp_company>", "plate_number": "B 5455 DK",
-  "gross_kg": 14560, "tare_kg": 5400, "time_in": "2026-09-10T08:03:00+07:00",
-  "time_out": "2026-09-10T08:52:00+07:00", "driver_name": "Yusuf Maulana" }
-```
-
-Same match-or-create as C, keyed first by `scale_ticket_no`, then by plate and window. Sent twice per
-visit: at the gate with `gross_kg` and `time_in` (the ticket opens in Waiting Weight), and at weigh-out with
-`tare_kg` and `time_out`; net = gross − tare, and because the rejected bunches are back on the truck for the
-second weighing, net is what stayed at the mill. Then `try_finalize`. **Manual fallback:** the weighbridge operator fills the same ticket
-form in AutoERP; everything downstream is identical. The scale program's real API is unknown; if it can only
-export files, a small poller on the mill PC that POSTs each new record is the adapter.
+Manual fallback: the weighbridge operator types the scale slip into the ticket form; the visit adopts that
+ticket through `scale_ticket_no`. The scale program itself is an AutoGrade edge concern (§7.2).
 
 ### E. Finalisation — inside AutoERP (the automation that does not exist today)
 
@@ -216,11 +209,12 @@ whoever finalises a ticket (integration user, scheduler as Administrator, or an 
 - **Outbox in AutoGrade cloud.** Table `erp_outbox(id, kind, key, payload jsonb, status, attempts, last_error,
   next_attempt_at)` and a 30-second single-flight worker with exponential backoff, same shape as `edgeSync`.
   B and C write to the outbox; the worker POSTs. `error` rows are visible on the backoffice UI.
-- **Auth.** AutoERP API key/secret for a dedicated `autograde-integration` user holding the roles
-  Palm Mill Integration (Truck + Weighbridge Ticket), Purchase User and Stock User (finalisation creates
-  receipts, batches and stock entries under ERPNext's own permission checks). Env in AutoGrade:
-  `ERP_BASE_URL`, `ERP_API_KEY`, `ERP_API_SECRET`. The scale adapter gets its own user and key
-  (`erpnext.palm_mill.setup.create_integration_user`).
+- **Auth.** One AutoERP API key/secret for the `autograde-integration` user holding the roles Palm Mill
+  Integration (Truck + Weighbridge Ticket), Purchase User and Stock User (finalisation creates receipts, batches
+  and stock entries under ERPNext's own permission checks). Env in AutoGrade: `ERP_BASE_URL`, `ERP_API_KEY`,
+  `ERP_API_SECRET` (`erpnext.palm_mill.setup.create_integration_user`). No other system holds ERP credentials.
+- **Daily resend.** AutoGrade resends all of yesterday's visits once a day; idempotent upserts make this free
+  and it closes any gap the outbox left.
 - **Idempotency.** `assignment_id`, `scale_ticket_no`, `plate_normalized` are unique on the ERP side; handlers
   are upserts; the outbox can be replayed at will.
 - **Observability.** ERP `Error Log` plus a `Weighbridge Ticket` list filter for "waiting for weight /
@@ -261,13 +255,14 @@ Interface A exposes `plate_normalized`, `pending`, `disabled`, `supplier`, `vehi
 
 | Field | Type | Rules |
 |---|---|---|
-| `autograde_assignment_id` | Data, unique when set | Natural key for interface C. |
+| `autograde_visit_id` | Data, unique when set | Primary key for interface C (AutoGrade's visit id). |
+| `autograde_assignment_id` | Data, unique when set | Secondary key: the line assignment. |
 | `autograde_url` | Data | Deep link to the AutoGrade session; shown as a button on the form. |
 | `grading_total`, `grading_acc`, `grading_rej` | Int | Raw counts from C; `persen` rows in `grading` are derived from them. |
 | `grading_received_at` | Datetime | Last time C wrote to this ticket. |
 | `grading_missing` | Check | Set by E when finalised on timeout without grading. |
 | `grading_revised` | Check | Set when C arrives after submit; ticket needs review. |
-| `scale_ticket_no` | Data, unique when set | Natural key for interface D. |
+| `scale_ticket_no` | Data, unique when set | Secondary key: the scale's slip number; lets a hand-typed ticket be adopted. |
 | `weight_received_at` | Datetime | Last time D wrote to this ticket. |
 | `status` | Select `Waiting Weight` / `Waiting Grading` / `Ready` / `Finalised`, read-only | Maintained by `try_finalize`; drives the list filters in §5. |
 
@@ -293,10 +288,13 @@ generator no longer creates schema; `pks_02_schema.py` only checks it is present
 | `suppliers` | `erp_name` Text, nullable, unique | Filled by the pull (A). Row is read-only in the UI once set. |
 | `trucks` | `erp_name` Text, nullable, unique | Filled by A or by the response to B. Row is read-only in the UI once set. |
 | `sync_state` | `erp_pull_cursor` Timestamp | Last `modified` seen from AutoERP. |
+| `weighings` (new, edge) | `id`, `visit_id`, `scale_ticket_no`, `plate_number`, `gross_kg`, `tare_kg`, `time_in`, `time_out`, `driver_name`, `sync_status` | Written by the scale intake at the mill (`POST /internal/weighbridge/weighings` from the scale adapter); synced to cloud by `edgeSync`. |
+| `visits` (new) | `id`, `site_id`, `truck_id`, `weighing_id`, `assignment_id`, `stage`, `erp_ticket` | Created at the gate weighing; the line assignment links to it. |
 | `erp_outbox` (new) | `id`, `kind` (`truck` / `grading_session`), `key` Text, `payload` JSONB, `status` (`pending` / `sent` / `error`), `attempts` Int, `last_error` Text, `next_attempt_at` Timestamp | Unique on (`kind`, `key`); a re-emit overwrites the payload and resets status to `pending`. |
 
-Jobs: ERP pull every 5 min (A); outbox drain every 30 s single-flight (B, C); assignment-close → summary
-(C); late-event re-emit for closed assignments within 24 h (C). Nothing changes at the edge or in vision.
+Jobs: ERP pull every 5 min (A); outbox drain every 30 s single-flight (B, C); visit stage change → send (C);
+late-event re-emit for closed assignments within 24 h (C); daily resend of yesterday's visits (C). At the
+edge: the scale intake endpoint and the `weighings` / `visits` tables; vision is unchanged.
 
 ## 8. Open decisions (business input)
 
@@ -433,7 +431,7 @@ Critical path: OPS-1 → ERP-1/2/3 → OPS-2 → AG-1…5 + ERP-4 → ERP-5…8 
 
 ### Phase 2 — weights and finalisation (interfaces D and E), no AutoGrade work
 
-**ERP-5 · AutoERP · `upsert_weighing` (D)** · M · **done 2026-09-10**
+**ERP-5 · AutoERP · `upsert_weighing` (D)** · M · **replaced 2026-09-10 by `upsert_visit` (one message from AutoGrade)**
 - **Do:** Whitelisted method `autoerp.integrations.weighbridge.upsert_weighing`. Match order: `scale_ticket_no`;
   then same company + truck (by normalised plate, creating a pending Truck if needed) + draft + `ticket_date` =
   local date of `time_in` + window overlap ±2 h; else create a draft ticket with `sumber_tbs` from the
@@ -467,19 +465,21 @@ Critical path: OPS-1 → ERP-1/2/3 → OPS-2 → AG-1…5 + ERP-4 → ERP-5…8 
 - **Done when:** an operator can take a load from arrival to submitted receipt without the scale adapter.
 - **Needs:** ERP-6, ERP-7.
 
-**SC-1 · scale · Adapter discovery** · S
+**SC-1 · scale → AutoGrade · Adapter discovery** · S
 - **Do:** Find out what the scale program exposes: HTTP API, a database, a CSV/print export, or nothing. Capture
   a sample of one day's records with field names. Choose the adapter shape (poll DB, tail export folder, or
   manual entry only).
 - **Done when:** a one-page note names the source, the fields that map to §4D, and the chosen shape.
 - **Needs:** nothing.
 
-**SC-2 · scale · Adapter** · M
-- **Do:** Small service on the mill PC, outbound only: read new weighings from the source chosen in SC-1, POST
-  each to `upsert_weighing` with `scale_ticket_no` as the key, keep a local checkpoint of the last ticket
-  number, retry queue on failure. Uses the `scale-integration` key.
-- **Done when:** after a 2-hour internet outage every weighing arrives once, in order, with no operator action.
-- **Needs:** SC-1, ERP-5, OPS-1.
+**SC-2 · AutoGrade edge · Weighbridge intake** · M
+- **Do:** In palmgrade-api at the edge: `POST /internal/weighbridge/weighings` (shared secret like vision's),
+  `weighings` + `visits` tables, a visit opened by the gate weighing and linked to the line assignment; a small
+  poller on the mill PC reads the source chosen in SC-1 and posts each weighing there. Rows sync to the cloud by
+  the existing `edgeSync`; the cloud outbox sends `upsert_visit` on every stage change.
+- **Done when:** after a 2-hour internet outage every weighing reaches the cloud and AutoERP once, in order,
+  with no operator action.
+- **Needs:** SC-1, AG-1, AG-4, ERP-10.
 
 **ERP-9 · AutoERP · Finalisation tests** · S · **written 2026-09-10, not yet run (needs a test site)**
 - **Do:** Unit tests for match-or-create (by key, by window, create), readiness, and deduction math in three
@@ -505,7 +505,7 @@ Critical path: OPS-1 → ERP-1/2/3 → OPS-2 → AG-1…5 + ERP-4 → ERP-5…8 
 - **Done when:** closing an assignment sends one summary; a late batch sends exactly one more with higher totals.
 - **Needs:** AG-4, AG-6, ERP-10.
 
-**ERP-10 · AutoERP · `upsert_grading_session` (C)** · M · **done 2026-09-10**
+**ERP-10 · AutoERP · `upsert_visit` (C)** · M · **done 2026-09-10** (replaces the grading and weighing endpoints)
 - **Do:** Whitelisted method `autoerp.integrations.autograde.upsert_grading_session`, steps 1–4 of §4C. Key:
   `autograde_assignment_id`. Writes the `grading` rows (Mentah / Tangkai Panjang / Matang) and the count fields,
   then `try_finalize`. If the ticket is already submitted: no rewrite, set `grading_revised=1`, add a Comment

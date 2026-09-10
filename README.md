@@ -127,8 +127,8 @@ Clone this repo (collaborator access is enough), branch off `main`, and open a P
 `erpnext/palm_mill` is the palm-oil-mill module of this fork: the sawit DocTypes (Weighbridge
 Ticket, Weighbridge Grading, Truck, Blok, Kebun, Divisi, Sumber TBS, Sertifikasi, Harvester Premi),
 Palm Mill Settings, the "Pabrik Kelapa Sawit" workspace with its cards and charts, the ticket
-finalisation logic, and the inbound endpoints for the grading system and the weighbridge
-(`erpnext.palm_mill.api.upsert_truck`, `upsert_weighing`, `upsert_grading_session`). The design is
+finalisation logic, and the inbound endpoints for AutoGrade, the one system that talks to the ERP
+(`erpnext.palm_mill.api.upsert_truck` and `upsert_visit`; the scale program feeds AutoGrade). The design is
 in `docs/autograde-integration.md`.
 
 Rules that keep a site healthy:
