@@ -416,8 +416,9 @@ def finalize_due_tickets():
 		"Weighbridge Ticket", {"docstatus": 0, "net_weight_kg": [">", 0]}, pluck="name"
 	):
 		try:
-			if frappe.get_doc("Weighbridge Ticket", name).try_finalize():
+			if frappe.get_doc("Weighbridge Ticket", name).try_finalize() and not frappe.in_test:
 				frappe.db.commit()
 		except Exception:
-			frappe.db.rollback()
+			if not frappe.in_test:
+				frappe.db.rollback()
 			frappe.log_error(title=_("Weighbridge Ticket auto-finalise failed: {0}").format(name))
