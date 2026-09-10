@@ -1,0 +1,126 @@
+{
+ "app": "erpnext",
+ "charts": [
+  {
+   "chart_name": "PKS Penerimaan TBS Harian"
+  },
+  {
+   "chart_name": "PKS TBS per Sumber"
+  },
+  {
+   "chart_name": "PKS TBS per Sertifikasi"
+  },
+  {
+   "chart_name": "PKS Pembelian per Pemasok"
+  }
+ ],
+ "content": "[{\"id\": \"hdr1\", \"type\": \"header\", \"data\": {\"text\": \"<span class='h4'>Ringkasan Operasional</span>\", \"col\": 12}}, {\"id\": \"nc-TBS Diterima (kg)\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"TBS Diterima (kg)\", \"col\": 4}}, {\"id\": \"nc-Tiket Timbang\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Tiket Timbang\", \"col\": 4}}, {\"id\": \"nc-Nilai Pembelian TBS\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Nilai Pembelian TBS\", \"col\": 4}}, {\"id\": \"nc-Piutang Usaha\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Piutang Usaha\", \"col\": 4}}, {\"id\": \"nc-Hutang Usaha\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Hutang Usaha\", \"col\": 4}}, {\"id\": \"nc-Penjualan\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Penjualan\", \"col\": 4}}, {\"id\": \"hdr2\", \"type\": \"header\", \"data\": {\"text\": \"<span class='h4'>Tren & Komposisi</span>\", \"col\": 12}}, {\"id\": \"ch-PKS Penerimaan TBS Harian\", \"type\": \"chart\", \"data\": {\"chart_name\": \"PKS Penerimaan TBS Harian\", \"col\": 6}}, {\"id\": \"ch-PKS TBS per Sumber\", \"type\": \"chart\", \"data\": {\"chart_name\": \"PKS TBS per Sumber\", \"col\": 6}}, {\"id\": \"ch-PKS TBS per Sertifikasi\", \"type\": \"chart\", \"data\": {\"chart_name\": \"PKS TBS per Sertifikasi\", \"col\": 6}}, {\"id\": \"ch-PKS Pembelian per Pemasok\", \"type\": \"chart\", \"data\": {\"chart_name\": \"PKS Pembelian per Pemasok\", \"col\": 6}}, {\"id\": \"hdr3\", \"type\": \"header\", \"data\": {\"text\": \"<span class='h4'>Dokumen</span>\", \"col\": 12}}, {\"id\": \"sc-Weighbridge Ticket\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Weighbridge Ticket\", \"col\": 3}}, {\"id\": \"sc-Stock Entry\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Stock Entry\", \"col\": 3}}, {\"id\": \"sc-Purchase Invoice\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Purchase Invoice\", \"col\": 3}}, {\"id\": \"sc-Sales Invoice\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Sales Invoice\", \"col\": 3}}, {\"id\": \"sc-Quality Inspection\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Quality Inspection\", \"col\": 3}}, {\"id\": \"sc-Blok\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Blok\", \"col\": 3}}, {\"id\": \"sc-Truck\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Truck\", \"col\": 3}}, {\"id\": \"sc-Batch\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Batch\", \"col\": 3}}, {\"id\": \"sc-Asset\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Asset\", \"col\": 3}}]",
+ "creation": "2026-09-10 08:03:44.363318",
+ "custom_blocks": [],
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "hide_custom": 0,
+ "icon": "sell",
+ "idx": 0,
+ "indicator_color": "green",
+ "is_hidden": 0,
+ "label": "Pabrik Kelapa Sawit",
+ "link_type": "DocType",
+ "links": [],
+ "modified": "2026-09-10 08:03:44.363318",
+ "modified_by": "Administrator",
+ "module": "Palm Mill",
+ "name": "Pabrik Kelapa Sawit",
+ "number_cards": [
+  {
+   "number_card_name": "TBS Diterima (kg)"
+  },
+  {
+   "number_card_name": "Tiket Timbang"
+  },
+  {
+   "number_card_name": "Nilai Pembelian TBS"
+  },
+  {
+   "number_card_name": "Piutang Usaha"
+  },
+  {
+   "number_card_name": "Hutang Usaha"
+  },
+  {
+   "number_card_name": "Penjualan"
+  }
+ ],
+ "owner": "Administrator",
+ "public": 1,
+ "quick_lists": [],
+ "roles": [],
+ "sequence_id": 1.0,
+ "shortcuts": [
+  {
+   "color": "Grey",
+   "doc_view": "",
+   "label": "Tiket Timbang",
+   "link_to": "Weighbridge Ticket",
+   "type": "DocType"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "",
+   "label": "Produksi & Mutasi",
+   "link_to": "Stock Entry",
+   "type": "DocType"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "",
+   "label": "Faktur Pembelian",
+   "link_to": "Purchase Invoice",
+   "type": "DocType"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "",
+   "label": "Faktur Penjualan",
+   "link_to": "Sales Invoice",
+   "type": "DocType"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "",
+   "label": "Hasil Lab",
+   "link_to": "Quality Inspection",
+   "type": "DocType"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "",
+   "label": "Blok Kebun",
+   "link_to": "Blok",
+   "type": "DocType"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "",
+   "label": "Truk TBS",
+   "link_to": "Truck",
+   "type": "DocType"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "",
+   "label": "Batch CPO/PK",
+   "link_to": "Batch",
+   "type": "DocType"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "",
+   "label": "Mesin Pabrik",
+   "link_to": "Asset",
+   "type": "DocType"
+  }
+ ],
+ "title": "Pabrik Kelapa Sawit",
+ "type": "Workspace"
+}

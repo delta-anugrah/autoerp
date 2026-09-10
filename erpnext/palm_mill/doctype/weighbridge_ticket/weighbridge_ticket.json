@@ -1,0 +1,239 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "WB-.YYYY.-.#####",
+ "creation": "2026-09-07 13:36:48.215589",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "ticket_date",
+  "company",
+  "sumber_tbs",
+  "supplier",
+  "blok",
+  "sertifikasi",
+  "truck",
+  "vehicle_no",
+  "vehicle_class",
+  "driver_name",
+  "time_in",
+  "time_out",
+  "gross_weight_kg",
+  "tare_weight_kg",
+  "net_weight_kg",
+  "grading",
+  "sampah_kg",
+  "potongan_pct",
+  "net_after_deduction_kg",
+  "harga_per_kg",
+  "nilai",
+  "purchase_receipt",
+  "stock_entry",
+  "catatan",
+  "amended_from"
+ ],
+ "fields": [
+  {
+   "fieldname": "ticket_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Tanggal",
+   "reqd": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1
+  },
+  {
+   "fieldname": "sumber_tbs",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Sumber TBS",
+   "options": "Inti\nPlasma\nPihak Ketiga",
+   "reqd": 1
+  },
+  {
+   "fieldname": "supplier",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Supplier",
+   "options": "Supplier"
+  },
+  {
+   "fieldname": "blok",
+   "fieldtype": "Link",
+   "label": "Blok",
+   "options": "Blok"
+  },
+  {
+   "fieldname": "sertifikasi",
+   "fieldtype": "Select",
+   "in_standard_filter": 1,
+   "label": "Sertifikasi",
+   "options": "ISPO\nRSPO\nNon-sertifikasi"
+  },
+  {
+   "fieldname": "truck",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Truk",
+   "options": "Truck"
+  },
+  {
+   "fetch_from": "truck.plate_number",
+   "fieldname": "vehicle_no",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "No. Kendaraan"
+  },
+  {
+   "fetch_from": "truck.vehicle_class",
+   "fieldname": "vehicle_class",
+   "fieldtype": "Data",
+   "label": "Jenis Kendaraan"
+  },
+  {
+   "fetch_from": "truck.driver_name",
+   "fetch_if_empty": 1,
+   "fieldname": "driver_name",
+   "fieldtype": "Data",
+   "label": "Nama Sopir"
+  },
+  {
+   "fieldname": "time_in",
+   "fieldtype": "Time",
+   "label": "Jam Masuk"
+  },
+  {
+   "fieldname": "time_out",
+   "fieldtype": "Time",
+   "label": "Jam Keluar"
+  },
+  {
+   "fieldname": "gross_weight_kg",
+   "fieldtype": "Float",
+   "label": "Bruto (Kg)",
+   "precision": "2",
+   "reqd": 1
+  },
+  {
+   "fieldname": "tare_weight_kg",
+   "fieldtype": "Float",
+   "label": "Tara (Kg)",
+   "precision": "2",
+   "reqd": 1
+  },
+  {
+   "fieldname": "net_weight_kg",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Netto (Kg)",
+   "precision": "2",
+   "reqd": 1
+  },
+  {
+   "fieldname": "grading",
+   "fieldtype": "Table",
+   "label": "Sortasi",
+   "options": "Weighbridge Grading"
+  },
+  {
+   "fieldname": "sampah_kg",
+   "fieldtype": "Float",
+   "label": "Sampah (Kg)",
+   "precision": "2"
+  },
+  {
+   "fieldname": "potongan_pct",
+   "fieldtype": "Percent",
+   "in_list_view": 1,
+   "label": "Potongan (%)",
+   "precision": "2"
+  },
+  {
+   "fieldname": "net_after_deduction_kg",
+   "fieldtype": "Float",
+   "label": "Netto Setelah Potongan (Kg)",
+   "precision": "2"
+  },
+  {
+   "fieldname": "harga_per_kg",
+   "fieldtype": "Currency",
+   "label": "Harga (Rp/Kg)"
+  },
+  {
+   "fieldname": "nilai",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Nilai"
+  },
+  {
+   "fieldname": "purchase_receipt",
+   "fieldtype": "Link",
+   "label": "Purchase Receipt",
+   "options": "Purchase Receipt",
+   "read_only": 1
+  },
+  {
+   "fieldname": "stock_entry",
+   "fieldtype": "Link",
+   "label": "Stock Entry",
+   "options": "Stock Entry",
+   "read_only": 1
+  },
+  {
+   "fieldname": "catatan",
+   "fieldtype": "Small Text",
+   "label": "Catatan"
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Weighbridge Ticket",
+   "print_hide": 1,
+   "read_only": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2026-09-10 07:59:19.312450",
+ "modified_by": "Administrator",
+ "module": "Palm Mill",
+ "name": "Weighbridge Ticket",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "amend": 1,
+   "cancel": 1,
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "ticket_date",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}
