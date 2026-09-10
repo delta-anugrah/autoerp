@@ -39,6 +39,7 @@ class WeighbridgeTicket(Document):
 		amended_from: DF.Link | None
 		autograde_assignment_id: DF.Data | None
 		autograde_url: DF.Data | None
+		autograde_visit_id: DF.Data | None
 		blok: DF.Link | None
 		catatan: DF.SmallText | None
 		company: DF.Link
@@ -239,7 +240,7 @@ class WeighbridgeTicket(Document):
 			"discount_percentage": flt(self.potongan_pct),
 			"cost_center": s.purchase_cost_center,
 			"use_serial_batch_fields": 1,
-			"batch_no": get_or_create_daily_batch(s.tbs_item, self.ticket_date),
+			"batch_no": get_or_create_daily_batch(s.tbs_item, self.ticket_date, self.name),
 			"custom_grading_note": self.grading_note(),
 			**self.dimension_values(),
 		}
@@ -279,7 +280,7 @@ class WeighbridgeTicket(Document):
 			posting_date=self.ticket_date,
 			posting_time=self.time_in,
 			purpose="Material Receipt",
-			batch_no=get_or_create_daily_batch(s.tbs_item, self.ticket_date),
+			batch_no=get_or_create_daily_batch(s.tbs_item, self.ticket_date, self.name),
 			use_serial_batch_fields=1,
 			cost_center=cost_center,
 			expense_account=s.inti_expense_account,
@@ -331,14 +332,25 @@ def sumber_for_supplier(supplier: str | None) -> str:
 	return "Plasma" if group and group == settings().plasma_supplier_group else "Pihak Ketiga"
 
 
-def get_or_create_daily_batch(item_code: str, date) -> str:
-	"""The demo convention: one TBS batch per receiving day, named TBS-YYYYMMDD."""
+def get_or_create_daily_batch(item_code: str, date, ticket: str | None = None) -> str:
+	"""The demo convention: one TBS batch per receiving day, named TBS-YYYYMMDD.
+
+	The batch is referenced to the ticket that created it. A batch without a reference
+	gets adopted by the first receipt that uses it, and ERPNext then deletes it when that
+	receipt is cancelled, which fails once other tickets share the day's batch."""
 	batch_id = f"TBS-{getdate(date):%Y%m%d}"
 	if not frappe.db.exists("Batch", batch_id):
 		# A derived record, created the way ERPNext creates its own automatic batches
 		# (erpnext.stock.serial_batch_bundle.make_batch): without a Batch permission check.
 		frappe.get_doc(
-			{"doctype": "Batch", "batch_id": batch_id, "item": item_code, "manufacturing_date": date}
+			{
+				"doctype": "Batch",
+				"batch_id": batch_id,
+				"item": item_code,
+				"manufacturing_date": date,
+				"reference_doctype": "Weighbridge Ticket" if ticket else None,
+				"reference_name": ticket,
+			}
 		).insert(ignore_permissions=True)
 	return batch_id
 
