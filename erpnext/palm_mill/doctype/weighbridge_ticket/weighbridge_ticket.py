@@ -110,6 +110,9 @@ class WeighbridgeTicket(Document):
 		derived = sumber_for_supplier(self.supplier)
 		if not self.sumber_tbs or (self.sumber_tbs == "Inti") != (derived == "Inti"):
 			self.sumber_tbs = derived
+		# Integrations do not know the certification; an estate block does.
+		if not self.sertifikasi and self.blok:
+			self.sertifikasi = frappe.db.get_value("Blok", self.blok, "sertifikasi")
 
 	def grading_percentages(self) -> dict[str, float]:
 		return {row.kriteria: flt(row.persen) for row in self.grading}
