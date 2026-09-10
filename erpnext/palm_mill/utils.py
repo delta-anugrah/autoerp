@@ -20,8 +20,18 @@ def normalize_plate(plate: str | None) -> str:
 	return re.sub(r"[^A-Za-z0-9]", "", plate or "").upper()
 
 
+INDONESIAN_PLATE = re.compile(r"^([A-Z]{1,2})(\d{1,4})([A-Z]{0,3})$")
+
+
 def canonical_plate(plate: str) -> str:
-	"""Display form for a plate typed by a machine or a person: single spaces, upper case."""
+	"""Display form for a plate typed by a machine or a person.
+
+	Indonesian plates (area letters, number, series letters) are spaced as on the fleet
+	list, e.g. "bg9911zz" -> "BG 9911 ZZ"; anything else keeps its typing, upper-cased.
+	"""
+	match = INDONESIAN_PLATE.match(normalize_plate(plate))
+	if match:
+		return " ".join(part for part in match.groups() if part)
 	return " ".join((plate or "").split()).upper()
 
 

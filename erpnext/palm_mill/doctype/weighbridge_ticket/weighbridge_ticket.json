@@ -90,7 +90,7 @@
    "fieldtype": "Select",
    "in_standard_filter": 1,
    "label": "Sertifikasi",
-   "options": "ISPO\nRSPO\nNon-sertifikasi"
+   "options": "\nISPO\nRSPO\nNon-sertifikasi"
   },
   {
    "fieldname": "truck",
@@ -316,7 +316,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-09-10 08:15:24.405323",
+ "modified": "2026-09-10 08:25:57.239365",
  "modified_by": "Administrator",
  "module": "Palm Mill",
  "name": "Weighbridge Ticket",
