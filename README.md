@@ -55,9 +55,9 @@ Frappe's bench needs redis running on the ports in `config/redis_*.conf` (13000/
 ## Getting the palm-oil-mill demo data
 
 The sawit demo (company *PT Sawit Rambang Lestari*, 3,848 weighbridge tickets, ~7.4k transactions
-May–Jul 2026) is **data, not code**. It lives in a site's MariaDB database, so a fresh install of
+May–Jul 2026, 58 trucks linked to their TBS supplier) is **data, not code**. It lives in a site's MariaDB database, so a fresh install of
 this app is empty. To get it, restore the database dump attached to the
-[`sawit-data-2026-09-09`](https://github.com/samueljw/autoerp/releases/tag/sawit-data-2026-09-09)
+[`sawit-data-2026-09-09-truck`](https://github.com/samueljw/autoerp/releases/tag/sawit-data-2026-09-09-truck)
 release. The dump is tied to this app at commit `915bcc2` and frappe at `2231252` — use the bench
 from the section above.
 
@@ -65,7 +65,7 @@ Follow these steps top to bottom from the bench directory (`frappe-bench/`):
 
 ```bash
 # 1. download the dump (needs collaborator access to this repo; or grab it from the Releases page)
-gh release download sawit-data-2026-09-09 --repo samueljw/autoerp -D /tmp/sawit
+gh release download sawit-data-2026-09-09-truck --repo samueljw/autoerp -D /tmp/sawit
 
 # 2. a fresh site to restore into (install-app is NOT needed — the dump already contains the app)
 bench new-site pks.localhost --db-root-password <mariadb root pw> --admin-password admin
@@ -121,3 +121,28 @@ Expect conflicts in the branding files listed above; keep ours.
 ## Working on it
 
 Clone this repo (collaborator access is enough), branch off `main`, and open a PR back here. `CLAUDE.md` has notes for AI-assisted work.
+
+## Palm Mill module
+
+`erpnext/palm_mill` is the palm-oil-mill module of this fork: the sawit DocTypes (Weighbridge
+Ticket, Weighbridge Grading, Truck, Blok, Kebun, Divisi, Sumber TBS, Sertifikasi, Harvester Premi),
+Palm Mill Settings, the "Pabrik Kelapa Sawit" workspace with its cards and charts, the ticket
+finalisation logic, and the inbound endpoints for the grading system and the weighbridge
+(`erpnext.palm_mill.api.upsert_truck`, `upsert_weighing`, `upsert_grading_session`). The design is
+in `docs/autograde-integration.md`.
+
+Rules that keep a site healthy:
+
+- **Never run `bench migrate` on a checkout without `erpnext/palm_mill`.** Frappe deletes any
+  standard DocType whose controller it cannot import, and that drops the table with it.
+- After changing `modules.txt`, run `bench --site <site> clear-cache` before `migrate` on every site;
+  the module map is cached per site.
+- Integration users are created with `bench --site <site> execute
+  erpnext.palm_mill.setup.create_integration_user --kwargs '{"email": "...", "full_name": "..."}'`.
+  They hold Palm Mill Integration, Purchase User and Stock User; the key and secret are printed once.
+- Tests (`bench --site test_site run-tests --module erpnext.palm_mill.test_api` and the DocType
+  tests) need a dedicated `test_site` with `allow_tests`. Never run them on a site with real data:
+  ERPNext's test setup deletes transactions.
+- Editing these DocTypes through the UI requires `developer_mode` on the site (it is on for
+  `pks.localhost`); Frappe then re-exports the JSON into the module.
+
