@@ -1,0 +1,149 @@
+# Copyright (c) 2026, AutoERP and contributors
+# For license information, please see license.txt
+
+"""Install-time setup for the Palm Mill module.
+
+Runs from the `after_install` hook and from the `setup_palm_mill` patch, so it must
+stay idempotent. Everything here is site data the module needs but cannot ship as
+DocType JSON: fields on native DocTypes, roles, settings defaults.
+"""
+
+import frappe
+from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
+from frappe.permissions import add_permission
+
+OPERATOR_ROLE = "Weighbridge Operator"
+INTEGRATION_ROLE = "Palm Mill Integration"
+ROLES = (OPERATOR_ROLE, INTEGRATION_ROLE)
+
+# Same names and properties the demo generator used, so existing sites see no change.
+CUSTOM_FIELDS = {
+	"Batch": [
+		{
+			"fieldname": "custom_source_batches",
+			"label": "Source Batches",
+			"fieldtype": "Small Text",
+			"insert_after": "parent_batch",
+			"read_only": 1,
+		},
+		{
+			"fieldname": "custom_source_stock_entry",
+			"label": "Produced By",
+			"fieldtype": "Link",
+			"options": "Stock Entry",
+			"insert_after": "custom_source_batches",
+			"read_only": 1,
+		},
+		{
+			"fieldname": "custom_oer",
+			"label": "OER %",
+			"fieldtype": "Percent",
+			"insert_after": "custom_source_stock_entry",
+		},
+		{
+			"fieldname": "custom_sertifikasi",
+			"label": "Sertifikasi",
+			"fieldtype": "Data",
+			"insert_after": "custom_oer",
+			"description": "Certification mix of the FFB that produced this batch",
+		},
+	],
+	"Purchase Receipt Item": [
+		{
+			"fieldname": "custom_grading_note",
+			"label": "Catatan Sortasi",
+			"fieldtype": "Small Text",
+			"insert_after": "discount_percentage",
+		},
+	],
+	"Purchase Receipt": [
+		{
+			"fieldname": "custom_weighbridge_ticket",
+			"label": "Weighbridge Ticket",
+			"fieldtype": "Link",
+			"options": "Weighbridge Ticket",
+			"insert_after": "supplier",
+		},
+	],
+}
+
+# (kriteria, deduction % per 1 % of the criterion) — the demo generator's POTONGAN_WEIGHTS.
+DEFAULT_GRADING_RULES = (("Mentah", 60), ("Lewat Matang", 15), ("Tangkai Panjang", 100))
+DEFAULT_SETTINGS = {
+	"max_potongan_pct": 18,
+	"default_potongan_pct": 0,
+	"grading_timeout_hours": 6,
+	"match_window_hours": 2,
+}
+
+
+def after_install():
+	create_custom_fields(CUSTOM_FIELDS, ignore_validate=frappe.flags.in_patch, update=True)
+	setup_roles()
+	set_defaults()
+
+
+def setup_roles():
+	"""Roles are created by DocType sync from the permission rows; here they only get
+	read access to the native masters the ticket form links to."""
+	for role in ROLES:
+		if not frappe.db.exists("Role", role):
+			frappe.get_doc({"doctype": "Role", "role_name": role, "desk_access": 1}).insert(
+				ignore_permissions=True
+			)
+		if not frappe.db.exists("Custom DocPerm", {"parent": "Supplier", "role": role, "permlevel": 0}):
+			add_permission("Supplier", role)
+
+
+def set_defaults():
+	"""Singles do not pick up DocField defaults on their own (see erpnext.setup.install)."""
+	settings = frappe.get_single("Palm Mill Settings")
+	changed = False
+	if not settings.grading_rules:
+		for kriteria, pct in DEFAULT_GRADING_RULES:
+			settings.append("grading_rules", {"kriteria": kriteria, "deduction_pct": pct})
+		changed = True
+	for fieldname, value in DEFAULT_SETTINGS.items():
+		if settings.get(fieldname) is None:
+			settings.set(fieldname, value)
+			changed = True
+	for fieldname, doctype, name in (
+		("tbs_item", "Item", "TBS"),
+		("plasma_supplier_group", "Supplier Group", "Plasma"),
+	):
+		if not settings.get(fieldname) and frappe.db.exists(doctype, name):
+			settings.set(fieldname, name)
+			changed = True
+	if changed:
+		settings.flags.ignore_mandatory = True
+		settings.save(ignore_permissions=True)
+
+
+def create_integration_user(email: str, full_name: str) -> dict:
+	"""A System User holding only the integration role, with API key/secret for
+	`Authorization: token key:secret`. Re-running regenerates the secret."""
+	from frappe.core.doctype.user.user import generate_keys
+
+	if frappe.db.exists("User", email):
+		user = frappe.get_doc("User", email)
+		if INTEGRATION_ROLE not in {r.role for r in user.roles}:
+			user.append("roles", {"role": INTEGRATION_ROLE})
+			user.save(ignore_permissions=True)
+	else:
+		user = frappe.get_doc(
+			{
+				"doctype": "User",
+				"email": email,
+				"first_name": full_name,
+				"user_type": "System User",
+				"send_welcome_email": 0,
+				"roles": [{"role": INTEGRATION_ROLE}],
+			}
+		).insert(ignore_permissions=True)
+
+	secret = generate_keys(user.name)["api_secret"]
+	return {
+		"user": user.name,
+		"api_key": frappe.db.get_value("User", user.name, "api_key"),
+		"api_secret": secret,
+	}

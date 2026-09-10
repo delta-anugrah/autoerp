@@ -1,0 +1,162 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-09-10 08:08:54.795746",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "goods_section",
+  "tbs_item",
+  "tbs_warehouse",
+  "purchase_cost_center",
+  "buying_price_list",
+  "goods_column",
+  "plasma_supplier_group",
+  "inti_expense_account",
+  "grading_section",
+  "grading_rules",
+  "max_potongan_pct",
+  "default_potongan_pct",
+  "grading_column",
+  "grading_timeout_hours",
+  "match_window_hours",
+  "automation_section",
+  "create_stock_documents_on_submit"
+ ],
+ "fields": [
+  {
+   "fieldname": "goods_section",
+   "fieldtype": "Section Break",
+   "label": "Barang & Gudang"
+  },
+  {
+   "fieldname": "tbs_item",
+   "fieldtype": "Link",
+   "label": "Item TBS",
+   "options": "Item"
+  },
+  {
+   "fieldname": "tbs_warehouse",
+   "fieldtype": "Link",
+   "label": "Gudang Penerimaan TBS",
+   "options": "Warehouse"
+  },
+  {
+   "fieldname": "purchase_cost_center",
+   "fieldtype": "Link",
+   "label": "Cost Center Penerimaan",
+   "options": "Cost Center"
+  },
+  {
+   "description": "Kosong = Daftar Harga Beli default di Buying Settings",
+   "fieldname": "buying_price_list",
+   "fieldtype": "Link",
+   "label": "Daftar Harga Beli",
+   "options": "Price List"
+  },
+  {
+   "fieldname": "goods_column",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Supplier dalam grup ini dicatat sebagai Plasma; supplier lain sebagai Pihak Ketiga; tanpa supplier = Inti",
+   "fieldname": "plasma_supplier_group",
+   "fieldtype": "Link",
+   "label": "Supplier Group Plasma",
+   "options": "Supplier Group"
+  },
+  {
+   "description": "Akun lawan Stock Entry penerimaan TBS kebun sendiri",
+   "fieldname": "inti_expense_account",
+   "fieldtype": "Link",
+   "label": "Akun Pendapatan Transfer TBS Inti",
+   "options": "Account"
+  },
+  {
+   "fieldname": "grading_section",
+   "fieldtype": "Section Break",
+   "label": "Sortasi & Potongan"
+  },
+  {
+   "fieldname": "grading_rules",
+   "fieldtype": "Table",
+   "label": "Bobot Potongan per Kriteria",
+   "options": "Palm Mill Grading Rule"
+  },
+  {
+   "default": "18",
+   "fieldname": "max_potongan_pct",
+   "fieldtype": "Percent",
+   "label": "Potongan Maksimum (%)"
+  },
+  {
+   "default": "0",
+   "description": "Dipakai bila sortasi belum tersedia saat batas waktu",
+   "fieldname": "default_potongan_pct",
+   "fieldtype": "Percent",
+   "label": "Potongan Default (%)"
+  },
+  {
+   "fieldname": "grading_column",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "6",
+   "description": "Setelah jam keluar + batas ini, tiket difinalisasi tanpa sortasi",
+   "fieldname": "grading_timeout_hours",
+   "fieldtype": "Int",
+   "label": "Batas Tunggu Sortasi (jam)"
+  },
+  {
+   "default": "2",
+   "description": "Selisih waktu maksimum antara penimbangan dan sesi sortasi untuk truk yang sama",
+   "fieldname": "match_window_hours",
+   "fieldtype": "Int",
+   "label": "Toleransi Pencocokan (jam)"
+  },
+  {
+   "fieldname": "automation_section",
+   "fieldtype": "Section Break",
+   "label": "Otomasi"
+  },
+  {
+   "default": "0",
+   "description": "Jalur integrasi selalu membuat Purchase Receipt / Stock Entry. Centang agar submit manual juga membuatnya.",
+   "fieldname": "create_stock_documents_on_submit",
+   "fieldtype": "Check",
+   "label": "Buat Dokumen Stok Saat Submit Manual"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-09-10 08:11:50.838299",
+ "modified_by": "Administrator",
+ "module": "Palm Mill",
+ "name": "Palm Mill Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "Weighbridge Operator"
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

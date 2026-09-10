@@ -9,6 +9,7 @@
  "field_order": [
   "ticket_date",
   "company",
+  "status",
   "sumber_tbs",
   "supplier",
   "blok",
@@ -31,6 +32,18 @@
   "purchase_receipt",
   "stock_entry",
   "catatan",
+  "integration_section",
+  "scale_ticket_no",
+  "weight_received_at",
+  "grading_missing",
+  "grading_revised",
+  "integration_column",
+  "autograde_assignment_id",
+  "autograde_url",
+  "grading_received_at",
+  "grading_total",
+  "grading_acc",
+  "grading_rej",
   "amended_from"
  ],
  "fields": [
@@ -175,16 +188,20 @@
    "label": "Nilai"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "purchase_receipt",
    "fieldtype": "Link",
    "label": "Purchase Receipt",
+   "no_copy": 1,
    "options": "Purchase Receipt",
    "read_only": 1
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "stock_entry",
    "fieldtype": "Link",
    "label": "Stock Entry",
+   "no_copy": 1,
    "options": "Stock Entry",
    "read_only": 1
   },
@@ -201,13 +218,108 @@
    "options": "Weighbridge Ticket",
    "print_hide": 1,
    "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "no_copy": 1,
+   "options": "\nWaiting Weight\nWaiting Grading\nReady\nFinalised\nCancelled",
+   "read_only": 1
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "integration_section",
+   "fieldtype": "Section Break",
+   "label": "Integrasi"
+  },
+  {
+   "fieldname": "scale_ticket_no",
+   "fieldtype": "Data",
+   "label": "No. Tiket Timbangan",
+   "no_copy": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "weight_received_at",
+   "fieldtype": "Datetime",
+   "label": "Berat Diterima",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "grading_missing",
+   "fieldtype": "Check",
+   "label": "Sortasi Tidak Tersedia",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "grading_revised",
+   "fieldtype": "Check",
+   "label": "Sortasi Direvisi Setelah Submit",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "integration_column",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "autograde_assignment_id",
+   "fieldtype": "Data",
+   "label": "AutoGrade Assignment",
+   "no_copy": 1,
+   "read_only": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "autograde_url",
+   "fieldtype": "Data",
+   "label": "Tautan AutoGrade",
+   "no_copy": 1,
+   "options": "URL",
+   "read_only": 1
+  },
+  {
+   "fieldname": "grading_received_at",
+   "fieldtype": "Datetime",
+   "label": "Sortasi Diterima",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "grading_total",
+   "fieldtype": "Int",
+   "label": "Total Janjang",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "grading_acc",
+   "fieldtype": "Int",
+   "label": "Diterima (ACC)",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "grading_rej",
+   "fieldtype": "Int",
+   "label": "Ditolak (REJ)",
+   "no_copy": 1,
+   "read_only": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-09-10 07:59:19.312450",
+ "modified": "2026-09-10 08:11:50.133787",
  "modified_by": "Administrator",
  "module": "Palm Mill",
  "name": "Weighbridge Ticket",
@@ -226,6 +338,28 @@
    "report": 1,
    "role": "System Manager",
    "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "amend": 1,
+   "cancel": 1,
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Weighbridge Operator",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "role": "Palm Mill Integration",
    "submit": 1,
    "write": 1
   }
