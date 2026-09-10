@@ -59,7 +59,7 @@ class WeighbridgeTicket(Document):
 		purchase_receipt: DF.Link | None
 		sampah_kg: DF.Float
 		scale_ticket_no: DF.Data | None
-		sertifikasi: DF.Literal["ISPO", "RSPO", "Non-sertifikasi"]
+		sertifikasi: DF.Literal["", "ISPO", "RSPO", "Non-sertifikasi"]
 		status: DF.Literal["", "Waiting Weight", "Waiting Grading", "Ready", "Finalised", "Cancelled"]
 		stock_entry: DF.Link | None
 		sumber_tbs: DF.Literal["Inti", "Plasma", "Pihak Ketiga"]
@@ -202,7 +202,11 @@ class WeighbridgeTicket(Document):
 		return True
 
 	def create_stock_documents(self) -> str:
-		"""Purchase Receipt for bought fruit, Stock Entry for Inti. Idempotent per ticket."""
+		"""Purchase Receipt for bought fruit, Stock Entry for Inti. Idempotent per ticket.
+
+		Runs with the caller's permissions: whoever finalises a ticket needs the roles of
+		someone who receives stock (Purchase User + Stock User), as ERPNext expects.
+		"""
 		if self.docstatus != 1:
 			frappe.throw(_("Submit the Weighbridge Ticket before creating stock documents"))
 
@@ -249,7 +253,6 @@ class WeighbridgeTicket(Document):
 				"items": [only_known_fields("Purchase Receipt Item", item)],
 			}
 		)
-		pr.flags.ignore_permissions = True
 		pr.insert()
 		pr.submit()
 		return pr
@@ -283,7 +286,6 @@ class WeighbridgeTicket(Document):
 		row.set_basic_rate_manually = 1
 		row.update(only_known_fields("Stock Entry Detail", dims))
 		se.remarks = f"Penerimaan TBS Inti {self.name} @ Rp {flt(self.harga_per_kg):,.0f}/kg"
-		se.flags.ignore_permissions = True
 		se.insert()
 		se.submit()
 		return se
@@ -330,6 +332,8 @@ def get_or_create_daily_batch(item_code: str, date) -> str:
 	"""The demo convention: one TBS batch per receiving day, named TBS-YYYYMMDD."""
 	batch_id = f"TBS-{getdate(date):%Y%m%d}"
 	if not frappe.db.exists("Batch", batch_id):
+		# A derived record, created the way ERPNext creates its own automatic batches
+		# (erpnext.stock.serial_batch_bundle.make_batch): without a Batch permission check.
 		frappe.get_doc(
 			{"doctype": "Batch", "batch_id": batch_id, "item": item_code, "manufacturing_date": date}
 		).insert(ignore_permissions=True)

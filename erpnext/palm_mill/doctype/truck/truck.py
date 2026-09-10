@@ -25,7 +25,7 @@ class Truck(Document):
 		plate_number: DF.Data
 		source: DF.Literal["Manual", "AutoGrade", "Scale"]
 		supplier: DF.Link | None
-		vehicle_class: DF.Literal["Colt Diesel", "Dump Truck", "Tronton"]
+		vehicle_class: DF.Literal["", "Colt Diesel", "Dump Truck", "Tronton"]
 	# end: auto-generated types
 
 	def validate(self):

@@ -15,6 +15,10 @@ from frappe.permissions import add_permission
 OPERATOR_ROLE = "Weighbridge Operator"
 INTEGRATION_ROLE = "Palm Mill Integration"
 ROLES = (OPERATOR_ROLE, INTEGRATION_ROLE)
+# Finalising a ticket creates a Purchase Receipt or Stock Entry, with ERPNext's own
+# permission checks on everything underneath (batches, bundles). Same roles a human
+# receiving stock would hold.
+INTEGRATION_USER_ROLES = (INTEGRATION_ROLE, "Purchase User", "Stock User")
 
 # Same names and properties the demo generator used, so existing sites see no change.
 CUSTOM_FIELDS = {
@@ -120,14 +124,17 @@ def set_defaults():
 
 
 def create_integration_user(email: str, full_name: str) -> dict:
-	"""A System User holding only the integration role, with API key/secret for
-	`Authorization: token key:secret`. Re-running regenerates the secret."""
+	"""A System User with the integration role plus the stock roles finalisation needs,
+	and an API key/secret for `Authorization: token key:secret`. Re-running regenerates
+	the secret."""
 	from frappe.core.doctype.user.user import generate_keys
 
 	if frappe.db.exists("User", email):
 		user = frappe.get_doc("User", email)
-		if INTEGRATION_ROLE not in {r.role for r in user.roles}:
-			user.append("roles", {"role": INTEGRATION_ROLE})
+		missing = set(INTEGRATION_USER_ROLES) - {r.role for r in user.roles}
+		for role in missing:
+			user.append("roles", {"role": role})
+		if missing:
 			user.save(ignore_permissions=True)
 	else:
 		user = frappe.get_doc(
@@ -137,7 +144,7 @@ def create_integration_user(email: str, full_name: str) -> dict:
 				"first_name": full_name,
 				"user_type": "System User",
 				"send_welcome_email": 0,
-				"roles": [{"role": INTEGRATION_ROLE}],
+				"roles": [{"role": role} for role in INTEGRATION_USER_ROLES],
 			}
 		).insert(ignore_permissions=True)
 
