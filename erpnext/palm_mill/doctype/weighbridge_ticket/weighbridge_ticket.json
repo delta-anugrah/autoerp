@@ -38,6 +38,7 @@
   "grading_missing",
   "grading_revised",
   "integration_column",
+  "autograde_visit_id",
   "autograde_assignment_id",
   "autograde_url",
   "grading_received_at",
@@ -310,13 +311,22 @@
    "label": "Ditolak (REJ)",
    "no_copy": 1,
    "read_only": 1
+  },
+  {
+   "description": "Kunci kunjungan dari AutoGrade; satu kunjungan = satu tiket",
+   "fieldname": "autograde_visit_id",
+   "fieldtype": "Data",
+   "label": "AutoGrade Visit",
+   "no_copy": 1,
+   "read_only": 1,
+   "unique": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-09-10 08:25:57.239365",
+ "modified": "2026-09-10 13:52:53.619808",
  "modified_by": "Administrator",
  "module": "Palm Mill",
  "name": "Weighbridge Ticket",
