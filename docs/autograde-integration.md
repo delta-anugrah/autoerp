@@ -26,6 +26,44 @@ Facts this design rests on (verified in both repos and on the `pks.localhost` de
 
 Decisions taken: AutoERP owns supplier and truck master data; AutoERP runs in the cloud.
 
+## The visit, end to end
+
+What happens physically, what each system does, and what the AutoERP ticket looks like at that moment.
+The order is the real order; steps 3 and 4 can overlap with 5 and the ticket copes with events arriving in
+any sequence.
+
+| # | Where | Physically | System event | Weighbridge Ticket |
+|---|---|---|---|---|
+| 1 | Gate, weighbridge | Truck drives on loaded; plate and supplier noted | Scale → `upsert_weighing` (gross, time in). Unknown plate → pending Truck | created, **Waiting Weight** |
+| 2 | Loading ramp | Fruit unloaded onto the grading line | Operator assigns the truck to the AutoGrade line | unchanged |
+| 3 | Grading line | Camera grades every bunch: ACC or REJ; long stalks flagged among ACC; operator can force a reject | Vision → AutoGrade (hourly batches) | unchanged |
+| 4 | Grading line | **Rejected bunches go back on the truck**; accepted fruit stays in the ramp | AutoGrade closes the assignment → `upsert_grading_session` (counts, %) | sortasi rows written; **Waiting Weight** or **Ready** |
+| 5 | Weighbridge | Truck weighs out **with the rejects on board**: the tare includes them, so net = what stayed | Scale → `upsert_weighing` (tare, time out) | net set; **Waiting Grading** or **Ready** |
+| 6 | AutoERP | Nothing physical | `try_finalize`: potongan and payable kg from the rules, price from the Item Price, submit | **Finalised** |
+| 7 | AutoERP | Nothing physical | Purchase Receipt (Plasma / Pihak Ketiga) or Material Receipt (Inti) into the TBS warehouse, daily batch `TBS-YYYYMMDD`, item discount = potongan | receipt / stock entry linked |
+| 8 | Backoffice, later | Purchase Invoice per supplier per period, Payment Entry; supplier scorecards; production draws on the batch | standard ERPNext | — |
+
+**Classification and money.** Three things happen to a load, and they land in three different places:
+
+- **Rejected (REJ)** bunches are returned to the truck. They are never paid: the weigh-out tare carries them
+  away, so they are outside net weight. The count and share still reach the ticket (`grading_rej`,
+  Mentah %) for supplier statistics.
+- **Accepted (ACC)** fruit is what the mill receives: quantity on the receipt = net − sampah kg.
+- **Deduction on accepted** fruit: potongan % = Σ (criterion % × weight in Palm Mill Settings), capped, applied
+  as the receipt item's discount; sampah (trash) reduces the kilograms instead of the price. Amount paid =
+  (net − sampah) × price × (1 − potongan). For Inti loads there is no payment: the stock entry books the
+  fruit at the transfer price and potongan is a quality figure only.
+
+Worked example (a real run on the demo site): gross 14,560 kg, tare 5,400 kg → net 9,160 kg; grading
+Mentah 9.95 %, Tangkai Panjang 5.58 %; rules Mentah 60, Tangkai Panjang 100 → potongan 11.55 %; payable
+8,102 kg × Rp 2,850 = Rp 23,090,700; receipt: 9,160 kg at Rp 2,850 less 11.55 % = Rp 23,090,711 (the
+receipt rounds money, the ticket rounds kilograms).
+
+Rule to decide before go-live (§8): the demo's Mentah weight of 60 dates from before physical rejection.
+Once rejected bunches leave with the truck they are already excluded by the weighing, so charging Mentah again
+as a price deduction penalises the supplier twice. Set the Mentah weight to 0 in Palm Mill Settings when the
+line returns rejects, and keep it only where rejects are accepted with a discount instead.
+
 ## 1. Principles
 
 - **AutoERP is the system of record** for suppliers, trucks, prices, deductions, tickets, receipts, payments.
@@ -143,8 +181,10 @@ POST /api/method/erpnext.palm_mill.api.upsert_weighing
   "time_out": "2026-09-10T08:52:00+07:00", "driver_name": "Yusuf Maulana" }
 ```
 
-Same match-or-create as C, keyed first by `scale_ticket_no`, then by plate and window. Sets gross/tare/net,
-time in/out, driver, then `try_finalize`. **Manual fallback:** the weighbridge operator fills the same ticket
+Same match-or-create as C, keyed first by `scale_ticket_no`, then by plate and window. Sent twice per
+visit: at the gate with `gross_kg` and `time_in` (the ticket opens in Waiting Weight), and at weigh-out with
+`tare_kg` and `time_out`; net = gross − tare, and because the rejected bunches are back on the truck for the
+second weighing, net is what stayed at the mill. Then `try_finalize`. **Manual fallback:** the weighbridge operator fills the same ticket
 form in AutoERP; everything downstream is identical. The scale program's real API is unknown; if it can only
 export files, a small poller on the mill PC that POSTs each new record is the adapter.
 
@@ -264,6 +304,8 @@ Jobs: ERP pull every 5 min (A); outbox drain every 30 s single-flight (B, C); as
 - Grading timeout and the default deduction when a line was down.
 - Whether Inti visits get tickets from the scale at all (they must, for stock) and whether they need grading.
 - The scale program's integration capability: API, file export, or manual.
+- The Mentah deduction weight once rejects are physically returned (recommended 0; see "The visit, end to end").
+- Whether a whole load can be refused (truck leaves with everything, no ticket finalised) and who decides.
 
 ## 9. Backlog
 

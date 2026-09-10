@@ -362,7 +362,6 @@ def find_or_create_ticket(
 		if name:
 			return frappe.get_doc("Weighbridge Ticket", name)
 
-	end = end or start
 	window = timedelta(hours=cint(settings().match_window_hours))
 	rows = frappe.db.sql(
 		"""select name from `tabWeighbridge Ticket`
@@ -370,7 +369,7 @@ def find_or_create_ticket(
 			and timestamp(ticket_date, ifnull(time_in, '00:00:00')) <= %s
 			and timestamp(ticket_date, ifnull(time_out, ifnull(time_in, '00:00:00'))) >= %s
 		order by creation desc limit 1""",
-		(company, truck, start.date(), end + window, start - window),
+		(company, truck, start.date(), (end or start) + window, start - window),
 	)
 	if rows:
 		return frappe.get_doc("Weighbridge Ticket", rows[0][0])
@@ -382,7 +381,7 @@ def find_or_create_ticket(
 			"truck": truck,
 			"ticket_date": start.date(),
 			"time_in": start.time(),
-			"time_out": end.time(),
+			"time_out": end.time() if end else None,
 		}
 	)
 	return doc
