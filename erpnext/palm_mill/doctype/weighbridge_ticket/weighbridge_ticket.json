@@ -133,23 +133,20 @@
    "fieldname": "gross_weight_kg",
    "fieldtype": "Float",
    "label": "Bruto (Kg)",
-   "precision": "2",
-   "reqd": 1
+   "precision": "2"
   },
   {
    "fieldname": "tare_weight_kg",
    "fieldtype": "Float",
    "label": "Tara (Kg)",
-   "precision": "2",
-   "reqd": 1
+   "precision": "2"
   },
   {
    "fieldname": "net_weight_kg",
    "fieldtype": "Float",
    "in_list_view": 1,
    "label": "Netto (Kg)",
-   "precision": "2",
-   "reqd": 1
+   "precision": "2"
   },
   {
    "fieldname": "grading",
@@ -319,7 +316,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-09-10 08:11:50.133787",
+ "modified": "2026-09-10 08:15:24.405323",
  "modified_by": "Administrator",
  "module": "Palm Mill",
  "name": "Weighbridge Ticket",
