@@ -44,16 +44,20 @@ class IntegrationTestWeighbridgeTicket(IntegrationTestCase):
 		self.assertEqual(weight_only.status, "Waiting Grading")
 		self.assertEqual(
 			(weight_only.net_weight_kg, weight_only.sumber_tbs, weight_only.supplier),
-			(9160, "Pihak Ketiga", AGEN_SUPPLIER),
+			(9160, "External", AGEN_SUPPLIER),
 		)
 		self.assertFalse(weight_only.try_finalize())  # grading not timed out yet
 
-		inti = make_ticket("B 2003 IN", time_in="10:00:00", time_out="10:30:00", grading=GRADING, blok=BLOK)
-		self.assertEqual((inti.status, inti.sumber_tbs, inti.supplier), ("Ready", "Inti", None))
+		internal = make_ticket(
+			"B 2003 IN", time_in="10:00:00", time_out="10:30:00", grading=GRADING, blok=BLOK
+		)
+		self.assertEqual(
+			(internal.status, internal.sumber_tbs, internal.supplier), ("Ready", "Internal", None)
+		)
 
 	def test_deductions_match_generator_formula(self):
 		ticket = make_ticket("B 2001 PL", grading=GRADING)
-		self.assertEqual(ticket.sumber_tbs, "Plasma")
+		self.assertEqual(ticket.sumber_tbs, "External")
 		self.assertAlmostEqual(ticket.potongan_pct, EXPECTED_POTONGAN, places=2)
 		self.assertEqual(ticket.sampah_kg, 0)
 		self.assertEqual(ticket.net_after_deduction_kg, EXPECTED_PAYABLE)
@@ -89,7 +93,7 @@ class IntegrationTestWeighbridgeTicket(IntegrationTestCase):
 		# idempotent
 		self.assertEqual(ticket.create_stock_documents(), pr.name)
 
-	def test_inti_creates_stock_entry(self):
+	def test_internal_creates_stock_entry(self):
 		ticket = make_ticket("B 2003 IN", grading=GRADING, blok=BLOK)
 		self.assertTrue(ticket.try_finalize())
 		ticket.reload()

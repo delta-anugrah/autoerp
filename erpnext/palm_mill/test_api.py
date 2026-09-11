@@ -86,9 +86,7 @@ class IntegrationTestPalmMillAPI(IntegrationTestCase):
 	def test_visit_in_three_sends(self):
 		day = frappe.utils.today()
 		gate = visit("v-1", "bg9911zz", day, "gate", supplier=PLASMA_SUPPLIER, scale_ticket_no="SCL-1")
-		self.assertEqual(
-			(gate["status"], gate["truck"], gate["truck_pending"]), ("Waiting Weight", "BG 9911 ZZ", 1)
-		)
+		self.assertEqual((gate["status"], gate["truck"]), ("Waiting Weight", "BG 9911 ZZ"))
 
 		graded = visit("v-1", "BG 9911 ZZ", day, "grading", supplier=PLASMA_SUPPLIER, scale_ticket_no="SCL-1")
 		self.assertEqual((graded["ticket"], graded["status"]), (gate["ticket"], "Waiting Weight"))
@@ -104,7 +102,7 @@ class IntegrationTestPalmMillAPI(IntegrationTestCase):
 			("v-1", "SCL-1", "as-v-1"),
 		)
 		self.assertEqual(
-			(ticket.supplier, ticket.sumber_tbs, ticket.net_weight_kg), (PLASMA_SUPPLIER, "Plasma", 9160)
+			(ticket.supplier, ticket.sumber_tbs, ticket.net_weight_kg), (PLASMA_SUPPLIER, "External", 9160)
 		)
 		self.assertAlmostEqual(ticket.potongan_pct, EXPECTED_POTONGAN, places=2)
 		self.assertTrue(ticket.purchase_receipt)
@@ -147,13 +145,11 @@ class IntegrationTestPalmMillAPI(IntegrationTestCase):
 		second = visit("v-5", "B 3001 PL", day, "gate", time_in="15:00")
 		self.assertNotEqual(first["ticket"], second["ticket"])
 
-	def test_unknown_plate_becomes_pending_truck_and_inti(self):
+	def test_unknown_plate_becomes_truck_without_owner_and_internal(self):
 		day = frappe.utils.today()
 		gate = visit("v-6", "BE 1234 QQ", day, "gate", supplier=AGEN_SUPPLIER)
-		self.assertEqual(gate["truck_pending"], 1)
-		self.assertEqual(
-			frappe.db.get_value("Weighbridge Ticket", gate["ticket"], "sumber_tbs"), "Pihak Ketiga"
-		)
+		self.assertIsNone(frappe.db.get_value("Truck", gate["truck"], "supplier"))
+		self.assertEqual(frappe.db.get_value("Weighbridge Ticket", gate["ticket"], "sumber_tbs"), "External")
 
 	def test_time_in_is_required(self):
 		self.assertRaises(
@@ -167,12 +163,10 @@ class IntegrationTestPalmMillAPI(IntegrationTestCase):
 
 	def test_upsert_truck(self):
 		existing = api.upsert_truck(plate_number="b3001pl", autograde_id="ag-x")
-		self.assertEqual(
-			(existing["name"], existing["pending"], existing["supplier"]), ("B 3001 PL", 0, PLASMA_SUPPLIER)
-		)
+		self.assertEqual((existing["name"], existing["supplier"]), ("B 3001 PL", PLASMA_SUPPLIER))
 
 		new = api.upsert_truck(plate_number="bd 777 xx", autograde_id="ag-y", capacity=8)
-		self.assertEqual((new["name"], new["pending"], new["vehicle_class"]), ("BD 777 XX", 1, ""))
+		self.assertEqual((new["name"], new["vehicle_class"]), ("BD 777 XX", ""))
 
 	def test_requires_integration_role(self):
 		frappe.set_user(PLAIN_USER)

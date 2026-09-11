@@ -10,7 +10,7 @@
  "hide_custom": 0,
  "icon": "home",
  "idx": 0,
- "is_hidden": 0,
+ "is_hidden": 1,
  "label": "Home",
  "links": [
   {
@@ -233,7 +233,7 @@
    "type": "Link"
   }
  ],
- "modified": "2025-07-02 14:12:28.407612",
+ "modified": "2026-09-10 17:36:21.382997",
  "modified_by": "Administrator",
  "module": "Setup",
  "name": "Home",

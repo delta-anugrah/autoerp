@@ -510,3 +510,10 @@ erpnext.patches.v16_0.recalculate_holiday_list_totals
 erpnext.patches.v16_0.rename_component_cost_valuation_type
 erpnext.patches.v13_0.delete_erpnext_desktop_icon_orphans
 erpnext.patches.v17_0.setup_palm_mill
+
+erpnext.patches.v17_0.palm_mill_navigation
+erpnext.patches.v17_0.palm_mill_desktop_layout
+erpnext.patches.v17_0.palm_mill_language
+erpnext.patches.v17_0.palm_mill_audit
+erpnext.patches.v17_0.palm_mill_oer
+erpnext.patches.v17_0.palm_mill_ffb_source

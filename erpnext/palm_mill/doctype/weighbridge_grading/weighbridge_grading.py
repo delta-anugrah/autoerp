@@ -15,8 +15,7 @@ class WeighbridgeGrading(Document):
 		from frappe.types import DF
 
 		berat_kg: DF.Float
-		keterangan: DF.Data | None
-		kriteria: DF.Data | None
+		kriteria: DF.Literal["", "Mentah", "Tangkai Panjang", "Matang", "Lewat Matang", "Sampah"]
 		parent: DF.Data
 		parentfield: DF.Data
 		parenttype: DF.Data

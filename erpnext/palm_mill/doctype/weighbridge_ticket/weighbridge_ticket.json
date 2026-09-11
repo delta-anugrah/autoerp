@@ -15,8 +15,6 @@
   "blok",
   "sertifikasi",
   "truck",
-  "vehicle_no",
-  "vehicle_class",
   "driver_name",
   "time_in",
   "time_out",
@@ -53,7 +51,7 @@
    "fieldtype": "Date",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "Tanggal",
+   "label": "Date",
    "reqd": 1
   },
   {
@@ -64,12 +62,23 @@
    "reqd": 1
   },
   {
-   "fieldname": "sumber_tbs",
+   "allow_on_submit": 1,
+   "fieldname": "status",
    "fieldtype": "Select",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "Sumber TBS",
-   "options": "Inti\nPlasma\nPihak Ketiga",
+   "label": "Status",
+   "no_copy": 1,
+   "options": "\nWaiting Weight\nWaiting Grading\nReady\nFinalised\nCancelled",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sumber_tbs",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "FFB Source",
+   "options": "Sumber TBS",
    "reqd": 1
   },
   {
@@ -83,107 +92,95 @@
   {
    "fieldname": "blok",
    "fieldtype": "Link",
-   "label": "Blok",
+   "label": "Block",
    "options": "Blok"
   },
   {
    "fieldname": "sertifikasi",
-   "fieldtype": "Select",
+   "fieldtype": "Link",
    "in_standard_filter": 1,
-   "label": "Sertifikasi",
-   "options": "\nISPO\nRSPO\nNon-sertifikasi"
+   "label": "Certification",
+   "options": "Sertifikasi"
   },
   {
    "fieldname": "truck",
    "fieldtype": "Link",
-   "in_standard_filter": 1,
-   "label": "Truk",
-   "options": "Truck"
-  },
-  {
-   "fetch_from": "truck.plate_number",
-   "fieldname": "vehicle_no",
-   "fieldtype": "Data",
    "in_list_view": 1,
-   "label": "No. Kendaraan"
-  },
-  {
-   "fetch_from": "truck.vehicle_class",
-   "fieldname": "vehicle_class",
-   "fieldtype": "Data",
-   "label": "Jenis Kendaraan"
+   "in_standard_filter": 1,
+   "label": "Truck",
+   "options": "Truck"
   },
   {
    "fetch_from": "truck.driver_name",
    "fetch_if_empty": 1,
    "fieldname": "driver_name",
    "fieldtype": "Data",
-   "label": "Nama Sopir"
+   "label": "Driver Name"
   },
   {
    "fieldname": "time_in",
    "fieldtype": "Time",
-   "label": "Jam Masuk"
+   "label": "Time In"
   },
   {
    "fieldname": "time_out",
    "fieldtype": "Time",
-   "label": "Jam Keluar"
+   "label": "Time Out"
   },
   {
    "fieldname": "gross_weight_kg",
    "fieldtype": "Float",
-   "label": "Bruto (Kg)",
+   "label": "Gross Weight (kg)",
    "precision": "2"
   },
   {
    "fieldname": "tare_weight_kg",
    "fieldtype": "Float",
-   "label": "Tara (Kg)",
+   "label": "Tare Weight (kg)",
    "precision": "2"
   },
   {
    "fieldname": "net_weight_kg",
    "fieldtype": "Float",
    "in_list_view": 1,
-   "label": "Netto (Kg)",
+   "label": "Net Weight (kg)",
    "precision": "2"
   },
   {
    "fieldname": "grading",
    "fieldtype": "Table",
-   "label": "Sortasi",
+   "label": "Grading",
    "options": "Weighbridge Grading"
   },
   {
    "fieldname": "sampah_kg",
    "fieldtype": "Float",
-   "label": "Sampah (Kg)",
+   "label": "Trash (kg)",
    "precision": "2"
   },
   {
    "fieldname": "potongan_pct",
    "fieldtype": "Percent",
    "in_list_view": 1,
-   "label": "Potongan (%)",
+   "label": "Deduction (%)",
    "precision": "2"
   },
   {
    "fieldname": "net_after_deduction_kg",
    "fieldtype": "Float",
-   "label": "Netto Setelah Potongan (Kg)",
+   "label": "Net After Deduction (kg)",
    "precision": "2"
   },
   {
    "fieldname": "harga_per_kg",
    "fieldtype": "Currency",
-   "label": "Harga (Rp/Kg)"
+   "label": "Price (Rp/kg)"
   },
   {
    "fieldname": "nilai",
    "fieldtype": "Currency",
    "in_list_view": 1,
-   "label": "Nilai"
+   "label": "Value"
   },
   {
    "allow_on_submit": 1,
@@ -206,45 +203,25 @@
   {
    "fieldname": "catatan",
    "fieldtype": "Small Text",
-   "label": "Catatan"
-  },
-  {
-   "fieldname": "amended_from",
-   "fieldtype": "Link",
-   "label": "Amended From",
-   "no_copy": 1,
-   "options": "Weighbridge Ticket",
-   "print_hide": 1,
-   "read_only": 1
-  },
-  {
-   "allow_on_submit": 1,
-   "fieldname": "status",
-   "fieldtype": "Select",
-   "in_list_view": 1,
-   "in_standard_filter": 1,
-   "label": "Status",
-   "no_copy": 1,
-   "options": "\nWaiting Weight\nWaiting Grading\nReady\nFinalised\nCancelled",
-   "read_only": 1
+   "label": "Notes"
   },
   {
    "collapsible": 1,
    "fieldname": "integration_section",
    "fieldtype": "Section Break",
-   "label": "Integrasi"
+   "label": "Integration"
   },
   {
    "fieldname": "scale_ticket_no",
    "fieldtype": "Data",
-   "label": "No. Tiket Timbangan",
+   "label": "Scale Ticket No",
    "no_copy": 1,
    "unique": 1
   },
   {
    "fieldname": "weight_received_at",
    "fieldtype": "Datetime",
-   "label": "Berat Diterima",
+   "label": "Weight Received At",
    "no_copy": 1,
    "read_only": 1
   },
@@ -252,7 +229,7 @@
    "default": "0",
    "fieldname": "grading_missing",
    "fieldtype": "Check",
-   "label": "Sortasi Tidak Tersedia",
+   "label": "Grading Missing",
    "no_copy": 1,
    "read_only": 1
   },
@@ -260,13 +237,22 @@
    "default": "0",
    "fieldname": "grading_revised",
    "fieldtype": "Check",
-   "label": "Sortasi Direvisi Setelah Submit",
+   "label": "Grading Revised After Submit",
    "no_copy": 1,
    "read_only": 1
   },
   {
    "fieldname": "integration_column",
    "fieldtype": "Column Break"
+  },
+  {
+   "description": "Visit key from AutoGrade; one visit = one ticket",
+   "fieldname": "autograde_visit_id",
+   "fieldtype": "Data",
+   "label": "AutoGrade Visit",
+   "no_copy": 1,
+   "read_only": 1,
+   "unique": 1
   },
   {
    "fieldname": "autograde_assignment_id",
@@ -279,7 +265,7 @@
   {
    "fieldname": "autograde_url",
    "fieldtype": "Data",
-   "label": "Tautan AutoGrade",
+   "label": "AutoGrade Link",
    "no_copy": 1,
    "options": "URL",
    "read_only": 1
@@ -287,46 +273,46 @@
   {
    "fieldname": "grading_received_at",
    "fieldtype": "Datetime",
-   "label": "Sortasi Diterima",
+   "label": "Grading Received At",
    "no_copy": 1,
    "read_only": 1
   },
   {
    "fieldname": "grading_total",
    "fieldtype": "Int",
-   "label": "Total Janjang",
+   "label": "Total Bunches",
    "no_copy": 1,
    "read_only": 1
   },
   {
    "fieldname": "grading_acc",
    "fieldtype": "Int",
-   "label": "Diterima (ACC)",
+   "label": "Accepted (ACC)",
    "no_copy": 1,
    "read_only": 1
   },
   {
    "fieldname": "grading_rej",
    "fieldtype": "Int",
-   "label": "Ditolak (REJ)",
+   "label": "Rejected (REJ)",
    "no_copy": 1,
    "read_only": 1
   },
   {
-   "description": "Kunci kunjungan dari AutoGrade; satu kunjungan = satu tiket",
-   "fieldname": "autograde_visit_id",
-   "fieldtype": "Data",
-   "label": "AutoGrade Visit",
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
    "no_copy": 1,
-   "read_only": 1,
-   "unique": 1
+   "options": "Weighbridge Ticket",
+   "print_hide": 1,
+   "read_only": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-09-10 13:52:53.619808",
+ "modified": "2026-09-11 16:32:38.295150",
  "modified_by": "Administrator",
  "module": "Palm Mill",
  "name": "Weighbridge Ticket",

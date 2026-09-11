@@ -9,6 +9,7 @@ DocType JSON: fields on native DocTypes, roles, settings defaults.
 """
 
 import frappe
+from frappe import _
 from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
 from frappe.permissions import add_permission
 
@@ -20,42 +21,49 @@ ROLES = (OPERATOR_ROLE, INTEGRATION_ROLE)
 # receiving stock would hold.
 INTEGRATION_USER_ROLES = (INTEGRATION_ROLE, "Purchase User", "Stock User")
 
+# The estate masters are System Manager only in their DocType JSONs, but the mill sidebar
+# links them. A sidebar item whose has_permission fails is dropped silently, and a section
+# is only suppressed once every item under it is gone — so without read here an operator
+# gets a "Kebun & Blok" heading with nothing beneath it.
+READ_ONLY_MASTERS = (
+	"Supplier",
+	"Blok",
+	"Kebun",
+	"Divisi",
+	"Sumber TBS",
+	"Sertifikasi",
+)
+
 # Same names and properties the demo generator used, so existing sites see no change.
 CUSTOM_FIELDS = {
 	"Batch": [
 		{
 			"fieldname": "custom_source_batches",
-			"label": "Source Batches",
+			"label": _("Source Batches"),
 			"fieldtype": "Small Text",
 			"insert_after": "parent_batch",
 			"read_only": 1,
 		},
 		{
 			"fieldname": "custom_source_stock_entry",
-			"label": "Produced By",
+			"label": _("Produced By"),
 			"fieldtype": "Link",
 			"options": "Stock Entry",
 			"insert_after": "custom_source_batches",
 			"read_only": 1,
 		},
 		{
-			"fieldname": "custom_oer",
-			"label": "OER %",
-			"fieldtype": "Percent",
-			"insert_after": "custom_source_stock_entry",
-		},
-		{
 			"fieldname": "custom_sertifikasi",
-			"label": "Sertifikasi",
+			"label": "Certification",
 			"fieldtype": "Data",
-			"insert_after": "custom_oer",
-			"description": "Certification mix of the FFB that produced this batch",
+			"insert_after": "custom_source_stock_entry",
+			"description": _("Certification mix of the FFB that produced this batch"),
 		},
 	],
 	"Purchase Receipt Item": [
 		{
 			"fieldname": "custom_grading_note",
-			"label": "Catatan Sortasi",
+			"label": _("Grading Note"),
 			"fieldtype": "Small Text",
 			"insert_after": "discount_percentage",
 		},
@@ -95,8 +103,9 @@ def setup_roles():
 			frappe.get_doc({"doctype": "Role", "role_name": role, "desk_access": 1}).insert(
 				ignore_permissions=True
 			)
-		if not frappe.db.exists("Custom DocPerm", {"parent": "Supplier", "role": role, "permlevel": 0}):
-			add_permission("Supplier", role)
+		for doctype in READ_ONLY_MASTERS:
+			if not frappe.db.exists("Custom DocPerm", {"parent": doctype, "role": role, "permlevel": 0}):
+				add_permission(doctype, role)
 
 
 def set_defaults():
@@ -113,7 +122,8 @@ def set_defaults():
 			changed = True
 	for fieldname, doctype, name in (
 		("tbs_item", "Item", "TBS"),
-		("plasma_supplier_group", "Supplier Group", "Plasma"),
+		("cpo_item", "Item", "CPO"),
+		("kernel_item", "Item", "PK"),
 	):
 		if not settings.get(fieldname) and frappe.db.exists(doctype, name):
 			settings.set(fieldname, name)

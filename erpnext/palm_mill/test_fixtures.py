@@ -13,7 +13,7 @@ WAREHOUSE = "_Test Warehouse - _TC"
 COST_CENTER = "_Test Cost Center - _TC"
 PRICE_LIST = "_Test Palm Mill Buying"  # INR, like _Test Company; the standard buying test list is USD
 TBS_ITEM = "_Test TBS"
-PLASMA_SUPPLIER = "_Test Supplier"  # group "_Test Supplier Group", configured as the plasma group
+PLASMA_SUPPLIER = "_Test Supplier"  # group "_Test Supplier Group"
 PLASMA_GROUP = "_Test Supplier Group"
 AGEN_GROUP = "_Test Agen TBS"
 AGEN_SUPPLIER = "_Test Agen Sawit"
@@ -79,7 +79,6 @@ def setup_palm_mill():
 			"tbs_warehouse": WAREHOUSE,
 			"purchase_cost_center": COST_CENTER,
 			"buying_price_list": PRICE_LIST,
-			"plasma_supplier_group": PLASMA_GROUP,
 			"inti_expense_account": "Stock Adjustment - _TC",
 			"max_potongan_pct": 18,
 			"default_potongan_pct": 0,

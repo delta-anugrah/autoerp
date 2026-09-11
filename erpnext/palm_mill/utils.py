@@ -5,11 +5,12 @@ import re
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
+import frappe
 from frappe.utils import get_system_timezone
 
 from erpnext.stock.utils import get_combine_datetime
 
-PURCHASED_SOURCES = ("Plasma", "Pihak Ketiga")
+PURCHASED_SOURCES = ("External",)
 
 
 def normalize_plate(plate: str | None) -> str:
@@ -52,3 +53,16 @@ def to_site_datetime(value) -> datetime:
 def combine(date, time) -> datetime:
 	"""Ticket date + Time field (a timedelta once loaded) -> datetime."""
 	return get_combine_datetime(date, time if time is not None else "00:00:00")
+
+
+def relax_snapshot_isolation(*args, **kwargs):
+	"""MariaDB 11.6+ turns a concurrent same-row update into error 1020 instead of a lock
+	wait, and Frappe reads a document then updates it later in the same transaction all over
+	the place (dashboard charts, naming series). Frappe shows 1020 as "Deadlock Occurred".
+	Restore the pre-11.6 behaviour for this connection; older servers don't know the variable."""
+	if frappe.db.db_type != "mariadb":
+		return
+	try:
+		frappe.db.sql("set session innodb_snapshot_isolation = OFF")
+	except Exception:
+		pass

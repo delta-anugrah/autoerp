@@ -28,15 +28,13 @@ class IntegrationTestTruck(IntegrationTestCase):
 		self.assertEqual(get_truck_by_plate("b1111tt"), "B 1111 TT")
 		self.assertRaises(frappe.DuplicateEntryError, make_truck, "B1111TT")
 
-	def test_pending_clears_once_completed(self):
+	def test_completing_a_truck_stores_the_owner(self):
 		truck = get_or_create_truck("bd 777 xx", source="AutoGrade", autograde_id="ag-1")
-		self.assertEqual(
-			(truck.name, truck.pending, truck.source, truck.vehicle_class), ("BD 777 XX", 1, "AutoGrade", "")
-		)
+		self.assertEqual((truck.name, truck.source, truck.vehicle_class), ("BD 777 XX", "AutoGrade", ""))
 
 		again = get_or_create_truck("BD777XX", source="Scale")
 		self.assertEqual(again.name, truck.name)
 
 		truck.update({"supplier": PLASMA_SUPPLIER, "vehicle_class": "Dump Truck"})
 		truck.save()
-		self.assertEqual(truck.pending, 0)
+		self.assertEqual(frappe.db.get_value("Truck", truck.name, "supplier"), PLASMA_SUPPLIER)

@@ -15,11 +15,11 @@ class Blok(Document):
 		from frappe.types import DF
 
 		blok_code: DF.Data
-		divisi: DF.Literal["I", "II", "III", "IV"]
+		divisi: DF.Link
 		jumlah_pokok: DF.Int
-		kebun: DF.Literal["Sungai Rambang", "Air Batu"]
+		kebun: DF.Link
 		luas_ha: DF.Float
-		sertifikasi: DF.Literal["ISPO", "RSPO", "Non-sertifikasi"]
+		sertifikasi: DF.Link | None
 		tahun_tanam: DF.Int
 	# end: auto-generated types
 

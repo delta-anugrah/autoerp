@@ -11,12 +11,10 @@
   "supplier",
   "vehicle_class",
   "driver_name",
-  "disabled",
   "integration_section",
   "plate_normalized",
   "autograde_id",
   "integration_column",
-  "pending",
   "source"
  ],
  "fields": [
@@ -24,17 +22,17 @@
    "fieldname": "plate_number",
    "fieldtype": "Data",
    "in_list_view": 1,
-   "label": "No. Polisi",
+   "label": "Plate Number",
    "reqd": 1,
    "unique": 1
   },
   {
-   "description": "Kosong = armada pabrik sendiri (Inti)",
+   "description": "Blank = the mill's own fleet (Internal)",
    "fieldname": "supplier",
    "fieldtype": "Link",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "Pemilik (Supplier)",
+   "label": "Owner (Supplier)",
    "options": "Supplier"
   },
   {
@@ -42,31 +40,25 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "Jenis Kendaraan",
+   "label": "Vehicle Class",
    "options": "\nColt Diesel\nDump Truck\nTronton"
   },
   {
    "fieldname": "driver_name",
    "fieldtype": "Data",
-   "label": "Sopir Tetap"
-  },
-  {
-   "default": "0",
-   "fieldname": "disabled",
-   "fieldtype": "Check",
-   "label": "Nonaktif"
+   "label": "Regular Driver"
   },
   {
    "collapsible": 1,
    "fieldname": "integration_section",
    "fieldtype": "Section Break",
-   "label": "Integrasi"
+   "label": "Integration"
   },
   {
-   "description": "Huruf dan angka saja; kunci pencocokan dengan AutoGrade dan timbangan",
+   "description": "Letters and digits only; the matching key shared with AutoGrade and the scale",
    "fieldname": "plate_normalized",
    "fieldtype": "Data",
-   "label": "Plat (Normalisasi)",
+   "label": "Plate (Normalised)",
    "no_copy": 1,
    "read_only": 1,
    "unique": 1
@@ -83,19 +75,10 @@
    "fieldtype": "Column Break"
   },
   {
-   "default": "0",
-   "description": "Dibuat otomatis dari pabrik; lengkapi pemilik dan jenis kendaraan",
-   "fieldname": "pending",
-   "fieldtype": "Check",
-   "in_list_view": 1,
-   "in_standard_filter": 1,
-   "label": "Perlu Dilengkapi"
-  },
-  {
    "default": "Manual",
    "fieldname": "source",
    "fieldtype": "Select",
-   "label": "Sumber Data",
+   "label": "Data Source",
    "options": "Manual\nAutoGrade\nScale",
    "read_only": 1
   }
@@ -103,7 +86,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-09-10 08:25:56.782345",
+ "modified": "2026-09-11 15:43:33.436118",
  "modified_by": "Administrator",
  "module": "Palm Mill",
  "name": "Truck",
