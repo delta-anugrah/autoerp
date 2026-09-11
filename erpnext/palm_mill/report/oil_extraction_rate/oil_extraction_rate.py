@@ -1,5 +1,6 @@
 import frappe
 from frappe import _
+from frappe.utils import fmt_money, formatdate
 
 # Repack rows are tagged by ERPNext itself: the input has a source warehouse and no target,
 # every output has a target and no source (stock_entry.py mark_finished_and_scrap_items).
@@ -88,21 +89,49 @@ def get_columns():
 			"options": "Stock Entry",
 			"width": 160,
 		},
-		{"label": _("FFB Processed (kg)"), "fieldname": "tbs_kg", "fieldtype": "Float", "width": 140},
-		{"label": _("CPO (kg)"), "fieldname": "cpo_kg", "fieldtype": "Float", "width": 120},
-		{"label": _("OER (%)"), "fieldname": "oer", "fieldtype": "Percent", "width": 90},
-		{"label": _("Kernel (kg)"), "fieldname": "kernel_kg", "fieldtype": "Float", "width": 120},
-		{"label": _("KER (%)"), "fieldname": "ker", "fieldtype": "Percent", "width": 90},
-		{"label": _("By-products (kg)"), "fieldname": "byproduct_kg", "fieldtype": "Float", "width": 130},
-		{"label": _("Total Out (%)"), "fieldname": "total_out", "fieldtype": "Percent", "width": 110},
-		{"label": _("Losses (%)"), "fieldname": "losses", "fieldtype": "Percent", "width": 100},
+		{
+			"label": _("FFB Processed (kg)"),
+			"fieldname": "tbs_kg",
+			"fieldtype": "Int",
+			"width": 140,
+		},
+		{"label": _("CPO (kg)"), "fieldname": "cpo_kg", "fieldtype": "Int", "width": 120},
+		{"label": _("OER (%)"), "fieldname": "oer", "fieldtype": "Percent", "precision": 2, "width": 90},
+		{
+			"label": _("Kernel (kg)"),
+			"fieldname": "kernel_kg",
+			"fieldtype": "Int",
+			"width": 120,
+		},
+		{"label": _("KER (%)"), "fieldname": "ker", "fieldtype": "Percent", "precision": 2, "width": 90},
+		{
+			"label": _("By-products (kg)"),
+			"fieldname": "byproduct_kg",
+			"fieldtype": "Int",
+			"width": 130,
+		},
+		{
+			"label": _("Total Out (%)"),
+			"fieldname": "total_out",
+			"fieldtype": "Percent",
+			"precision": 2,
+			"width": 110,
+		},
+		{
+			"label": _("Losses (%)"),
+			"fieldname": "losses",
+			"fieldtype": "Percent",
+			"precision": 2,
+			"width": 100,
+		},
 	]
 
 
 def get_chart(data):
 	return {
 		"data": {
-			"labels": [str(e["posting_date"]) for e in data],
+			# day of month: with 70-odd daily points each label gets room for two characters
+			"labels": [formatdate(e["posting_date"], "d") for e in data],
 			"datasets": [
 				{"name": _("OER (%)"), "values": [e["oer"] for e in data]},
 				{"name": _("KER (%)"), "values": [e["ker"] for e in data]},
@@ -128,6 +157,16 @@ def get_summary(data):
 			"datatype": "Percent",
 		},
 		{"value": pct(kernel, tbs), "indicator": "Blue", "label": _("Period KER"), "datatype": "Percent"},
-		{"value": tbs, "indicator": "Grey", "label": _("FFB Processed (kg)"), "datatype": "Float"},
-		{"value": cpo, "indicator": "Grey", "label": _("CPO Produced (kg)"), "datatype": "Float"},
+		{
+			"value": fmt_money(tbs, precision=0),
+			"indicator": "Grey",
+			"label": _("FFB Processed (kg)"),
+			"datatype": "Data",
+		},
+		{
+			"value": fmt_money(cpo, precision=0),
+			"indicator": "Grey",
+			"label": _("CPO Produced (kg)"),
+			"datatype": "Data",
+		},
 	]
