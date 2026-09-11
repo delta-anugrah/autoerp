@@ -18,9 +18,7 @@ class Truck(Document):
 		from frappe.types import DF
 
 		autograde_id: DF.Data | None
-		disabled: DF.Check
 		driver_name: DF.Data | None
-		pending: DF.Check
 		plate_normalized: DF.Data | None
 		plate_number: DF.Data
 		source: DF.Literal["Manual", "AutoGrade", "Scale"]
@@ -42,10 +40,6 @@ class Truck(Document):
 				frappe.DuplicateEntryError,
 			)
 
-		# "Perlu Dilengkapi" clears itself once the backoffice has filled the owner and class.
-		if self.pending and self.supplier and self.vehicle_class:
-			self.pending = 0
-
 
 def get_truck_by_plate(plate: str) -> str | None:
 	return frappe.db.get_value("Truck", {"plate_normalized": normalize_plate(plate)}, "name")
@@ -58,7 +52,7 @@ def get_or_create_truck(
 	vehicle_class: str | None = None,
 	autograde_id: str | None = None,
 ) -> Truck:
-	"""Resolve a plate to a Truck, creating a pending one when the mill sees it first.
+	"""Resolve a plate to a Truck, creating a bare one when the mill sees it first.
 
 	An existing truck is never overwritten by an integration: only an empty
 	`autograde_id` is filled in. Master data is owned in AutoERP.
@@ -79,7 +73,6 @@ def get_or_create_truck(
 			"vehicle_class": vehicle_class,
 			"autograde_id": autograde_id,
 			"source": source,
-			"pending": 1,
 		}
 	)
 	truck.insert()

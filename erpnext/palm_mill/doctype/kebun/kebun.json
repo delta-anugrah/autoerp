@@ -14,7 +14,7 @@
    "fieldname": "title",
    "fieldtype": "Data",
    "in_list_view": 1,
-   "label": "Kebun",
+   "label": "Estate",
    "reqd": 1,
    "unique": 1
   }
@@ -22,7 +22,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-09-10 07:59:18.406795",
+ "modified": "2026-09-11 14:29:51.404891",
  "modified_by": "Administrator",
  "module": "Palm Mill",
  "name": "Kebun",
@@ -47,5 +47,6 @@
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": [],
- "title_field": "title"
+ "title_field": "title",
+ "translated_doctype": 1
 }

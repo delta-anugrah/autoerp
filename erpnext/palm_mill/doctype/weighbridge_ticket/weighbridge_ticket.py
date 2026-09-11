@@ -6,8 +6,8 @@
 Weight (from the scale) and grading (from AutoGrade or the operator) attach to the
 ticket independently. `try_finalize` submits it once both are present, or once the
 grading timeout has passed, and then creates the stock document: a Purchase Receipt
-for bought fruit (Plasma / Pihak Ketiga) or a Stock Entry for the mill's own estate
-(Inti). Quantity is net minus sampah; potongan is the receipt item's discount, the
+for bought fruit (External) or a Stock Entry for the mill's own estate
+(Internal). Quantity is net minus sampah; potongan is the receipt item's discount, the
 same way the existing receipts were built.
 """
 
@@ -22,7 +22,6 @@ from erpnext.palm_mill.utils import PURCHASED_SOURCES, combine
 from erpnext.stock.doctype.stock_entry.stock_entry_utils import make_stock_entry
 
 SAMPAH = "Sampah"
-DIMENSION_FIELDS = ("sumber_tbs", "sertifikasi", "blok", "kebun", "divisi")
 
 
 class WeighbridgeTicket(Document):
@@ -60,18 +59,16 @@ class WeighbridgeTicket(Document):
 		purchase_receipt: DF.Link | None
 		sampah_kg: DF.Float
 		scale_ticket_no: DF.Data | None
-		sertifikasi: DF.Literal["", "ISPO", "RSPO", "Non-sertifikasi"]
+		sertifikasi: DF.Link | None
 		status: DF.Literal["", "Waiting Weight", "Waiting Grading", "Ready", "Finalised", "Cancelled"]
 		stock_entry: DF.Link | None
-		sumber_tbs: DF.Literal["Inti", "Plasma", "Pihak Ketiga"]
+		sumber_tbs: DF.Link
 		supplier: DF.Link | None
 		tare_weight_kg: DF.Float
 		ticket_date: DF.Date
 		time_in: DF.Time | None
 		time_out: DF.Time | None
 		truck: DF.Link | None
-		vehicle_class: DF.Data | None
-		vehicle_no: DF.Data | None
 		weight_received_at: DF.Datetime | None
 	# end: auto-generated types
 
@@ -106,10 +103,10 @@ class WeighbridgeTicket(Document):
 	def set_supplier_and_source(self):
 		if not self.supplier and self.truck:
 			self.supplier = frappe.db.get_value("Truck", self.truck, "supplier")
-		# New documents get the Select's first option ("Inti") before validate runs, so derive
+		# Derive the source from the truck's owner so a hand-typed value can't disagree with it;
 		# from the supplier whenever the value is missing or contradicts having a supplier.
 		derived = sumber_for_supplier(self.supplier)
-		if not self.sumber_tbs or (self.sumber_tbs == "Inti") != (derived == "Inti"):
+		if not self.sumber_tbs or (self.sumber_tbs == "Internal") != (derived == "Internal"):
 			self.sumber_tbs = derived
 		# Integrations do not know the certification; an estate block does.
 		if not self.sertifikasi and self.blok:
@@ -206,7 +203,7 @@ class WeighbridgeTicket(Document):
 		return True
 
 	def create_stock_documents(self) -> str:
-		"""Purchase Receipt for bought fruit, Stock Entry for Inti. Idempotent per ticket.
+		"""Purchase Receipt for bought fruit, Stock Entry for Internal. Idempotent per ticket.
 
 		Runs with the caller's permissions: whoever finalises a ticket needs the roles of
 		someone who receives stock (Purchase User + Stock User), as ERPNext expects.
@@ -226,7 +223,7 @@ class WeighbridgeTicket(Document):
 	def make_purchase_receipt(self):
 		s = require_settings("tbs_item", "tbs_warehouse")
 		if not self.supplier:
-			frappe.throw(_("Supplier is required for a {0} ticket").format(self.sumber_tbs))
+			frappe.throw(_("Supplier is required for a {0} ticket").format(_(self.sumber_tbs)))
 		stock_uom = frappe.db.get_value("Item", s.tbs_item, "stock_uom")
 
 		item = {
@@ -289,7 +286,7 @@ class WeighbridgeTicket(Document):
 		row = se.items[0]
 		row.set_basic_rate_manually = 1
 		row.update(only_known_fields("Stock Entry Detail", dims))
-		se.remarks = f"Penerimaan TBS Inti {self.name} @ Rp {flt(self.harga_per_kg):,.0f}/kg"
+		se.remarks = f"Penerimaan TBS Internal {self.name} @ Rp {flt(self.harga_per_kg):,.0f}/kg"
 		se.insert()
 		se.submit()
 		return se
@@ -320,16 +317,15 @@ def require_settings(*fieldnames):
 	s = settings()
 	missing = [f for f in fieldnames if not s.get(f)]
 	if missing:
-		labels = ", ".join(frappe.get_meta("Palm Mill Settings").get_label(f) for f in missing)
+		labels = ", ".join(_(frappe.get_meta("Palm Mill Settings").get_label(f)) for f in missing)
 		frappe.throw(_("Please set {0} in Palm Mill Settings").format(labels))
 	return s
 
 
 def sumber_for_supplier(supplier: str | None) -> str:
-	if not supplier:
-		return "Inti"
-	group = frappe.db.get_value("Supplier", supplier, "supplier_group")
-	return "Plasma" if group and group == settings().plasma_supplier_group else "Pihak Ketiga"
+	"""Fruit with no supplier is the mill's own; everything bought is External. The plasma
+	vs agent distinction lives on the Supplier Group, not here."""
+	return "External" if supplier else "Internal"
 
 
 def get_or_create_daily_batch(item_code: str, date, ticket: str | None = None) -> str:
@@ -408,7 +404,7 @@ def on_stock_document_cancel(doc, method=None):
 	The ticket links to its stock document and the stock document links back, which
 	would block cancelling either. Cancelling the stock document is the legitimate
 	first step (the ticket stays finalised), so let it through and clear the ticket's
-	back-link so "Penerimaan Stok" can create a replacement.
+	back-link so "Receive Stock" can create a replacement.
 	"""
 	doc.ignore_linked_doctypes = (*(doc.get("ignore_linked_doctypes") or ()), "Weighbridge Ticket")
 	field = "purchase_receipt" if doc.doctype == "Purchase Receipt" else "stock_entry"

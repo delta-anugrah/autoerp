@@ -20,58 +20,58 @@
    "fieldname": "blok_code",
    "fieldtype": "Data",
    "in_list_view": 1,
-   "label": "Kode Blok",
+   "label": "Block Code",
    "reqd": 1,
    "unique": 1
   },
   {
    "fieldname": "kebun",
-   "fieldtype": "Select",
+   "fieldtype": "Link",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "Kebun",
-   "options": "Sungai Rambang\nAir Batu",
+   "label": "Estate",
+   "options": "Kebun",
    "reqd": 1
   },
   {
    "fieldname": "divisi",
-   "fieldtype": "Select",
+   "fieldtype": "Link",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "Divisi",
-   "options": "I\nII\nIII\nIV",
+   "label": "Division",
+   "options": "Divisi",
    "reqd": 1
   },
   {
    "fieldname": "luas_ha",
    "fieldtype": "Float",
    "in_list_view": 1,
-   "label": "Luas (Ha)",
+   "label": "Area (Ha)",
    "precision": "2"
   },
   {
    "fieldname": "tahun_tanam",
    "fieldtype": "Int",
-   "label": "Tahun Tanam"
+   "label": "Planting Year"
   },
   {
    "fieldname": "jumlah_pokok",
    "fieldtype": "Int",
-   "label": "Jumlah Pokok"
+   "label": "Palm Count"
   },
   {
    "fieldname": "sertifikasi",
-   "fieldtype": "Select",
+   "fieldtype": "Link",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "Sertifikasi",
-   "options": "ISPO\nRSPO\nNon-sertifikasi"
+   "label": "Certification",
+   "options": "Sertifikasi"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-09-10 07:59:18.893050",
+ "modified": "2026-09-11 14:29:51.404891",
  "modified_by": "Administrator",
  "module": "Palm Mill",
  "name": "Blok",

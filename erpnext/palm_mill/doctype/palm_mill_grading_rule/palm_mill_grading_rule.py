@@ -15,7 +15,7 @@ class PalmMillGradingRule(Document):
 		from frappe.types import DF
 
 		deduction_pct: DF.Percent
-		kriteria: DF.Data
+		kriteria: DF.Literal["", "Mentah", "Tangkai Panjang", "Matang", "Lewat Matang", "Sampah"]
 		parent: DF.Data
 		parentfield: DF.Data
 		parenttype: DF.Data

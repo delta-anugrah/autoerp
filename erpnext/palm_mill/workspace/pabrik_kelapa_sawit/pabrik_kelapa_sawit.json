@@ -2,19 +2,27 @@
  "app": "erpnext",
  "charts": [
   {
-   "chart_name": "PKS Penerimaan TBS Harian"
+   "chart_name": "OER KER by Day",
+   "label": "OER & KER by Day"
   },
   {
-   "chart_name": "PKS TBS per Sumber"
+   "chart_name": "PKS Penerimaan TBS Harian",
+   "label": "Daily FFB Intake"
   },
   {
-   "chart_name": "PKS TBS per Sertifikasi"
+   "chart_name": "PKS TBS per Sumber",
+   "label": "FFB by Source"
   },
   {
-   "chart_name": "PKS Pembelian per Pemasok"
+   "chart_name": "PKS TBS per Sertifikasi",
+   "label": "FFB by Certification"
+  },
+  {
+   "chart_name": "PKS Pembelian per Pemasok",
+   "label": "Purchases by Supplier"
   }
  ],
- "content": "[{\"id\": \"hdr1\", \"type\": \"header\", \"data\": {\"text\": \"<span class='h4'>Ringkasan Operasional</span>\", \"col\": 12}}, {\"id\": \"nc-TBS Diterima (kg)\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"TBS Diterima (kg)\", \"col\": 4}}, {\"id\": \"nc-Tiket Timbang\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Tiket Timbang\", \"col\": 4}}, {\"id\": \"nc-Nilai Pembelian TBS\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Nilai Pembelian TBS\", \"col\": 4}}, {\"id\": \"nc-Piutang Usaha\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Piutang Usaha\", \"col\": 4}}, {\"id\": \"nc-Hutang Usaha\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Hutang Usaha\", \"col\": 4}}, {\"id\": \"nc-Penjualan\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Penjualan\", \"col\": 4}}, {\"id\": \"hdr2\", \"type\": \"header\", \"data\": {\"text\": \"<span class='h4'>Tren & Komposisi</span>\", \"col\": 12}}, {\"id\": \"ch-PKS Penerimaan TBS Harian\", \"type\": \"chart\", \"data\": {\"chart_name\": \"PKS Penerimaan TBS Harian\", \"col\": 6}}, {\"id\": \"ch-PKS TBS per Sumber\", \"type\": \"chart\", \"data\": {\"chart_name\": \"PKS TBS per Sumber\", \"col\": 6}}, {\"id\": \"ch-PKS TBS per Sertifikasi\", \"type\": \"chart\", \"data\": {\"chart_name\": \"PKS TBS per Sertifikasi\", \"col\": 6}}, {\"id\": \"ch-PKS Pembelian per Pemasok\", \"type\": \"chart\", \"data\": {\"chart_name\": \"PKS Pembelian per Pemasok\", \"col\": 6}}, {\"id\": \"hdr3\", \"type\": \"header\", \"data\": {\"text\": \"<span class='h4'>Dokumen</span>\", \"col\": 12}}, {\"id\": \"sc-Weighbridge Ticket\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Weighbridge Ticket\", \"col\": 3}}, {\"id\": \"sc-Stock Entry\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Stock Entry\", \"col\": 3}}, {\"id\": \"sc-Purchase Invoice\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Purchase Invoice\", \"col\": 3}}, {\"id\": \"sc-Sales Invoice\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Sales Invoice\", \"col\": 3}}, {\"id\": \"sc-Quality Inspection\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Quality Inspection\", \"col\": 3}}, {\"id\": \"sc-Blok\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Blok\", \"col\": 3}}, {\"id\": \"sc-Truck\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Truck\", \"col\": 3}}, {\"id\": \"sc-Batch\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Batch\", \"col\": 3}}, {\"id\": \"sc-Asset\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Asset\", \"col\": 3}}]",
+ "content": "[{\"id\": \"hdr1\", \"type\": \"header\", \"data\": {\"text\": \"<span class='h4'>Operations Summary</span>\", \"col\": 12}}, {\"id\": \"nc-Avg Daily OER\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Avg Daily OER (%)\", \"col\": 4, \"label\": \"Avg Daily OER (%)\"}}, {\"id\": \"nc-TBS Diterima (kg)\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"FFB Received (kg)\", \"col\": 4, \"label\": \"FFB Received (kg)\"}}, {\"id\": \"nc-Tiket Timbang\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Weighbridge Tickets\", \"col\": 4, \"label\": \"Weighbridge Tickets\"}}, {\"id\": \"nc-Nilai Pembelian TBS\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"FFB Purchase Value\", \"col\": 4, \"label\": \"FFB Purchase Value\"}}, {\"id\": \"nc-Piutang Usaha\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Accounts Receivable\", \"col\": 4, \"label\": \"Accounts Receivable\"}}, {\"id\": \"nc-Hutang Usaha\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Accounts Payable\", \"col\": 4, \"label\": \"Accounts Payable\"}}, {\"id\": \"nc-Penjualan\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Sales\", \"col\": 4, \"label\": \"Sales\"}}, {\"id\": \"hdr2\", \"type\": \"header\", \"data\": {\"text\": \"<span class='h4'>Trends & Composition</span>\", \"col\": 12}}, {\"id\": \"ch-OER KER by Day\", \"type\": \"chart\", \"data\": {\"chart_name\": \"OER & KER by Day\", \"col\": 12, \"label\": \"OER & KER by Day\"}}, {\"id\": \"ch-PKS Penerimaan TBS Harian\", \"type\": \"chart\", \"data\": {\"chart_name\": \"Daily FFB Intake\", \"col\": 6, \"label\": \"Daily FFB Intake\"}}, {\"id\": \"ch-PKS TBS per Sumber\", \"type\": \"chart\", \"data\": {\"chart_name\": \"FFB by Source\", \"col\": 6, \"label\": \"FFB by Source\"}}, {\"id\": \"ch-PKS TBS per Sertifikasi\", \"type\": \"chart\", \"data\": {\"chart_name\": \"FFB by Certification\", \"col\": 6, \"label\": \"FFB by Certification\"}}, {\"id\": \"ch-PKS Pembelian per Pemasok\", \"type\": \"chart\", \"data\": {\"chart_name\": \"Purchases by Supplier\", \"col\": 6, \"label\": \"Purchases by Supplier\"}}, {\"id\": \"hdr3\", \"type\": \"header\", \"data\": {\"text\": \"<span class='h4'>Documents</span>\", \"col\": 12}}, {\"id\": \"sc-Weighbridge Ticket\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Weighbridge Tickets\", \"col\": 3}}, {\"id\": \"sc-Stock Entry\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Production\", \"col\": 3}}, {\"id\": \"sc-Purchase Invoice\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Purchase Invoices\", \"col\": 3}}, {\"id\": \"sc-Sales Invoice\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Sales Invoices\", \"col\": 3}}, {\"id\": \"sc-Blok\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Blocks\", \"col\": 3}}, {\"id\": \"sc-Truck\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"FFB Trucks\", \"col\": 3}}, {\"id\": \"sc-Batch\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"CPO / PK Batches\", \"col\": 3}}, {\"id\": \"sc-Asset\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Mill Machines\", \"col\": 3}}, {\"id\": \"sc-Extraction Rate (OER)\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Extraction Rate (OER)\", \"col\": 3}}]",
  "creation": "2026-09-10 08:03:44.363318",
  "custom_blocks": [],
  "docstatus": 0,
@@ -27,27 +35,37 @@
  "label": "Pabrik Kelapa Sawit",
  "link_type": "DocType",
  "links": [],
- "modified": "2026-09-10 08:03:44.363318",
+ "modified": "2026-09-11 16:04:22.179641",
  "modified_by": "Administrator",
  "module": "Palm Mill",
  "name": "Pabrik Kelapa Sawit",
  "number_cards": [
   {
+   "label": "Avg Daily OER (%)",
+   "number_card_name": "Avg Daily OER"
+  },
+  {
+   "label": "FFB Received (kg)",
    "number_card_name": "TBS Diterima (kg)"
   },
   {
+   "label": "Weighbridge Tickets",
    "number_card_name": "Tiket Timbang"
   },
   {
+   "label": "FFB Purchase Value",
    "number_card_name": "Nilai Pembelian TBS"
   },
   {
+   "label": "Accounts Receivable",
    "number_card_name": "Piutang Usaha"
   },
   {
+   "label": "Accounts Payable",
    "number_card_name": "Hutang Usaha"
   },
   {
+   "label": "Sales",
    "number_card_name": "Penjualan"
   }
  ],
@@ -55,70 +73,71 @@
  "public": 1,
  "quick_lists": [],
  "roles": [],
- "sequence_id": 1.0,
+ "sequence_id": 0.0,
  "shortcuts": [
   {
    "color": "Grey",
    "doc_view": "",
-   "label": "Tiket Timbang",
+   "label": "Weighbridge Tickets",
    "link_to": "Weighbridge Ticket",
    "type": "DocType"
   },
   {
    "color": "Grey",
    "doc_view": "",
-   "label": "Produksi & Mutasi",
+   "label": "Production",
    "link_to": "Stock Entry",
    "type": "DocType"
   },
   {
    "color": "Grey",
    "doc_view": "",
-   "label": "Faktur Pembelian",
+   "label": "Purchase Invoices",
    "link_to": "Purchase Invoice",
    "type": "DocType"
   },
   {
    "color": "Grey",
    "doc_view": "",
-   "label": "Faktur Penjualan",
+   "label": "Sales Invoices",
    "link_to": "Sales Invoice",
    "type": "DocType"
   },
   {
    "color": "Grey",
    "doc_view": "",
-   "label": "Hasil Lab",
-   "link_to": "Quality Inspection",
-   "type": "DocType"
-  },
-  {
-   "color": "Grey",
-   "doc_view": "",
-   "label": "Blok Kebun",
+   "label": "Blocks",
    "link_to": "Blok",
    "type": "DocType"
   },
   {
    "color": "Grey",
    "doc_view": "",
-   "label": "Truk TBS",
+   "label": "FFB Trucks",
    "link_to": "Truck",
    "type": "DocType"
   },
   {
    "color": "Grey",
    "doc_view": "",
-   "label": "Batch CPO/PK",
+   "label": "CPO / PK Batches",
    "link_to": "Batch",
    "type": "DocType"
   },
   {
    "color": "Grey",
    "doc_view": "",
-   "label": "Mesin Pabrik",
+   "label": "Mill Machines",
    "link_to": "Asset",
    "type": "DocType"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "",
+   "label": "Extraction Rate (OER)",
+   "link_to": "Oil Extraction Rate",
+   "report_ref_doctype": "Stock Entry",
+   "type": "Report"
   }
  ],
  "title": "Pabrik Kelapa Sawit",

@@ -71,7 +71,6 @@ def _result(ticket, truck, **extra):
 		"ticket": ticket.name,
 		"status": ticket.status,
 		"truck": truck.name,
-		"truck_pending": cint(truck.pending),
 		**extra,
 	}
 
@@ -81,7 +80,7 @@ def _result(ticket, truck, **extra):
 def upsert_truck(
 	plate_number, autograde_id=None, supplier=None, vehicle_class=None, capacity=None, site=None
 ):
-	"""Interface B: a plate first seen at the mill becomes a pending Truck. Existing trucks
+	"""Interface B: a plate first seen at the mill becomes a Truck without an owner. Existing trucks
 	are never overwritten (AutoERP owns master data); `capacity` is accepted and ignored."""
 	frappe.has_permission("Truck", "create", throw=True)
 	truck = get_or_create_truck(
@@ -93,7 +92,6 @@ def upsert_truck(
 	)
 	return {
 		"name": truck.name,
-		"pending": cint(truck.pending),
 		"supplier": truck.supplier,
 		"vehicle_class": truck.vehicle_class,
 	}
@@ -247,9 +245,9 @@ def _after_finalisation(ticket, truck, weighing, pct):
 		if old != new:
 			ticket.add_comment(
 				"Comment",
-				_(
-					"AutoGrade revised grading after finalisation: Mentah {0}% -> {1}%, Tangkai Panjang {2}% -> {3}%"
-				).format(old[0], new[0], old[1], new[1]),
+				_("AutoGrade revised grading after finalisation: {0} {1}% -> {2}%, {3} {4}% -> {5}%").format(
+					_("Mentah"), old[0], new[0], _("Tangkai Panjang"), old[1], new[1]
+				),
 			)
 			ticket.db_set("grading_revised", 1)
 			notes.append("grading revised")
@@ -267,3 +265,14 @@ def _after_finalisation(ticket, truck, weighing, pct):
 	if notes:
 		return _result(ticket, truck, revised=True, note="ticket already finalised; " + ", ".join(notes))
 	return _result(ticket, truck, note="ticket already finalised; visit unchanged")
+
+
+@frappe.whitelist()
+def set_language(lang: str):
+	"""Switch the calling user's desk language. Saving the User doc is what clears that
+	user's cached bootinfo, which holds a frozen copy of the translation dict."""
+	if lang not in ("id", "en"):
+		frappe.throw(_("Unsupported language"))
+	user = frappe.get_doc("User", frappe.session.user)
+	user.language = lang
+	user.save(ignore_permissions=True)

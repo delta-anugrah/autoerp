@@ -19,14 +19,15 @@ class PalmMillSettings(Document):
 		)
 
 		buying_price_list: DF.Link | None
+		cpo_item: DF.Link | None
 		create_stock_documents_on_submit: DF.Check
 		default_potongan_pct: DF.Percent
 		grading_rules: DF.Table[PalmMillGradingRule]
 		grading_timeout_hours: DF.Int
 		inti_expense_account: DF.Link | None
+		kernel_item: DF.Link | None
 		match_window_hours: DF.Int
 		max_potongan_pct: DF.Percent
-		plasma_supplier_group: DF.Link | None
 		purchase_cost_center: DF.Link | None
 		tbs_item: DF.Link | None
 		tbs_warehouse: DF.Link | None

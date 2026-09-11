@@ -689,3 +689,31 @@ fields_for_group_similar_items = ["qty", "amount"]
 # ------------
 # List of apps whose translatable strings should be excluded from this app's translations.
 ignore_translatable_strings_from = ["frappe"]
+
+# Translations Frappe's own catalog gets wrong or leaves empty on the mill's screens.
+# ERPNext's .po cannot override a Frappe msgid (see ignore_translatable_strings_from), and
+# Translation rows outrank every .po, so these ship as fixtures.
+fixtures = [{"dt": "Translation", "filters": [["language", "in", ["id", "en"]]]}]
+
+# One-click language switch in the user menu; only the other language is offered.
+standard_navbar_items = [
+	{
+		"item_label": "Bahasa Indonesia",
+		"item_type": "Action",
+		"action": "frappe.xcall('erpnext.palm_mill.api.set_language', {lang: 'id'}).then(() => location.reload())",
+		"condition": "frappe.boot.lang !== 'id'",
+		"is_standard": 1,
+	},
+	{
+		"item_label": "English",
+		"item_type": "Action",
+		"action": "frappe.xcall('erpnext.palm_mill.api.set_language', {lang: 'en'}).then(() => location.reload())",
+		"condition": "frappe.boot.lang !== 'en'",
+		"is_standard": 1,
+	},
+]
+
+# MariaDB 11.6+ snapshot isolation makes Frappe's read-then-update patterns fail as "Deadlock
+# Occurred"; relax it per connection for web requests and background jobs alike.
+before_request = ["erpnext.palm_mill.utils.relax_snapshot_isolation"]
+before_job = ["erpnext.palm_mill.utils.relax_snapshot_isolation"]
