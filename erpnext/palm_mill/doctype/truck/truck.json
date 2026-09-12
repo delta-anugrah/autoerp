@@ -1,0 +1,130 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "field:plate_number",
+ "creation": "2026-09-09 18:18:07.652415",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "plate_number",
+  "supplier",
+  "vehicle_class",
+  "driver_name",
+  "integration_section",
+  "plate_normalized",
+  "autograde_id",
+  "integration_column",
+  "source"
+ ],
+ "fields": [
+  {
+   "fieldname": "plate_number",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Plate Number",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "description": "Blank = the mill's own fleet (Internal)",
+   "fieldname": "supplier",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Owner (Supplier)",
+   "options": "Supplier"
+  },
+  {
+   "fieldname": "vehicle_class",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Vehicle Class",
+   "options": "\nColt Diesel\nDump Truck\nTronton"
+  },
+  {
+   "fieldname": "driver_name",
+   "fieldtype": "Data",
+   "label": "Regular Driver"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "integration_section",
+   "fieldtype": "Section Break",
+   "label": "Integration"
+  },
+  {
+   "description": "Letters and digits only; the matching key shared with AutoGrade and the scale",
+   "fieldname": "plate_normalized",
+   "fieldtype": "Data",
+   "label": "Plate (Normalised)",
+   "no_copy": 1,
+   "read_only": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "autograde_id",
+   "fieldtype": "Data",
+   "label": "AutoGrade ID",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "integration_column",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Manual",
+   "fieldname": "source",
+   "fieldtype": "Select",
+   "label": "Data Source",
+   "options": "Manual\nAutoGrade\nScale",
+   "read_only": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-09-11 15:43:33.436118",
+ "modified_by": "Administrator",
+ "module": "Palm Mill",
+ "name": "Truck",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "export": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Weighbridge Operator",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "role": "Palm Mill Integration",
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

@@ -22,3 +22,6 @@ node_modules/
 # local secrets / site credentials — never commit
 .env
 .env.*
+
+# Playwright MCP session output
+.playwright-mcp/

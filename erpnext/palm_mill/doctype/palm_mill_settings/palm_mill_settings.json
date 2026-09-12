@@ -1,0 +1,168 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-09-10 08:08:54.795746",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "goods_section",
+  "tbs_item",
+  "cpo_item",
+  "kernel_item",
+  "tbs_warehouse",
+  "purchase_cost_center",
+  "buying_price_list",
+  "goods_column",
+  "inti_expense_account",
+  "grading_section",
+  "grading_rules",
+  "max_potongan_pct",
+  "default_potongan_pct",
+  "grading_column",
+  "grading_timeout_hours",
+  "match_window_hours",
+  "automation_section",
+  "create_stock_documents_on_submit"
+ ],
+ "fields": [
+  {
+   "fieldname": "goods_section",
+   "fieldtype": "Section Break",
+   "label": "Items & Warehouses"
+  },
+  {
+   "fieldname": "tbs_item",
+   "fieldtype": "Link",
+   "label": "FFB Item",
+   "options": "Item"
+  },
+  {
+   "fieldname": "cpo_item",
+   "fieldtype": "Link",
+   "label": "CPO Item",
+   "options": "Item"
+  },
+  {
+   "fieldname": "kernel_item",
+   "fieldtype": "Link",
+   "label": "Kernel Item",
+   "options": "Item"
+  },
+  {
+   "fieldname": "tbs_warehouse",
+   "fieldtype": "Link",
+   "label": "FFB Receiving Warehouse",
+   "options": "Warehouse"
+  },
+  {
+   "fieldname": "purchase_cost_center",
+   "fieldtype": "Link",
+   "label": "Receiving Cost Center",
+   "options": "Cost Center"
+  },
+  {
+   "description": "Blank = the default Buying Price List from Buying Settings",
+   "fieldname": "buying_price_list",
+   "fieldtype": "Link",
+   "label": "Buying Price List",
+   "options": "Price List"
+  },
+  {
+   "fieldname": "goods_column",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Contra account for the Stock Entry receiving own-estate FFB",
+   "fieldname": "inti_expense_account",
+   "fieldtype": "Link",
+   "label": "Internal FFB Transfer Income Account",
+   "options": "Account"
+  },
+  {
+   "fieldname": "grading_section",
+   "fieldtype": "Section Break",
+   "label": "Grading & Deductions"
+  },
+  {
+   "fieldname": "grading_rules",
+   "fieldtype": "Table",
+   "label": "Deduction Weight per Criterion",
+   "options": "Palm Mill Grading Rule"
+  },
+  {
+   "default": "18",
+   "fieldname": "max_potongan_pct",
+   "fieldtype": "Percent",
+   "label": "Maximum Deduction (%)"
+  },
+  {
+   "default": "0",
+   "description": "Used when grading is not available by the deadline",
+   "fieldname": "default_potongan_pct",
+   "fieldtype": "Percent",
+   "label": "Default Deduction (%)"
+  },
+  {
+   "fieldname": "grading_column",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "6",
+   "description": "After time out plus this limit, the ticket is finalised without grading",
+   "fieldname": "grading_timeout_hours",
+   "fieldtype": "Int",
+   "label": "Grading Timeout (hours)"
+  },
+  {
+   "default": "2",
+   "description": "Maximum time difference between the weighing and the grading session for the same truck",
+   "fieldname": "match_window_hours",
+   "fieldtype": "Int",
+   "label": "Matching Window (hours)"
+  },
+  {
+   "fieldname": "automation_section",
+   "fieldtype": "Section Break",
+   "label": "Automation"
+  },
+  {
+   "default": "0",
+   "description": "The integration path always creates the Purchase Receipt / Stock Entry. Tick so a manual submit creates them too.",
+   "fieldname": "create_stock_documents_on_submit",
+   "fieldtype": "Check",
+   "label": "Create Stock Documents on Manual Submit"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-09-11 15:43:33.436118",
+ "modified_by": "Administrator",
+ "module": "Palm Mill",
+ "name": "Palm Mill Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "Weighbridge Operator"
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

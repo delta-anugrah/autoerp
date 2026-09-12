@@ -1,0 +1,366 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "WB-.YYYY.-.#####",
+ "creation": "2026-09-07 13:36:48.215589",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "ticket_date",
+  "company",
+  "status",
+  "sumber_tbs",
+  "supplier",
+  "blok",
+  "sertifikasi",
+  "truck",
+  "driver_name",
+  "time_in",
+  "time_out",
+  "gross_weight_kg",
+  "tare_weight_kg",
+  "net_weight_kg",
+  "grading",
+  "sampah_kg",
+  "potongan_pct",
+  "net_after_deduction_kg",
+  "harga_per_kg",
+  "nilai",
+  "purchase_receipt",
+  "stock_entry",
+  "catatan",
+  "integration_section",
+  "scale_ticket_no",
+  "weight_received_at",
+  "grading_missing",
+  "grading_revised",
+  "integration_column",
+  "autograde_visit_id",
+  "autograde_assignment_id",
+  "autograde_url",
+  "grading_received_at",
+  "grading_total",
+  "grading_acc",
+  "grading_rej",
+  "amended_from"
+ ],
+ "fields": [
+  {
+   "fieldname": "ticket_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "no_copy": 1,
+   "options": "\nWaiting Weight\nWaiting Grading\nReady\nFinalised\nCancelled",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sumber_tbs",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "FFB Source",
+   "options": "Sumber TBS",
+   "reqd": 1
+  },
+  {
+   "fieldname": "supplier",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Supplier",
+   "options": "Supplier"
+  },
+  {
+   "fieldname": "blok",
+   "fieldtype": "Link",
+   "label": "Block",
+   "options": "Blok"
+  },
+  {
+   "fieldname": "sertifikasi",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Certification",
+   "options": "Sertifikasi"
+  },
+  {
+   "fieldname": "truck",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Truck",
+   "options": "Truck"
+  },
+  {
+   "fetch_from": "truck.driver_name",
+   "fetch_if_empty": 1,
+   "fieldname": "driver_name",
+   "fieldtype": "Data",
+   "label": "Driver Name"
+  },
+  {
+   "fieldname": "time_in",
+   "fieldtype": "Time",
+   "label": "Time In"
+  },
+  {
+   "fieldname": "time_out",
+   "fieldtype": "Time",
+   "label": "Time Out"
+  },
+  {
+   "fieldname": "gross_weight_kg",
+   "fieldtype": "Float",
+   "label": "Gross Weight (kg)",
+   "precision": "2"
+  },
+  {
+   "fieldname": "tare_weight_kg",
+   "fieldtype": "Float",
+   "label": "Tare Weight (kg)",
+   "precision": "2"
+  },
+  {
+   "fieldname": "net_weight_kg",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Net Weight (kg)",
+   "precision": "2"
+  },
+  {
+   "fieldname": "grading",
+   "fieldtype": "Table",
+   "label": "Grading",
+   "options": "Weighbridge Grading"
+  },
+  {
+   "fieldname": "sampah_kg",
+   "fieldtype": "Float",
+   "label": "Trash (kg)",
+   "precision": "2"
+  },
+  {
+   "fieldname": "potongan_pct",
+   "fieldtype": "Percent",
+   "in_list_view": 1,
+   "label": "Deduction (%)",
+   "precision": "2"
+  },
+  {
+   "fieldname": "net_after_deduction_kg",
+   "fieldtype": "Float",
+   "label": "Net After Deduction (kg)",
+   "precision": "2"
+  },
+  {
+   "fieldname": "harga_per_kg",
+   "fieldtype": "Currency",
+   "label": "Price (Rp/kg)"
+  },
+  {
+   "fieldname": "nilai",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Value"
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "purchase_receipt",
+   "fieldtype": "Link",
+   "label": "Purchase Receipt",
+   "no_copy": 1,
+   "options": "Purchase Receipt",
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "stock_entry",
+   "fieldtype": "Link",
+   "label": "Stock Entry",
+   "no_copy": 1,
+   "options": "Stock Entry",
+   "read_only": 1
+  },
+  {
+   "fieldname": "catatan",
+   "fieldtype": "Small Text",
+   "label": "Notes"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "integration_section",
+   "fieldtype": "Section Break",
+   "label": "Integration"
+  },
+  {
+   "fieldname": "scale_ticket_no",
+   "fieldtype": "Data",
+   "label": "Scale Ticket No",
+   "no_copy": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "weight_received_at",
+   "fieldtype": "Datetime",
+   "label": "Weight Received At",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "grading_missing",
+   "fieldtype": "Check",
+   "label": "Grading Missing",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "grading_revised",
+   "fieldtype": "Check",
+   "label": "Grading Revised After Submit",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "integration_column",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Visit key from AutoGrade; one visit = one ticket",
+   "fieldname": "autograde_visit_id",
+   "fieldtype": "Data",
+   "label": "AutoGrade Visit",
+   "no_copy": 1,
+   "read_only": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "autograde_assignment_id",
+   "fieldtype": "Data",
+   "label": "AutoGrade Assignment",
+   "no_copy": 1,
+   "read_only": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "autograde_url",
+   "fieldtype": "Data",
+   "label": "AutoGrade Link",
+   "no_copy": 1,
+   "options": "URL",
+   "read_only": 1
+  },
+  {
+   "fieldname": "grading_received_at",
+   "fieldtype": "Datetime",
+   "label": "Grading Received At",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "grading_total",
+   "fieldtype": "Int",
+   "label": "Total Bunches",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "grading_acc",
+   "fieldtype": "Int",
+   "label": "Accepted (ACC)",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "grading_rej",
+   "fieldtype": "Int",
+   "label": "Rejected (REJ)",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Weighbridge Ticket",
+   "print_hide": 1,
+   "read_only": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2026-09-11 16:32:38.295150",
+ "modified_by": "Administrator",
+ "module": "Palm Mill",
+ "name": "Weighbridge Ticket",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "amend": 1,
+   "cancel": 1,
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "amend": 1,
+   "cancel": 1,
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Weighbridge Operator",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "role": "Palm Mill Integration",
+   "submit": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "ticket_date",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

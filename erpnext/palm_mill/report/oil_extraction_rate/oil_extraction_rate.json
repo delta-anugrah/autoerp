@@ -1,0 +1,30 @@
+{
+ "add_total_row": 0,
+ "creation": "2026-09-11 15:07:17.876407",
+ "disable_prepared_report": 0,
+ "disabled": 0,
+ "docstatus": 0,
+ "doctype": "Report",
+ "idx": 0,
+ "is_standard": "Yes",
+ "modified": "2026-09-11 16:04:22.179641",
+ "modified_by": "Administrator",
+ "module": "Palm Mill",
+ "name": "Oil Extraction Rate",
+ "owner": "Administrator",
+ "prepared_report": 0,
+ "ref_doctype": "Stock Entry",
+ "report_name": "Oil Extraction Rate",
+ "report_type": "Script Report",
+ "roles": [
+  {
+   "role": "System Manager"
+  },
+  {
+   "role": "Stock User"
+  },
+  {
+   "role": "Weighbridge Operator"
+  }
+ ]
+}

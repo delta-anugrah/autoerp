@@ -65,7 +65,7 @@ setup_wizard_stages = "erpnext.setup.setup_wizard.setup_wizard.get_setup_stages"
 setup_wizard_complete = "erpnext.setup.setup_wizard.setup_wizard.setup_demo"
 setup_wizard_test = "erpnext.setup.setup_wizard.test_setup_wizard.run_setup_wizard_test"
 
-after_install = "erpnext.setup.install.after_install"
+after_install = ["erpnext.setup.install.after_install", "erpnext.palm_mill.setup.after_install"]
 
 boot_session = "erpnext.startup.boot.boot_session"
 notification_config = "erpnext.startup.notifications.get_notification_config"
@@ -345,7 +345,13 @@ doc_events = {
 	},
 	"Stock Entry": {
 		"on_submit": "erpnext.stock.doctype.material_request.material_request.update_completed_and_requested_qty",
-		"on_cancel": "erpnext.stock.doctype.material_request.material_request.update_completed_and_requested_qty",
+		"on_cancel": [
+			"erpnext.stock.doctype.material_request.material_request.update_completed_and_requested_qty",
+			"erpnext.palm_mill.doctype.weighbridge_ticket.weighbridge_ticket.on_stock_document_cancel",
+		],
+	},
+	"Purchase Receipt": {
+		"on_cancel": "erpnext.palm_mill.doctype.weighbridge_ticket.weighbridge_ticket.on_stock_document_cancel",
 	},
 	"User": {
 		"after_insert": "frappe.contacts.doctype.contact.contact.update_contact",
@@ -419,6 +425,7 @@ scheduler_events = {
 	"cron": {
 		"0/15 * * * *": [
 			"erpnext.manufacturing.doctype.bom_update_log.bom_update_log.resume_bom_cost_update_jobs",
+			"erpnext.palm_mill.doctype.weighbridge_ticket.weighbridge_ticket.finalize_due_tickets",
 		],
 		"0/30 * * * *": [
 			"erpnext.stock.doctype.repost_item_valuation.repost_item_valuation.run_parallel_reposting",
@@ -682,3 +689,31 @@ fields_for_group_similar_items = ["qty", "amount"]
 # ------------
 # List of apps whose translatable strings should be excluded from this app's translations.
 ignore_translatable_strings_from = ["frappe"]
+
+# Translations Frappe's own catalog gets wrong or leaves empty on the mill's screens.
+# ERPNext's .po cannot override a Frappe msgid (see ignore_translatable_strings_from), and
+# Translation rows outrank every .po, so these ship as fixtures.
+fixtures = [{"dt": "Translation", "filters": [["language", "in", ["id", "en"]]]}]
+
+# One-click language switch in the user menu; only the other language is offered.
+standard_navbar_items = [
+	{
+		"item_label": "Bahasa Indonesia",
+		"item_type": "Action",
+		"action": "frappe.xcall('erpnext.palm_mill.api.set_language', {lang: 'id'}).then(() => location.reload())",
+		"condition": "frappe.boot.lang !== 'id'",
+		"is_standard": 1,
+	},
+	{
+		"item_label": "English",
+		"item_type": "Action",
+		"action": "frappe.xcall('erpnext.palm_mill.api.set_language', {lang: 'en'}).then(() => location.reload())",
+		"condition": "frappe.boot.lang !== 'en'",
+		"is_standard": 1,
+	},
+]
+
+# MariaDB 11.6+ snapshot isolation makes Frappe's read-then-update patterns fail as "Deadlock
+# Occurred"; relax it per connection for web requests and background jobs alike.
+before_request = ["erpnext.palm_mill.utils.relax_snapshot_isolation"]
+before_job = ["erpnext.palm_mill.utils.relax_snapshot_isolation"]
