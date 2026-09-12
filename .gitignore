@@ -26,3 +26,6 @@ erpnext/www/banking.html
 # local secrets / site credentials — never commit
 .env
 .env.*
+
+# Playwright MCP session output
+.playwright-mcp/
