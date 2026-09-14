@@ -52,7 +52,7 @@ help:
 # second bench it was written to prevent.
 up:
 	@if pgrep -f "$(SUPERVISOR)" >/dev/null; then \
-		echo "Already running (pid $$(pgrep -f "$(SUPERVISOR)" | head -1)) — $(URL)"; \
+		echo "Already running (pid $$(pgrep -f "$(SUPERVISOR)" | tr '\n' ' ' | sed 's/ $$//')) — $(URL)"; \
 	else \
 		mkdir -p "$(BENCH)/logs"; \
 		( cd "$(BENCH)" && nohup bench start >"$(BOOT_LOG)" 2>&1 & ); \
@@ -71,7 +71,7 @@ up:
 
 start:
 	@if pgrep -f "$(SUPERVISOR)" >/dev/null; then \
-		echo "Already running (pid $$(pgrep -f "$(SUPERVISOR)" | head -1)) — $(URL)"; \
+		echo "Already running (pid $$(pgrep -f "$(SUPERVISOR)" | tr '\n' ' ' | sed 's/ $$//')) — $(URL)"; \
 		exit 1; \
 	fi; \
 	cd "$(BENCH)" && exec bench start
@@ -79,14 +79,14 @@ start:
 # SIGTERM the supervisor, not the children: honcho stops the whole group on the
 # way out, so redis releases its ports.
 stop:
-	@pid=$$(pgrep -f "$(SUPERVISOR)" | head -1); \
-	if [ -z "$$pid" ]; then echo "Not running."; exit 0; fi; \
-	kill $$pid; \
+	@pids=$$(pgrep -f "$(SUPERVISOR)" | tr '\n' ' '); \
+	if [ -z "$$pids" ]; then echo "Not running."; exit 0; fi; \
+	kill $$pids; \
 	for i in $$(seq 1 15); do \
 		pgrep -f "$(SUPERVISOR)" >/dev/null || { echo "Stopped."; exit 0; }; \
 		sleep 1; \
 	done; \
-	echo "Still alive after 15s (pid $$pid) — kill -9 it by hand."; exit 1
+	echo "Still alive after 15s (pid $$(pgrep -f "$(SUPERVISOR)" | tr '\n' ' ')) — kill -9 by hand."; exit 1
 
 down: stop
 
@@ -97,8 +97,8 @@ restart:
 	@$(MAKE) --no-print-directory up
 
 status:
-	@pid=$$(pgrep -f "$(SUPERVISOR)" | head -1); \
-	if [ -n "$$pid" ]; then echo "bench    running (pid $$pid)"; else echo "bench    stopped"; fi
+	@pids=$$(pgrep -f "$(SUPERVISOR)" | tr '\n' ' '); \
+	if [ -n "$$pids" ]; then echo "bench    running (pid $${pids%% })"; else echo "bench    stopped"; fi
 	@if curl -fsS -m 3 -o /dev/null "$(URL)/api/method/ping" 2>/dev/null; \
 		then echo "site     answering at $(URL)"; \
 		else echo "site     NOT answering at $(URL)"; fi
