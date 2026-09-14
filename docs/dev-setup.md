@@ -131,6 +131,13 @@ bench start          # http://pks.localhost:8000 — Administrator / admin
 
 `bench start` also launches the worker; without one, accounting dimensions never reach GL Entry.
 
+The repo root has a `Makefile` wrapping this and the other day-to-day commands
+(`make up`, `make stop`, `make status`, `make key-show`); `make help` lists them. It drives
+the bench at `~/frappe-bench` — override with `make up BENCH=... SITE=...`. `make up` refuses
+to start a second bench: the redis ports are already bound, one child dies, and honcho then
+stops the whole group, which on screen looks like the first bench crashed when it is in fact
+still serving.
+
 Landing page (in Indonesian — switch to English from the user menu, bottom-left): the
 **Pabrik Kelapa Sawit** dashboard with seven cards (FFB received ≈ 46.5 M kg, tickets 3,848,
 Avg Daily OER ≈ 21.4) and five charts, then a sidebar of five collapsed groups.
