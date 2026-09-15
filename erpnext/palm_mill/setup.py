@@ -13,7 +13,11 @@ from frappe import _
 from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
 from frappe.permissions import add_permission
 
-FAVICON = "/assets/erpnext/images/autoerp-favicon.svg"
+# Namanya membawa "palem" supaya berbeda dari berkas huruf "A" yang pernah ada di
+# URL lama: browser menyimpan favicon per URL dan tidak menengok lagi selama URL-nya
+# sama, jadi mengganti isi berkas saja meninggalkan lambang lama di tab orang.
+FAVICON = "/assets/erpnext/images/autoerp-favicon-palem.svg"
+FAVICON_LAMA = ("/assets/erpnext/images/autoerp-favicon.svg",)
 OPERATOR_ROLE = "Weighbridge Operator"
 INTEGRATION_ROLE = "Palm Mill Integration"
 ROLES = (OPERATOR_ROLE, INTEGRATION_ROLE)
@@ -102,10 +106,14 @@ def set_favicon():
 
 	Frappe renders `<link rel="shortcut icon">` from `Website Settings.favicon` and
 	falls back to Frappe's own mark when it is empty, so a site that never set it
-	shows an "F" in the tab no matter what the app ships. Only fills a blank one —
-	a favicon somebody uploaded is their choice, not ours to overwrite.
+	shows an "F" in the tab no matter what the app ships.
+
+	Fills a blank one, and moves a site still pointing at one of our own older files
+	onto the current name. A favicon somebody uploaded is left alone — that is their
+	choice, not ours to overwrite.
 	"""
-	if frappe.db.get_single_value("Website Settings", "favicon"):
+	sekarang = frappe.db.get_single_value("Website Settings", "favicon")
+	if sekarang and sekarang not in FAVICON_LAMA:
 		return
 	frappe.db.set_single_value("Website Settings", "favicon", FAVICON)
 
