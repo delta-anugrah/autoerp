@@ -518,3 +518,4 @@ erpnext.patches.v17_0.palm_mill_audit
 erpnext.patches.v17_0.palm_mill_oer
 erpnext.patches.v17_0.palm_mill_ffb_source
 erpnext.patches.v17_0.palm_mill_precision
+erpnext.patches.v17_0.palm_mill_autograde_operator
