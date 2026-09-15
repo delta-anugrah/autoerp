@@ -12,7 +12,27 @@ frappe.ui.form.on("AutoGrade Operator", {
 		// and the mill has to be able to pull what it verifies. So the field stays `Data`
 		// (never stored at all; `validate` hashes it and wipes it) and only the input is
 		// masked, so a shoulder at the office screen reads nothing.
-		frm.fields_dict.new_password?.$input?.attr("type", "password");
+		const input = frm.fields_dict.new_password?.$input;
+		input?.attr("type", "password");
+
+		// Typed blind, and a typo here is not found by whoever made it: the operator
+		// discovers it at the mill, on a screen that only says the password is wrong.
+		// Added once - `refresh` runs on every save, and a second button per save would
+		// stack up down the form.
+		if (input && !input.parent().find(".autograde-lihat-sandi").length) {
+			const tombol = $(
+				`<button type="button" class="btn btn-xs btn-default autograde-lihat-sandi"
+				         style="margin-top:4px">${__("Show password")}</button>`
+			);
+			tombol.on("click", () => {
+				// Only the field's own `type` is swapped. Rendering the value anywhere else
+				// would copy the password into a second place that can be read or logged.
+				const terbuka = input.attr("type") === "text";
+				input.attr("type", terbuka ? "password" : "text");
+				tombol.text(terbuka ? __("Show password") : __("Hide password"));
+			});
+			input.parent().append(tombol);
+		}
 
 		// The field is always blank on an existing document — a hash cannot be turned back
 		// into a password. Say so, or it reads as "this account has no password".
