@@ -22,6 +22,7 @@ from erpnext.palm_mill.setup import INTEGRATION_ROLE, INTEGRATION_USER_ROLES
 
 EXTRA_TEST_RECORD_DEPENDENCIES = ["User"]
 
+DOCTYPE = "AutoGrade Operator"
 EMAIL = "operator.satu@pks.local"
 PASSWORD = "sawit2026"
 INTEGRATION_USER = "palm-mill-operator-integration@example.com"
@@ -168,3 +169,23 @@ class IntegrationTestAutoGradeOperator(IntegrationTestCase):
 		"""One key, one role: the pull rides the credentials `create_integration_user`
 		already issues, so no second secret has to reach the mill."""
 		self.assertIn(INTEGRATION_ROLE, INTEGRATION_USER_ROLES)
+
+	def test_backoffice_can_reach_this_doctype_from_the_workspace(self):
+		"""A DocType with no way in is a DocType nobody uses.
+
+		Reported by the operator 2026-09-15: the accounts could only be found through
+		search. Frappe needs the shortcut in **both** places — `shortcuts` defines it,
+		`content` decides whether it is laid out on screen — so one without the other
+		looks done in the JSON and changes nothing in the browser.
+		"""
+		workspace = frappe.get_doc("Workspace", "Pabrik Kelapa Sawit")
+
+		self.assertTrue(
+			any(row.link_to == DOCTYPE for row in workspace.shortcuts),
+			f"{DOCTYPE} is missing from the workspace shortcuts",
+		)
+		self.assertIn(
+			"AutoGrade Operators",
+			workspace.content or "",
+			f"{DOCTYPE} has a shortcut but is not laid out in `content`, so it stays invisible",
+		)
