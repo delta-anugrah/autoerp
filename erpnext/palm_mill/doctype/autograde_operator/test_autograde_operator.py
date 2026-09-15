@@ -108,11 +108,21 @@ class IntegrationTestAutoGradeOperator(IntegrationTestCase):
 		self.assertEqual(operator.email, "operator.dua@pks.local")
 
 	def test_two_accounts_cannot_share_one_email(self):
+		"""Inserted directly rather than through `make_operator`: that helper deletes an
+		existing document first, which is what makes it reusable and would also make this
+		assertion unfalsifiable."""
 		make_operator(email="operator.tiga@pks.local")
 
-		self.assertRaises(
-			frappe.DuplicateEntryError, make_operator, email="Operator.Tiga@pks.local"
+		duplicate = frappe.get_doc(
+			{
+				"doctype": "AutoGrade Operator",
+				"email": "Operator.Tiga@pks.local",
+				"full_name": "Operator Tiga Lagi",
+				"active": 1,
+			}
 		)
+
+		self.assertRaises(frappe.DuplicateEntryError, duplicate.insert, ignore_permissions=True)
 
 	def test_an_address_that_is_not_an_email_is_refused(self):
 		self.assertRaises(frappe.ValidationError, make_operator, email="operator-empat")
