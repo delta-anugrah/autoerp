@@ -200,9 +200,7 @@ class IntegrationTestAutoGradeOperator(IntegrationTestCase):
 		operator.reload()
 
 		self.assertFalse(operator.new_password, "the typed password survived on the document")
-		stored = frappe.db.get_value(
-			DOCTYPE, operator.name, ["password_hash", "new_password"], as_dict=True
-		)
+		stored = frappe.db.get_value(DOCTYPE, operator.name, ["password_hash", "new_password"], as_dict=True)
 		self.assertFalse(stored.new_password, "the typed password reached the database")
 		self.assertNotIn(PASSWORD, stored.password_hash)
 
