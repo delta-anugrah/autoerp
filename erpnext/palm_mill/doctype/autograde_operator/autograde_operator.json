@@ -11,6 +11,7 @@
   "full_name",
   "active",
   "credential_section",
+  "new_password",
   "password_hash"
  ],
  "fields": [
@@ -45,7 +46,14 @@
    "label": "Credential"
   },
   {
-   "description": "passlib hash, set with the Set Password button. AutoGrade pulls this and verifies it at the mill, which is what keeps the console usable while the internet is down.",
+   "description": "At least 8 characters. Leave empty to keep the current password. The operator signs in to the AutoGrade console with this.",
+   "fieldname": "new_password",
+   "fieldtype": "Data",
+   "label": "Password",
+   "options": "Password"
+  },
+  {
+   "description": "passlib hash, written from the Password field above. AutoGrade pulls this and verifies it at the mill, which is what keeps the console usable while the internet is down.",
    "fieldname": "password_hash",
    "fieldtype": "Data",
    "label": "Password Hash",
