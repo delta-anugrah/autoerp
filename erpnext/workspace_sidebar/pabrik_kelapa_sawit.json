@@ -365,6 +365,17 @@
    "collapsible": 1,
    "indent": 0,
    "keep_closed": 0,
+   "label": "AutoGrade Operators",
+   "link_to": "AutoGrade Operator",
+   "link_type": "DocType",
+   "show_arrow": 0,
+   "type": "Link"
+  },
+  {
+   "child": 1,
+   "collapsible": 1,
+   "indent": 0,
+   "keep_closed": 0,
    "label": "Warehouses",
    "link_to": "Warehouse",
    "link_type": "DocType",
@@ -416,7 +427,7 @@
    "type": "Link"
   }
  ],
- "modified": "2026-09-11 16:06:58.650516",
+ "modified": "2026-09-15 13:17:12.529528",
  "modified_by": "Administrator",
  "module": "Palm Mill",
  "name": "Pabrik Kelapa Sawit",

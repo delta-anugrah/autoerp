@@ -22,6 +22,7 @@ from erpnext.palm_mill.setup import INTEGRATION_ROLE, INTEGRATION_USER_ROLES
 
 EXTRA_TEST_RECORD_DEPENDENCIES = ["User"]
 
+DOCTYPE = "AutoGrade Operator"
 EMAIL = "operator.satu@pks.local"
 PASSWORD = "sawit2026"
 INTEGRATION_USER = "palm-mill-operator-integration@example.com"
@@ -164,7 +165,114 @@ class IntegrationTestAutoGradeOperator(IntegrationTestCase):
 
 		self.assertEqual([row.active for row in rows], [0])
 
+	def test_a_password_typed_on_the_form_is_hashed_on_save(self):
+		"""One Save creates a usable account: email, name and password together.
+
+		Before this, the password needed a second step after the document existed, which
+		is a step people skip — leaving accounts that cannot sign in.
+		"""
+		operator = frappe.get_doc(
+			{
+				"doctype": DOCTYPE,
+				"email": "operator.form@pks.local",
+				"full_name": "Operator Form",
+				"active": 1,
+				"new_password": PASSWORD,
+			}
+		).insert(ignore_permissions=True)
+
+		self.assertTrue(passlibctx.verify(PASSWORD, operator.password_hash))
+
+	def test_the_typed_password_is_never_stored_anywhere(self):
+		"""`track_changes` is on, so every Save writes a Version row. A raw password left
+		on the document would sit in that history — readable by anyone who can open the
+		document, including passwords already replaced.
+		"""
+		operator = frappe.get_doc(
+			{
+				"doctype": DOCTYPE,
+				"email": "operator.delapan@pks.local",
+				"full_name": "Operator Delapan",
+				"active": 1,
+				"new_password": PASSWORD,
+			}
+		).insert(ignore_permissions=True)
+		operator.reload()
+
+		self.assertFalse(operator.new_password, "the typed password survived on the document")
+		stored = frappe.db.get_value(DOCTYPE, operator.name, ["password_hash", "new_password"], as_dict=True)
+		self.assertFalse(stored.new_password, "the typed password reached the database")
+		self.assertNotIn(PASSWORD, stored.password_hash)
+
+		versions = frappe.get_all(
+			"Version", filters={"ref_doctype": DOCTYPE, "docname": operator.name}, pluck="data"
+		)
+		for data in versions:
+			self.assertNotIn(PASSWORD, data or "", "the typed password reached a Version row")
+
+	def test_leaving_the_password_empty_keeps_the_one_already_set(self):
+		"""Backoffice fixing a typo in a name must not lock the operator out of the
+		console — which is what re-hashing an empty value would do."""
+		operator = make_operator(email="operator.sembilan@pks.local")
+		before = operator.password_hash
+
+		operator.full_name = "Nama Dibetulkan"
+		operator.save(ignore_permissions=True)
+		operator.reload()
+
+		self.assertEqual(operator.password_hash, before)
+		self.assertTrue(passlibctx.verify(PASSWORD, operator.password_hash))
+
+	def test_a_short_password_typed_on_the_form_is_refused(self):
+		"""Same floor as everywhere else. Checked before the document is written, so a
+		refused password cannot leave a half-made account behind."""
+		operator = frappe.get_doc(
+			{
+				"doctype": DOCTYPE,
+				"email": "operator.sepuluh@pks.local",
+				"full_name": "Operator Sepuluh",
+				"active": 1,
+				"new_password": "sawit12",
+			}
+		)
+
+		self.assertRaises(frappe.ValidationError, operator.insert, ignore_permissions=True)
+		self.assertFalse(frappe.db.exists(DOCTYPE, "operator.sepuluh@pks.local"))
+
 	def test_the_integration_role_is_the_one_autograde_already_uses(self):
 		"""One key, one role: the pull rides the credentials `create_integration_user`
 		already issues, so no second secret has to reach the mill."""
 		self.assertIn(INTEGRATION_ROLE, INTEGRATION_USER_ROLES)
+
+	def test_backoffice_can_reach_this_doctype_from_the_workspace(self):
+		"""A DocType with no way in is a DocType nobody uses.
+
+		Reported by the operator 2026-09-15: the accounts could only be found through
+		search. Frappe needs the shortcut in **both** places — `shortcuts` defines it,
+		`content` decides whether it is laid out on screen — so one without the other
+		looks done in the JSON and changes nothing in the browser.
+		"""
+		workspace = frappe.get_doc("Workspace", "Pabrik Kelapa Sawit")
+
+		self.assertTrue(
+			any(row.link_to == DOCTYPE for row in workspace.shortcuts),
+			f"{DOCTYPE} is missing from the workspace shortcuts",
+		)
+		self.assertIn(
+			"AutoGrade Operators",
+			workspace.content or "",
+			f"{DOCTYPE} has a shortcut but is not laid out in `content`, so it stays invisible",
+		)
+
+	def test_backoffice_can_reach_this_doctype_from_the_sidebar(self):
+		"""The shortcut above sits in the page body, below seven number cards and five
+		charts — so it needs scrolling to find. The sidebar is the standing navigation,
+		and it is a separate fixture (`workspace_sidebar/`), which is why adding the
+		shortcut alone did not put it there.
+		"""
+		sidebar = frappe.get_doc("Workspace Sidebar", "Pabrik Kelapa Sawit")
+
+		self.assertTrue(
+			any(item.link_to == DOCTYPE for item in sidebar.items),
+			f"{DOCTYPE} is missing from the workspace sidebar",
+		)
