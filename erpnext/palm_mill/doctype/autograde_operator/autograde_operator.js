@@ -20,18 +20,34 @@ frappe.ui.form.on("AutoGrade Operator", {
 		// Added once - `refresh` runs on every save, and a second button per save would
 		// stack up down the form.
 		if (input && !input.parent().find(".autograde-lihat-sandi").length) {
-			const tombol = $(
-				`<button type="button" class="btn btn-xs btn-default autograde-lihat-sandi"
-				         style="margin-top:4px">${__("Show password")}</button>`
-			);
+			// Inside the field on the right, where every login screen puts it, rather than
+			// below it - a separate button under the input does not read as belonging to
+			// it. The field reserves matching right padding, so the typed text never runs
+			// underneath the button and a click at the end of it still reaches the input.
+			const tombol = $(`<button type="button" class="autograde-lihat-sandi">${__("Show")}</button>`);
+			tombol.css({
+				position: "absolute",
+				top: "1px",
+				right: "1px",
+				bottom: "1px",
+				width: "4.5rem",
+				padding: "0",
+				border: "0",
+				background: "none",
+				"font-weight": "600",
+				cursor: "pointer",
+			});
 			tombol.on("click", () => {
 				// Only the field's own `type` is swapped. Rendering the value anywhere else
 				// would copy the password into a second place that can be read or logged.
 				const terbuka = input.attr("type") === "text";
 				input.attr("type", terbuka ? "password" : "text");
-				tombol.text(terbuka ? __("Show password") : __("Hide password"));
+				tombol.text(terbuka ? __("Show") : __("Hide"));
+				tombol.attr("aria-label", terbuka ? __("Show password") : __("Hide password"));
 			});
-			input.parent().append(tombol);
+			tombol.attr("aria-label", __("Show password"));
+			input.css("padding-right", "4.5rem");
+			input.parent().css("position", "relative").append(tombol);
 		}
 
 		// The field is always blank on an existing document — a hash cannot be turned back
