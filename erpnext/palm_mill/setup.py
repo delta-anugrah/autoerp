@@ -13,6 +13,7 @@ from frappe import _
 from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
 from frappe.permissions import add_permission
 
+FAVICON = "/assets/erpnext/images/autoerp-favicon.svg"
 OPERATOR_ROLE = "Weighbridge Operator"
 INTEGRATION_ROLE = "Palm Mill Integration"
 ROLES = (OPERATOR_ROLE, INTEGRATION_ROLE)
@@ -93,6 +94,20 @@ def after_install():
 	create_custom_fields(CUSTOM_FIELDS, ignore_validate=frappe.flags.in_patch, update=True)
 	setup_roles()
 	set_defaults()
+	set_favicon()
+
+
+def set_favicon():
+	"""The tab icon is the one piece of branding `app_logo_url` does not reach.
+
+	Frappe renders `<link rel="shortcut icon">` from `Website Settings.favicon` and
+	falls back to Frappe's own mark when it is empty, so a site that never set it
+	shows an "F" in the tab no matter what the app ships. Only fills a blank one —
+	a favicon somebody uploaded is their choice, not ours to overwrite.
+	"""
+	if frappe.db.get_single_value("Website Settings", "favicon"):
+		return
+	frappe.db.set_single_value("Website Settings", "favicon", FAVICON)
 
 
 def setup_roles():
