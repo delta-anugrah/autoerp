@@ -276,3 +276,26 @@ class IntegrationTestAutoGradeOperator(IntegrationTestCase):
 			any(item.link_to == DOCTYPE for item in sidebar.items),
 			f"{DOCTYPE} is missing from the workspace sidebar",
 		)
+
+	def test_peran_default_operator(self):
+		"""A new account is an operator until someone says otherwise."""
+		doc = frappe.get_doc(
+			{
+				"doctype": DOCTYPE,
+				"email": "peran-default@example.com",
+				"full_name": "Peran Default",
+			}
+		).insert(ignore_permissions=True)
+		self.assertEqual(doc.peran, "operator")
+
+	def test_peran_support_tersimpan(self):
+		"""`support` is a value the field accepts, not just free text."""
+		doc = frappe.get_doc(
+			{
+				"doctype": DOCTYPE,
+				"email": "peran-support@example.com",
+				"full_name": "Peran Support",
+				"peran": "support",
+			}
+		).insert(ignore_permissions=True)
+		self.assertEqual(frappe.db.get_value(DOCTYPE, doc.name, "peran"), "support")

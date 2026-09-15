@@ -10,6 +10,7 @@
   "email",
   "full_name",
   "active",
+  "peran",
   "credential_section",
   "new_password",
   "password_hash"
@@ -39,6 +40,16 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Active"
+  },
+  {
+   "default": "operator",
+   "description": "support membuka menu diagnostik di konsol AutoGrade (log, antrean ERP, uji PLC). Naikkan hanya untuk orang yang memang menangani gangguan pabrik.",
+   "fieldname": "peran",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Peran",
+   "options": "operator\nsupport",
+   "reqd": 1
   },
   {
    "fieldname": "credential_section",
