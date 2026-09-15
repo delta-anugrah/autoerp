@@ -189,3 +189,16 @@ class IntegrationTestAutoGradeOperator(IntegrationTestCase):
 			workspace.content or "",
 			f"{DOCTYPE} has a shortcut but is not laid out in `content`, so it stays invisible",
 		)
+
+	def test_backoffice_can_reach_this_doctype_from_the_sidebar(self):
+		"""The shortcut above sits in the page body, below seven number cards and five
+		charts — so it needs scrolling to find. The sidebar is the standing navigation,
+		and it is a separate fixture (`workspace_sidebar/`), which is why adding the
+		shortcut alone did not put it there.
+		"""
+		sidebar = frappe.get_doc("Workspace Sidebar", "Pabrik Kelapa Sawit")
+
+		self.assertTrue(
+			any(item.link_to == DOCTYPE for item in sidebar.items),
+			f"{DOCTYPE} is missing from the workspace sidebar",
+		)
