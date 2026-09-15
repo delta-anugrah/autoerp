@@ -116,7 +116,7 @@ calendars = ["Task", "Work Order", "Sales Order", "Holiday List", "ToDo"]
 website_generators = ["BOM", "Sales Partner"]
 
 website_context = {
-	"favicon": "/assets/erpnext/images/autoerp-favicon.svg",
+	"favicon": "/assets/erpnext/images/autoerp-favicon-palem.svg",
 	"splash_image": "/assets/erpnext/images/autoerp-logo.svg",
 }
 
