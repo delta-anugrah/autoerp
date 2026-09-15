@@ -3,41 +3,25 @@
 
 frappe.ui.form.on("AutoGrade Operator", {
 	refresh(frm) {
-		if (frm.is_new()) return;
-		frm.add_custom_button(__("Set Password"), () => {
-			// Typed into a Password prompt and sent straight to the hashing method: the raw
-			// value is never put on the document, so it cannot land in a version row.
-			frappe.prompt(
-				[
-					{
-						fieldname: "password",
-						fieldtype: "Password",
-						label: __("New Password"),
-						reqd: 1,
-						description: __(
-							"At least 8 characters. The operator signs in to the AutoGrade console with this."
-						),
-					},
-				],
-				({ password }) => {
-					frm.call({
-						doc: frm.doc,
-						method: "set_password",
-						args: { password },
-						freeze: true,
-						freeze_message: __("Saving password..."),
-						callback: () => {
-							frm.reload_doc();
-							frappe.show_alert({
-								message: __("Password saved. The mill picks it up on its next pull."),
-								indicator: "green",
-							});
-						},
-					});
-				},
-				__("Set Password"),
-				__("Save")
+		// The password is typed into the form's own field and hashed on save, so there is
+		// no "Set Password" button any more: two ways to do one thing means two code paths
+		// to keep in step, and the one used less is the one that drifts.
+
+		// Masked here rather than by using the `Password` fieldtype, deliberately. That
+		// fieldtype stores its value in `__Auth`, which Frappe never serves over REST —
+		// and the mill has to be able to pull what it verifies. So the field stays `Data`
+		// (never stored at all; `validate` hashes it and wipes it) and only the input is
+		// masked, so a shoulder at the office screen reads nothing.
+		frm.fields_dict.new_password?.$input?.attr("type", "password");
+
+		// The field is always blank on an existing document — a hash cannot be turned back
+		// into a password. Say so, or it reads as "this account has no password".
+		if (!frm.is_new() && frm.doc.password_hash) {
+			frm.set_df_property(
+				"new_password",
+				"description",
+				__("A password is already set. Type here only to replace it.")
 			);
-		});
+		}
 	},
 });

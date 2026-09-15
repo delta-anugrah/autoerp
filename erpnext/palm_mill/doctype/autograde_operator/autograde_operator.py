@@ -34,6 +34,7 @@ class AutoGradeOperator(Document):
 		active: DF.Check
 		email: DF.Data
 		full_name: DF.Data
+		new_password: DF.Data | None
 		password_hash: DF.Data | None
 	# end: auto-generated types
 
@@ -53,6 +54,26 @@ class AutoGradeOperator(Document):
 		# Also here, not only in `before_naming`: an edit to an existing document does not
 		# run naming again, and the field must not drift away from the name.
 		self._normalise_email()
+		self._take_new_password()
+
+	def _take_new_password(self):
+		"""Hash whatever was typed into `new_password`, then wipe the field.
+
+		Wiping is the point. `track_changes` is on, so every save writes a Version row —
+		a raw password left on the document would sit in that history, readable by
+		anyone who can open the document, including passwords long since replaced. The
+		field is a form input, never stored: it exists only between the browser and this
+		method.
+
+		Empty means "leave the password alone", which is what lets backoffice fix a typo
+		in a name without locking the operator out of the console.
+		"""
+		password = (self.new_password or "").strip()
+		self.new_password = None
+		if not password:
+			return
+		self._check_password_length(password)
+		self.password_hash = passlibctx.hash(password)
 
 	def _normalise_email(self):
 		self.email = (self.email or "").strip().lower()
@@ -69,9 +90,15 @@ class AutoGradeOperator(Document):
 		"""
 		self.check_permission("write")
 		password = password or ""
+		self._check_password_length(password)
+		self.db_set("password_hash", passlibctx.hash(password), update_modified=True)
+
+	@staticmethod
+	def _check_password_length(password: str) -> None:
+		"""One rule for both ways in — the form field and `set_password` — so neither can
+		quietly accept a password the other refuses."""
 		if len(password) < PASSWORD_MIN_LENGTH:
 			frappe.throw(
 				_("Password must be at least {0} characters").format(PASSWORD_MIN_LENGTH),
 				frappe.ValidationError,
 			)
-		self.db_set("password_hash", passlibctx.hash(password), update_modified=True)
