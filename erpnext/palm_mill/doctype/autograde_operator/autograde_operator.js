@@ -14,7 +14,9 @@ frappe.ui.form.on("AutoGrade Operator", {
 						fieldtype: "Password",
 						label: __("New Password"),
 						reqd: 1,
-						description: __("At least 8 characters. The operator signs in to the AutoGrade console with this."),
+						description: __(
+							"At least 8 characters. The operator signs in to the AutoGrade console with this."
+						),
 					},
 				],
 				({ password }) => {
