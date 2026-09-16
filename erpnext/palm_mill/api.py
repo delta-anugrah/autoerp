@@ -144,7 +144,7 @@ def upsert_visit(
 
 	ticket.update(
 		{
-			"autograde_visit_id": visit_id,
+			"autograde_visit_id": visit_id or ticket.autograde_visit_id,
 			"scale_ticket_no": scale_ticket_no or ticket.scale_ticket_no,
 			"truck": truck_doc.name,
 			"supplier": ticket.supplier or truck_doc.supplier or supplier_erp_name,
@@ -171,7 +171,13 @@ def _find_ticket(company, truck, start, end, visit_id, scale_ticket_no, assignme
 			name = frappe.db.get_value("Weighbridge Ticket", {field: value})
 			if name:
 				return frappe.get_doc("Weighbridge Ticket", name)
-	return find_or_create_ticket(company, truck, start, end)
+	return find_or_create_ticket(
+		company,
+		truck,
+		start,
+		end,
+		identity={"autograde_visit_id": visit_id, "scale_ticket_no": scale_ticket_no},
+	)
 
 
 def _apply_weighing(ticket, weighing, start, end):

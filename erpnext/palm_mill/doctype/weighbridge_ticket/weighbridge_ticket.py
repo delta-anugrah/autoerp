@@ -23,6 +23,10 @@ from erpnext.stock.doctype.stock_entry.stock_entry_utils import make_stock_entry
 
 SAMPAH = "Sampah"
 
+# Keys that identify one visit. A ticket carrying a different value for any of them
+# belongs to another visit, so the window match must leave it alone.
+IDENTITY_FIELDS = ("autograde_visit_id", "scale_ticket_no")
+
 
 class WeighbridgeTicket(Document):
 	# begin: auto-generated types
@@ -364,23 +368,38 @@ def find_or_create_ticket(
 	end: datetime | None,
 	key_field: str | None = None,
 	key_value: str | None = None,
+	identity: dict[str, str | None] | None = None,
 ) -> WeighbridgeTicket:
 	"""The ticket for a truck visit: by natural key, else an open ticket of the same truck
 	whose weighing window (widened by the matching tolerance) overlaps [start, end],
-	else a new draft. The caller sets its fields and saves."""
+	else a new draft. The caller sets its fields and saves.
+
+	`identity` carries the keys this visit already knows (`autograde_visit_id`,
+	`scale_ticket_no`). A ticket that already carries a *different* value for one of them
+	belongs to another visit and is never adopted: the same truck can come back inside the
+	window, and adopting it there overwrites the earlier visit's tonnage. Blank keys stay
+	adoptable -- that is how the weigh-out send and the hand-typed ticket join their visit."""
 	if key_field and key_value:
 		name = frappe.db.get_value("Weighbridge Ticket", {key_field: key_value})
 		if name:
 			return frappe.get_doc("Weighbridge Ticket", name)
 
 	window = timedelta(hours=cint(settings().match_window_hours))
+	conditions, values = "", []
+	for field in IDENTITY_FIELDS:
+		value = (identity or {}).get(field)
+		if not value:
+			continue
+		conditions += f" and ifnull(`{field}`, '') in ('', %s)"
+		values.append(value)
 	rows = frappe.db.sql(
-		"""select name from `tabWeighbridge Ticket`
+		f"""select name from `tabWeighbridge Ticket`
 		where company = %s and truck = %s and docstatus = 0 and ticket_date = %s
 			and timestamp(ticket_date, ifnull(time_in, '00:00:00')) <= %s
 			and timestamp(ticket_date, ifnull(time_out, ifnull(time_in, '00:00:00'))) >= %s
+			{conditions}
 		order by creation desc limit 1""",
-		(company, truck, start.date(), (end or start) + window, start - window),
+		(company, truck, start.date(), (end or start) + window, start - window, *values),
 	)
 	if rows:
 		return frappe.get_doc("Weighbridge Ticket", rows[0][0])
