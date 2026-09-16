@@ -40,9 +40,7 @@ def qr_png(plate: str) -> bytes:
 	"""PNG of the QR card for one plate. Raises if the gate could not read it."""
 	content = qr_content(plate)
 	buffer = io.BytesIO()
-	pyqrcode.create(content, error=ERROR_CORRECTION).png(
-		buffer, scale=SCALE, quiet_zone=QUIET_ZONE
-	)
+	pyqrcode.create(content, error=ERROR_CORRECTION).png(buffer, scale=SCALE, quiet_zone=QUIET_ZONE)
 	return buffer.getvalue()
 
 

@@ -34,23 +34,23 @@ class IntegrationTestTruck(IntegrationTestCase):
 		The warning exists to catch a typo while the record is still open - not to
 		refuse the truck. Blocking here would leave a real truck unweighable.
 		"""
-		frappe.message_log = []
+		frappe.local.message_log = []
 		truck = frappe.get_doc({"doctype": "Truck", "plate_number": "TRK-9100"}).insert()
 
 		self.assertEqual(truck.name, "TRK-9100")
 		self.assertTrue(
-			any("not shaped like an Indonesian plate" in str(m) for m in frappe.message_log),
-			f"no warning was shown: {frappe.message_log}",
+			any("not shaped like an Indonesian plate" in str(m) for m in frappe.local.message_log),
+			f"no warning was shown: {frappe.local.message_log}",
 		)
 
 	def test_ordinary_plate_is_saved_without_a_warning(self):
 		"""A warning on every truck is a warning nobody reads."""
-		frappe.message_log = []
+		frappe.local.message_log = []
 		make_truck("B 9200 OK", PLASMA_SUPPLIER)
 
 		self.assertFalse(
-			any("not shaped like an Indonesian plate" in str(m) for m in frappe.message_log),
-			f"unexpected warning: {frappe.message_log}",
+			any("not shaped like an Indonesian plate" in str(m) for m in frappe.local.message_log),
+			f"unexpected warning: {frappe.local.message_log}",
 		)
 
 	def test_completing_a_truck_stores_the_owner(self):
