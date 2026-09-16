@@ -3,36 +3,45 @@
 
 
 import frappe
-from frappe.tests import IntegrationTestCase
 from frappe.utils import add_days, flt, now_datetime, nowdate
 
 import erpnext
+from erpnext.stock.doctype.delivery_note.delivery_note import make_delivery_trip
 from erpnext.stock.doctype.delivery_trip.delivery_trip import (
 	get_contact_and_address,
 	notify_customers,
 )
-from erpnext.tests.utils import create_test_contact_and_address
+from erpnext.tests.utils import ERPNextTestSuite
 
 
-class TestDeliveryTrip(IntegrationTestCase):
+class TestDeliveryTrip(ERPNextTestSuite):
 	def setUp(self):
 		super().setUp()
 		driver = create_driver()
 		create_vehicle()
 		create_delivery_notification()
-		create_test_contact_and_address()
 		address = create_address(driver)
 
-		self.delivery_trip = create_delivery_trip(driver, address)
-
-	def tearDown(self):
-		frappe.db.sql("delete from `tabDriver`")
-		frappe.db.sql("delete from `tabVehicle`")
-		frappe.db.sql("delete from `tabEmail Template`")
-		frappe.db.sql("delete from `tabDelivery Trip`")
-		return super().tearDown()
+		self.delivery_trip = create_delivery_trip(driver, address, company="_Test Company")
 
 	def test_delivery_trip_notify_customers(self):
+		# set default outgoing
+		outgoing = frappe.get_doc(
+			{
+				"doctype": "Email Account",
+				"company": "_Test Company",
+				"enable_outgoing": 1,
+				"default_outgoing": 1,
+				"awaiting_password": 1,
+				"auth_method": "Basic",
+				"password": "test",
+				"smtp_server": "localhost",
+				"stmp_port": 25,
+				"email_id": "test@example.in",
+			}
+		)
+		outgoing.save()
+
 		notify_customers(delivery_trip=self.delivery_trip.name)
 		self.delivery_trip.load_from_db()
 		self.assertEqual(self.delivery_trip.email_notification_sent, 1)
@@ -99,6 +108,32 @@ class TestDeliveryTrip(IntegrationTestCase):
 
 		self.delivery_trip.save()
 		self.assertEqual(self.delivery_trip.status, "Completed")
+
+	def map_delivery_note_onto_trip(self, existing_stop):
+		from erpnext.stock.doctype.delivery_note.test_delivery_note import create_delivery_note
+
+		delivery_note = create_delivery_note()
+		trip = frappe.new_doc("Delivery Trip")
+		trip.append("delivery_stops", existing_stop)
+
+		return delivery_note, make_delivery_trip(delivery_note.name, trip)
+
+	def test_mapping_drops_placeholder_stop(self):
+		delivery_note, trip = self.map_delivery_note_onto_trip({})
+
+		self.assertEqual(len(trip.delivery_stops), 1)
+		self.assertEqual(trip.delivery_stops[0].delivery_note, delivery_note.name)
+
+	def test_mapping_keeps_partially_filled_stop(self):
+		_, trip = self.map_delivery_note_onto_trip({"customer": "_Test Customer"})
+
+		self.assertEqual(len(trip.delivery_stops), 2)
+		self.assertIsNone(trip.delivery_stops[0].delivery_note)
+
+	def test_stop_without_address_throws_mandatory_error(self):
+		self.delivery_trip.append("delivery_stops", {"customer": "_Test Customer"})
+
+		self.assertRaises(frappe.MandatoryError, self.delivery_trip.save)
 
 
 def create_address(driver):
@@ -176,14 +211,14 @@ def create_vehicle():
 		vehicle.insert()
 
 
-def create_delivery_trip(driver, address, contact=None):
+def create_delivery_trip(driver, address, contact=None, company=None):
 	if not contact:
 		contact = get_contact_and_address("_Test Customer")
 
 	delivery_trip = frappe.get_doc(
 		{
 			"doctype": "Delivery Trip",
-			"company": erpnext.get_default_company(),
+			"company": company or erpnext.get_default_company(),
 			"departure_time": add_days(now_datetime(), 5),
 			"driver": driver.name,
 			"driver_address": address.name,

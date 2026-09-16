@@ -1,11 +1,13 @@
+import unittest
+
 import frappe
 from frappe.test_runner import make_test_objects
-from frappe.tests import IntegrationTestCase
 
 from erpnext.accounts.doctype.payment_entry.payment_entry import get_payment_entry
 from erpnext.accounts.doctype.purchase_invoice.test_purchase_invoice import make_purchase_invoice
 from erpnext.accounts.party import get_party_shipping_address
 from erpnext.accounts.utils import (
+	get_currency_precision,
 	get_future_stock_vouchers,
 	get_voucherwise_gl_entries,
 	get_zero_cutoff,
@@ -14,18 +16,10 @@ from erpnext.accounts.utils import (
 from erpnext.stock.doctype.item.test_item import make_item
 from erpnext.stock.doctype.purchase_receipt.test_purchase_receipt import make_purchase_receipt
 from erpnext.stock.doctype.stock_entry.stock_entry_utils import make_stock_entry
+from erpnext.tests.utils import ERPNextTestSuite
 
 
-class TestUtils(IntegrationTestCase):
-	@classmethod
-	def setUpClass(cls):
-		super().setUpClass()
-		make_test_objects("Address", ADDRESS_RECORDS)
-
-	@classmethod
-	def tearDownClass(cls):
-		frappe.db.rollback()
-
+class TestUtils(ERPNextTestSuite):
 	def test_get_party_shipping_address(self):
 		address = get_party_shipping_address("Customer", "_Test Customer 1")
 		self.assertEqual(address, "_Test Billing Address 2 Title-Billing")
@@ -88,6 +82,8 @@ class TestUtils(IntegrationTestCase):
 		purchase_invoice.submit()
 
 		payment_entry = get_payment_entry(purchase_invoice.doctype, purchase_invoice.name)
+		payment_entry.target_exchange_rate = 82.32
+		payment_entry.set_amounts()
 		payment_entry.paid_amount = 15725
 		payment_entry.deductions = []
 		payment_entry.save()
@@ -161,44 +157,17 @@ class TestUtils(IntegrationTestCase):
 		self.assertEqual(get_zero_cutoff("EUR"), 0.005)
 		self.assertEqual(get_zero_cutoff("BHD"), 0.0005)
 
+	def test_get_currency_precision_respects_zero_and_fallback(self):
+		currency_precision = frappe.db.get_default("currency_precision")
+		number_format = frappe.db.get_default("number_format")
 
-ADDRESS_RECORDS = [
-	{
-		"doctype": "Address",
-		"address_type": "Billing",
-		"address_line1": "Address line 1",
-		"address_title": "_Test Billing Address Title",
-		"city": "Lagos",
-		"country": "Nigeria",
-		"links": [{"link_doctype": "Customer", "link_name": "_Test Customer 2", "doctype": "Dynamic Link"}],
-	},
-	{
-		"doctype": "Address",
-		"address_type": "Shipping",
-		"address_line1": "Address line 2",
-		"address_title": "_Test Shipping Address 1 Title",
-		"city": "Lagos",
-		"country": "Nigeria",
-		"links": [{"link_doctype": "Customer", "link_name": "_Test Customer 2", "doctype": "Dynamic Link"}],
-	},
-	{
-		"doctype": "Address",
-		"address_type": "Shipping",
-		"address_line1": "Address line 3",
-		"address_title": "_Test Shipping Address 2 Title",
-		"city": "Lagos",
-		"country": "Nigeria",
-		"is_shipping_address": "1",
-		"links": [{"link_doctype": "Customer", "link_name": "_Test Customer 2", "doctype": "Dynamic Link"}],
-	},
-	{
-		"doctype": "Address",
-		"address_type": "Billing",
-		"address_line1": "Address line 4",
-		"address_title": "_Test Billing Address 2 Title",
-		"city": "Lagos",
-		"country": "Nigeria",
-		"is_shipping_address": "1",
-		"links": [{"link_doctype": "Customer", "link_name": "_Test Customer 1", "doctype": "Dynamic Link"}],
-	},
-]
+		try:
+			frappe.db.set_default("number_format", "#,###.##")
+			frappe.db.set_default("currency_precision", "0")
+			self.assertEqual(get_currency_precision(), 0)
+
+			frappe.db.set_default("currency_precision", "")
+			self.assertEqual(get_currency_precision(), 2)
+		finally:
+			frappe.db.set_default("currency_precision", currency_precision or "")
+			frappe.db.set_default("number_format", number_format or "#,###.##")

@@ -13,6 +13,11 @@ from frappe import _
 from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
 from frappe.permissions import add_permission
 
+# Namanya membawa "palem" supaya berbeda dari berkas huruf "A" yang pernah ada di
+# URL lama: browser menyimpan favicon per URL dan tidak menengok lagi selama URL-nya
+# sama, jadi mengganti isi berkas saja meninggalkan lambang lama di tab orang.
+FAVICON = "/assets/erpnext/images/autoerp-favicon-palem.svg"
+FAVICON_LAMA = ("/assets/erpnext/images/autoerp-favicon.svg",)
 OPERATOR_ROLE = "Weighbridge Operator"
 INTEGRATION_ROLE = "Palm Mill Integration"
 ROLES = (OPERATOR_ROLE, INTEGRATION_ROLE)
@@ -89,10 +94,41 @@ DEFAULT_SETTINGS = {
 }
 
 
+# The two FFB sources the module reasons about (utils.PURCHASED_SOURCES, sumber_for_supplier).
+# Ticket.sumber_tbs is mandatory and links here, so a site without these rows cannot take
+# a visit; the demo dump carried them, a fresh install must create them.
+SOURCES = ("Internal", "External")
+
+
 def after_install():
 	create_custom_fields(CUSTOM_FIELDS, ignore_validate=frappe.flags.in_patch, update=True)
 	setup_roles()
+	setup_sources()
 	set_defaults()
+	set_favicon()
+
+
+def setup_sources():
+	for title in SOURCES:
+		if not frappe.db.exists("Sumber TBS", title):
+			frappe.get_doc({"doctype": "Sumber TBS", "title": title}).insert(ignore_permissions=True)
+
+
+def set_favicon():
+	"""The tab icon is the one piece of branding `app_logo_url` does not reach.
+
+	Frappe renders `<link rel="shortcut icon">` from `Website Settings.favicon` and
+	falls back to Frappe's own mark when it is empty, so a site that never set it
+	shows an "F" in the tab no matter what the app ships.
+
+	Fills a blank one, and moves a site still pointing at one of our own older files
+	onto the current name. A favicon somebody uploaded is left alone — that is their
+	choice, not ours to overwrite.
+	"""
+	sekarang = frappe.db.get_single_value("Website Settings", "favicon")
+	if sekarang and sekarang not in FAVICON_LAMA:
+		return
+	frappe.db.set_single_value("Website Settings", "favicon", FAVICON)
 
 
 def setup_roles():

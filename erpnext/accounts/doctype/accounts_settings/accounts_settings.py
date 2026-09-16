@@ -10,6 +10,9 @@ from frappe.custom.doctype.property_setter.property_setter import make_property_
 from frappe.model.document import Document
 from frappe.utils import cint
 
+from erpnext.accounts.doctype.accounting_dimension.accounting_dimension import (
+	get_accounting_dimensions,
+)
 from erpnext.accounts.utils import sync_auto_reconcile_config
 
 SELLING_DOCTYPES = [
@@ -44,6 +47,8 @@ class AccountsSettings(Document):
 	if TYPE_CHECKING:
 		from frappe.types import DF
 
+		from erpnext.accounts.doctype.repost_allowed_types.repost_allowed_types import RepostAllowedTypes
+
 		add_taxes_from_item_tax_template: DF.Check
 		add_taxes_from_taxes_and_charges_template: DF.Check
 		allow_multi_currency_invoices_against_single_party_account: DF.Check
@@ -53,9 +58,11 @@ class AccountsSettings(Document):
 		auto_reconciliation_job_trigger: DF.Int
 		automatically_fetch_payment_terms: DF.Check
 		automatically_process_deferred_accounting_entry: DF.Check
+		automatically_run_rules_on_unreconciled_transactions: DF.Check
 		book_asset_depreciation_entry_automatically: DF.Check
 		book_deferred_entries_based_on: DF.Literal["Days", "Months"]
 		book_deferred_entries_via_journal_entry: DF.Check
+		book_stock_expense_gl_entries: DF.Check
 		book_tax_discount_loss: DF.Check
 		calculate_depr_using_total_days: DF.Check
 		check_supplier_invoice_uniqueness: DF.Check
@@ -65,14 +72,18 @@ class AccountsSettings(Document):
 		default_ageing_range: DF.Data | None
 		delete_linked_ledger_entries: DF.Check
 		determine_address_tax_category_from: DF.Literal["Billing Address", "Shipping Address"]
+		disable_include_dimensions: DF.Check
 		enable_accounting_dimensions: DF.Check
 		enable_common_party_accounting: DF.Check
 		enable_discounts_and_margin: DF.Check
 		enable_fuzzy_matching: DF.Check
 		enable_immutable_ledger: DF.Check
 		enable_loyalty_point_program: DF.Check
+		enable_overdue_billing_threshold: DF.Check
 		enable_party_matching: DF.Check
+		enable_subscription: DF.Check
 		exchange_gain_loss_posting_date: DF.Literal["Invoice", "Payment", "Reconciliation Date"]
+		fetch_payment_schedule_in_payment_request: DF.Check
 		fetch_valuation_rate_for_internal_transaction: DF.Check
 		general_ledger_remarks_length: DF.Int
 		ignore_account_closing_balance: DF.Check
@@ -82,9 +93,12 @@ class AccountsSettings(Document):
 		make_payment_via_journal_entry: DF.Check
 		merge_similar_account_heads: DF.Check
 		over_billing_allowance: DF.Currency
-		receivable_payable_fetch_method: DF.Literal["Buffered Cursor", "UnBuffered Cursor", "Raw SQL"]
+		pcv_job_timeout: DF.Int
+		receivable_payable_fetch_method: DF.Literal["Buffered Cursor", "UnBuffered Cursor"]
 		receivable_payable_remarks_length: DF.Int
 		reconciliation_queue_size: DF.Int
+		repost_allowed_types: DF.Table[RepostAllowedTypes]
+		role_allowed_to_bypass_overdue_billing: DF.Link | None
 		role_allowed_to_over_bill: DF.Link | None
 		role_to_notify_on_depreciation_failure: DF.Link | None
 		role_to_override_stop_action: DF.Link | None
@@ -95,6 +109,7 @@ class AccountsSettings(Document):
 		show_taxes_as_table_in_print: DF.Check
 		stale_days: DF.Int
 		submit_journal_entries: DF.Check
+		transfer_match_days: DF.Int
 		unlink_advance_payment_on_cancelation_of_order: DF.Check
 		unlink_payment_on_cancellation_of_invoice: DF.Check
 		use_legacy_budget_controller: DF.Check
@@ -135,10 +150,19 @@ class AccountsSettings(Document):
 			toggle_loyalty_point_program_section(not self.enable_loyalty_point_program)
 			clear_cache = True
 
+		if old_doc.enable_subscription != self.enable_subscription:
+			toggle_subscription_sections(not self.enable_subscription)
+			clear_cache = True
+
+		if old_doc.enable_overdue_billing_threshold != self.enable_overdue_billing_threshold:
+			toggle_overdue_billing_threshold_field(not self.enable_overdue_billing_threshold)
+			clear_cache = True
+
 		if clear_cache:
 			frappe.clear_cache()
 
 		self.validate_and_sync_auto_reconcile_config()
+		self.update_property_for_accounting_dimension()
 
 	def validate_stale_days(self):
 		if not self.allow_stale and cint(self.stale_days) <= 0:
@@ -185,12 +209,23 @@ class AccountsSettings(Document):
 				title=_("Auto Tax Settings Error"),
 			)
 
-	@frappe.whitelist()
-	def drop_ar_sql_procedures(self):
-		from erpnext.accounts.report.accounts_receivable.accounts_receivable import InitSQLProceduresForAR
+	def update_property_for_accounting_dimension(self):
+		doctypes = [entry.document_type for entry in self.repost_allowed_types]
+		if not doctypes:
+			return
 
-		frappe.db.sql(f"drop procedure if exists {InitSQLProceduresForAR.init_procedure_name}")
-		frappe.db.sql(f"drop procedure if exists {InitSQLProceduresForAR.allocate_procedure_name}")
+		from erpnext.accounts.doctype.repost_accounting_ledger.repost_accounting_ledger import get_child_docs
+
+		doctypes += get_child_docs(doctypes)
+
+		set_allow_on_submit_for_dimension_fields(doctypes)
+
+
+@frappe.whitelist(methods=["POST"])
+def get_posting_date_confirmation() -> int:
+	return cint(
+		frappe.db.get_single_value("Accounts Settings", "confirm_before_resetting_posting_date", cache=False)
+	)
 
 
 def toggle_accounting_dimension_sections(hide):
@@ -215,6 +250,16 @@ def toggle_loyalty_point_program_section(hide):
 			create_property_setter_for_hiding_field(doctype, "loyalty_points_redemption", hide)
 
 
+def toggle_subscription_sections(hide):
+	subscription_doctypes = frappe.get_hooks("subscription_doctypes")
+	for doctype in subscription_doctypes:
+		create_property_setter_for_hiding_field(doctype, "subscription_section", hide)
+
+
+def toggle_overdue_billing_threshold_field(hide):
+	create_property_setter_for_hiding_field("Customer Credit Limit", "overdue_billing_threshold", hide)
+
+
 def create_property_setter_for_hiding_field(doctype, field_name, hide):
 	make_property_setter(
 		doctype,
@@ -224,3 +269,12 @@ def create_property_setter_for_hiding_field(doctype, field_name, hide):
 		"Check",
 		validate_fields_for_doctype=False,
 	)
+
+
+def set_allow_on_submit_for_dimension_fields(doctypes):
+	for dt in doctypes:
+		meta = frappe.get_meta(dt)
+		for dimension in get_accounting_dimensions():
+			df = meta.get_field(dimension)
+			if df and not df.allow_on_submit:
+				frappe.db.set_value("Custom Field", dt + "-" + dimension, "allow_on_submit", 1)

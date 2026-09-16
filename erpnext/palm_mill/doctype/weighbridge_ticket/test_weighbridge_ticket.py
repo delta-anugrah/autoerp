@@ -117,8 +117,12 @@ class IntegrationTestWeighbridgeTicket(IntegrationTestCase):
 		ticket.reload()
 		pr = frappe.get_doc("Purchase Receipt", ticket.purchase_receipt)
 
-		# the ticket cannot be cancelled while its receipt stands
+		# the ticket cannot be cancelled while its receipt stands. Frappe writes docstatus
+		# before it checks the back-links, so the refused cancel still leaves docstatus 2 in
+		# this transaction (a request would roll back); undo it before going on.
+		frappe.db.savepoint("refused_cancel")
 		self.assertRaises(frappe.LinkExistsError, ticket.cancel)
+		frappe.db.rollback(save_point="refused_cancel")
 
 		pr.cancel()
 		ticket.reload()

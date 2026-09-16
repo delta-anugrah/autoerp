@@ -170,6 +170,7 @@
   "is_discounted",
   "col_break23",
   "status",
+  "title",
   "more_info",
   "debit_to",
   "party_account_currency",
@@ -187,7 +188,7 @@
   "subscription_section",
   "from_date",
   "to_date",
-  "column_break_140",
+  "auto_repeat_section",
   "auto_repeat",
   "update_auto_repeat_reference",
   "against_income_account"
@@ -496,6 +497,7 @@
   },
   {
    "collapsible": 1,
+   "collapsible_depends_on": "eval:doc.currency && doc.currency != erpnext.get_currency(doc.company)",
    "depends_on": "customer",
    "fieldname": "currency_and_price_list",
    "fieldtype": "Section Break",
@@ -662,6 +664,7 @@
    "fieldname": "total_billing_amount",
    "fieldtype": "Currency",
    "label": "Total Billing Amount",
+   "options": "currency",
    "print_hide": 1,
    "read_only": 1
   },
@@ -1462,7 +1465,7 @@
   {
    "fieldname": "subscription_section",
    "fieldtype": "Section Break",
-   "label": "Subscription Section"
+   "label": "Subscription"
   },
   {
    "allow_on_submit": 1,
@@ -1479,10 +1482,6 @@
    "label": "To Date",
    "no_copy": 1,
    "print_hide": 1
-  },
-  {
-   "fieldname": "column_break_140",
-   "fieldtype": "Column Break"
   },
   {
    "allow_on_submit": 1,
@@ -1533,6 +1532,7 @@
    "fieldname": "amount_eligible_for_commission",
    "fieldtype": "Currency",
    "label": "Amount Eligible for Commission",
+   "options": "Company:company:default_currency",
    "read_only": 1
   },
   {
@@ -1619,12 +1619,25 @@
   {
    "fieldname": "column_break_bhao",
    "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "auto_repeat_section",
+   "fieldtype": "Section Break",
+   "label": "Auto Repeat"
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "title",
+   "fieldtype": "Data",
+   "label": "Title",
+   "no_copy": 1,
+   "print_hide": 1
   }
  ],
  "icon": "fa fa-file-text",
  "is_submittable": 1,
  "links": [],
- "modified": "2026-02-10 14:23:07.181782",
+ "modified": "2026-08-12 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Accounts",
  "name": "POS Invoice",

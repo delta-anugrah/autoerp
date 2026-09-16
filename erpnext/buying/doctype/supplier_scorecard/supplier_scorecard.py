@@ -201,6 +201,7 @@ def refresh_scorecards():
 def make_all_scorecards(docname):
 	sc = frappe.get_doc("Supplier Scorecard", docname)
 	supplier = frappe.get_doc("Supplier", sc.supplier)
+	supplier.check_permission("write")
 
 	start_date = getdate(supplier.creation)
 	end_date = get_scorecard_date(sc.period, start_date)
@@ -266,8 +267,8 @@ def get_scorecard_date(period, start_date):
 	return end_date
 
 
-def make_default_records():
-	install_variable_docs = [
+def get_default_scorecard_variables():
+	return [
 		{
 			"param_name": "total_accepted_items",
 			"variable_label": "Total Accepted Items",
@@ -374,7 +375,10 @@ def make_default_records():
 			"path": "get_invoiced_qty",
 		},
 	]
-	install_standing_docs = [
+
+
+def get_default_scorecard_standing():
+	return [
 		{
 			"min_grade": 0.0,
 			"prevent_rfqs": 1,
@@ -425,12 +429,17 @@ def make_default_records():
 		},
 	]
 
+
+def make_default_records():
+	install_variable_docs = get_default_scorecard_variables()
 	for d in install_variable_docs:
 		try:
 			d["doctype"] = "Supplier Scorecard Variable"
 			frappe.get_doc(d).insert()
 		except frappe.NameError:
 			pass
+
+	install_standing_docs = get_default_scorecard_standing()
 	for d in install_standing_docs:
 		try:
 			d["doctype"] = "Supplier Scorecard Standing"

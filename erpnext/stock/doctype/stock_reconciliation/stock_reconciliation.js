@@ -46,17 +46,6 @@ frappe.ui.form.on("Stock Reconciliation", {
 			};
 		});
 
-		let sbb_field = frm.get_docfield("items", "serial_and_batch_bundle");
-		if (sbb_field) {
-			sbb_field.get_route_options_for_new_doc = (row) => {
-				return {
-					item_code: row.doc.item_code,
-					warehouse: row.doc.warehouse,
-					voucher_type: frm.doc.doctype,
-				};
-			};
-		}
-
 		if (frm.doc.company) {
 			erpnext.queries.setup_queries(frm, "Warehouse", function () {
 				return erpnext.queries.warehouse(frm.doc);
@@ -76,6 +65,8 @@ frappe.ui.form.on("Stock Reconciliation", {
 	},
 
 	refresh: function (frm) {
+		erpnext.toggle_serial_batch_fields(frm);
+
 		if (frm.doc.docstatus < 1) {
 			frm.add_custom_button(__("Fetch Items from Warehouse"), function () {
 				frm.events.get_items(frm);

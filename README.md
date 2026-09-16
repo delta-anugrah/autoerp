@@ -85,6 +85,20 @@ bench start                       # http://pks.localhost:8000  (login: Administr
 On Linux add `127.0.0.1 pks.localhost` to `/etc/hosts`; macOS resolves `*.localhost` on its own.
 A worker must be running (`bench start` launches one) or accounting dimensions never reach GL Entry.
 
+**Day to day, once the bench exists**, use the `Makefile` in this repo (`make help` lists all targets):
+
+```bash
+make up          # start in the background, return once the site answers
+make status      # running? answering? which checkout does the bench serve?
+make stop
+make key-show    # AutoGrade's ERP_API_KEY / ERP_API_SECRET, without rotating them
+```
+
+`make up` refuses to start a second bench. Running `bench start` twice looks like a crash — the
+second one cannot bind the redis ports and honcho takes its whole group down — while the first
+bench is still serving. Never re-run `create_integration_user` just to read the credentials: it
+rotates the secret and every AutoGrade still holding the old one gets 401.
+
 **What you should see.** One company, PT Sawit Rambang Lestari (abbr `S`). A **Pabrik Kelapa Sawit** workspace on the
 desk, Weighbridge Ticket list with ~3.8k rows, Purchase Receipts (~1.8k), and a Stock Ledger for
 TBS / CPO / PK.

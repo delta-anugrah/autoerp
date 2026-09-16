@@ -67,6 +67,16 @@ def setup_palm_mill():
 				"price_list_rate": PRICE,
 			}
 		).insert()
+	# The FFB sources every ticket links to, and the estate and division of the block; the demo
+	# dump had them, a clean site has not.
+	for doctype, title in (
+		("Sumber TBS", "Internal"),
+		("Sumber TBS", "External"),
+		("Kebun", "Sungai Rambang"),
+		("Divisi", "I"),
+	):
+		if not frappe.db.exists(doctype, title):
+			frappe.get_doc({"doctype": doctype, "title": title}).insert()
 	if not frappe.db.exists("Blok", BLOK):
 		frappe.get_doc(
 			{"doctype": "Blok", "blok_code": BLOK, "kebun": "Sungai Rambang", "divisi": "I"}

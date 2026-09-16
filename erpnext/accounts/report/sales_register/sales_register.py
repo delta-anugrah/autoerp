@@ -7,6 +7,7 @@ from frappe import _, msgprint
 from frappe.model.meta import get_field_precision
 from frappe.query_builder.custom import ConstantColumn
 from frappe.utils import flt, getdate
+from pypika.terms import Bracket, LiteralValue, Order
 
 from erpnext.accounts.party import get_party_account
 from erpnext.accounts.report.utils import (
@@ -140,17 +141,32 @@ def _execute(filters, additional_table_columns=None):
 
 		# total tax, grand total, outstanding amount & rounded total
 
+		outstanding_precision = (
+			get_field_precision(
+				frappe.get_meta("Sales Invoice").get_field("outstanding_amount"),
+				currency=company_currency,
+			)
+			or 2
+		)
 		row.update(
 			{
 				"tax_total": total_tax,
 				"grand_total": inv.base_grand_total,
 				"rounded_total": inv.base_rounded_total,
-				"outstanding_amount": inv.outstanding_amount,
 			}
 		)
 
 		if inv.doctype == "Sales Invoice":
-			row.update({"debit": inv.base_grand_total, "credit": 0.0})
+			row.update(
+				{
+					"debit": inv.base_grand_total,
+					# credits the invoice itself posts to the receivable (mirrors its GL)
+					"credit": get_in_invoice_receivable_credit(inv),
+					"outstanding_amount": flt(
+						(inv.outstanding_amount * (inv.conversion_rate or 1)), outstanding_precision
+					),
+				}
+			)
 		else:
 			row.update({"debit": 0.0, "credit": inv.base_grand_total})
 		data.append(row)
@@ -164,6 +180,14 @@ def _execute(filters, additional_table_columns=None):
 			res[row].update({"balance": running_balance})
 
 	return columns, res, None, None, None, include_payments
+
+
+def get_in_invoice_receivable_credit(inv):
+	# amount the invoice settles against its own receivable, matching the invoice's GL entries
+	credit = flt(inv.loyalty_amount)  # loyalty redemption, POS or not
+	if inv.is_pos:  # POS payments and write-off credit the receivable only on POS invoices
+		credit += flt(inv.base_paid_amount) - flt(inv.base_change_amount) + flt(inv.base_write_off_amount)
+	return credit
 
 
 def get_columns(invoice_list, additional_table_columns, include_payments=False):
@@ -432,10 +456,16 @@ def get_invoices(filters, additional_query_columns):
 			si.base_net_total,
 			si.base_grand_total,
 			si.base_rounded_total,
+			si.is_pos,
+			si.base_paid_amount,
+			si.base_change_amount,
+			si.base_write_off_amount,
+			si.loyalty_amount,
 			si.outstanding_amount,
 			si.is_internal_customer,
 			si.represents_company,
 			si.company,
+			si.conversion_rate,
 		)
 		.where(si.docstatus == 1)
 	)
@@ -457,15 +487,13 @@ def get_invoices(filters, additional_query_columns):
 
 	from frappe.desk.reportview import build_match_conditions
 
-	query, params = query.walk()
-	match_conditions = build_match_conditions("Sales Invoice")
+	if match_conditions := build_match_conditions("Sales Invoice"):
+		query = query.where(Bracket(LiteralValue(match_conditions)))
 
-	if match_conditions:
-		query += " and " + match_conditions
+	query = query.orderby("posting_date", order=Order.desc)
+	query = query.orderby("name", order=Order.desc)
 
-	query += " order by posting_date desc, name desc"
-
-	return frappe.db.sql(query, params, as_dict=True)
+	return query.run(as_dict=True)
 
 
 def get_conditions(filters, query, doctype):

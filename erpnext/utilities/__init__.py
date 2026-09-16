@@ -43,7 +43,11 @@ def get_site_info(site_info):
 @contextmanager
 def payment_app_import_guard():
 	msg = _("payments app is not installed. Please install it from the Frappe Payments repository.")
+
+	if "payments" not in frappe.get_installed_apps():
+		frappe.throw(msg, title=_("Missing Payments App"), exc=frappe.AppNotInstalledError)
+
 	try:
 		yield
 	except ImportError:
-		frappe.throw(msg, title=_("Missing Payments App"))
+		frappe.throw(msg, title=_("Missing Payments App"), exc=frappe.AppNotInstalledError)

@@ -100,15 +100,15 @@ def upsert_truck(
 @frappe.whitelist(methods=["POST"])
 @logged(AUTOGRADE)
 def upsert_visit(
-	visit_id,
-	truck,
-	weighing,
-	site=None,
-	supplier_erp_name=None,
-	scale_ticket_no=None,
-	grading=None,
-	stage=None,
-	emitted_at=None,
+	visit_id: str,
+	truck: dict | str,
+	weighing: dict | str,
+	site: str | None = None,
+	supplier_erp_name: str | None = None,
+	scale_ticket_no: str | None = None,
+	grading: dict | str | None = None,
+	stage: str | None = None,
+	emitted_at: str | None = None,
 ):
 	"""Interface C: one truck visit, sent by AutoGrade at each stage (gate, grading closed,
 	weigh-out) and resent daily. Every send is a full replacement of the sections it carries.
@@ -127,9 +127,9 @@ def upsert_visit(
 		frappe.throw(_("weighing.time_in is required: it dates the visit"))
 
 	plate = truck_info.get("erp_name") or truck_info.get("plate_number")
-	truck_doc = get_or_create_truck(
-		plate, source=AUTOGRADE, supplier=supplier_erp_name, autograde_id=truck_info.get("autograde_id")
-	)
+	# A plate first seen in a visit becomes a truck without an owner (interface B); the
+	# supplier in the message belongs to the ticket, not to the truck master.
+	truck_doc = get_or_create_truck(plate, source=AUTOGRADE, autograde_id=truck_info.get("autograde_id"))
 	start = to_site_datetime(weighing["time_in"])
 	end = to_site_datetime(weighing["time_out"]) if weighing.get("time_out") else None
 	pct = _grading_percentages(grading) if grading else None
@@ -144,7 +144,7 @@ def upsert_visit(
 
 	ticket.update(
 		{
-			"autograde_visit_id": visit_id,
+			"autograde_visit_id": visit_id or ticket.autograde_visit_id,
 			"scale_ticket_no": scale_ticket_no or ticket.scale_ticket_no,
 			"truck": truck_doc.name,
 			"supplier": ticket.supplier or truck_doc.supplier or supplier_erp_name,
@@ -171,7 +171,13 @@ def _find_ticket(company, truck, start, end, visit_id, scale_ticket_no, assignme
 			name = frappe.db.get_value("Weighbridge Ticket", {field: value})
 			if name:
 				return frappe.get_doc("Weighbridge Ticket", name)
-	return find_or_create_ticket(company, truck, start, end)
+	return find_or_create_ticket(
+		company,
+		truck,
+		start,
+		end,
+		identity={"autograde_visit_id": visit_id, "scale_ticket_no": scale_ticket_no},
+	)
 
 
 def _apply_weighing(ticket, weighing, start, end):

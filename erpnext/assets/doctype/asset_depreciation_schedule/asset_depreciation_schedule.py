@@ -10,6 +10,7 @@ from frappe.utils import (
 	getdate,
 )
 
+import erpnext
 from erpnext.assets.doctype.asset_depreciation_schedule.deppreciation_schedule_controller import (
 	DepreciationScheduleController,
 )
@@ -193,6 +194,9 @@ def cancel_asset_depr_schedules(asset_doc):
 def reschedule_depreciation(asset_doc, notes, disposal_date=None):
 	for row in asset_doc.get("finance_books"):
 		current_schedule = get_asset_depr_schedule_doc(asset_doc.name, None, row.finance_book)
+
+		if disposal_date and flt(row.value_after_depreciation) <= flt(row.expected_value_after_useful_life):
+			continue
 
 		if current_schedule:
 			if current_schedule.docstatus == 1:

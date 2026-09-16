@@ -5,13 +5,12 @@
 import copy
 
 import frappe
-from frappe.tests import IntegrationTestCase
 from frappe.utils import add_days, add_to_date, flt, now, nowtime, today
 
 from erpnext.accounts.doctype.account.test_account import create_account, get_inventory_account
 from erpnext.accounts.doctype.purchase_invoice.test_purchase_invoice import make_purchase_invoice
 from erpnext.accounts.utils import update_gl_entries_after
-from erpnext.assets.doctype.asset.test_asset import create_asset_category, create_fixed_asset_item
+from erpnext.assets.doctype.asset.test_asset import create_fixed_asset_item
 from erpnext.stock.doctype.delivery_note.test_delivery_note import create_delivery_note
 from erpnext.stock.doctype.purchase_receipt.test_purchase_receipt import (
 	get_gl_entries,
@@ -21,11 +20,13 @@ from erpnext.stock.doctype.serial_and_batch_bundle.test_serial_and_batch_bundle 
 	get_serial_nos_from_bundle,
 )
 from erpnext.stock.serial_batch_bundle import SerialNoValuation
+from erpnext.tests.utils import ERPNextTestSuite
 
-EXTRA_TEST_RECORD_DEPENDENCIES = ["Currency Exchange"]
 
+class TestLandedCostVoucher(ERPNextTestSuite):
+	def setUp(self):
+		self.load_test_records("Currency Exchange")
 
-class TestLandedCostVoucher(IntegrationTestCase):
 	def test_landed_cost_voucher(self):
 		frappe.db.set_single_value("Buying Settings", "allow_multiple_items", 1)
 
@@ -177,6 +178,64 @@ class TestLandedCostVoucher(IntegrationTestCase):
 
 		self.assertEqual(last_sle.qty_after_transaction, last_sle_after_landed_cost.qty_after_transaction)
 		self.assertEqual(last_sle_after_landed_cost.stock_value - last_sle.stock_value, 50.0)
+
+	def test_lcv_validates_company(self):
+		from erpnext import is_perpetual_inventory_enabled
+		from erpnext.accounts.doctype.account.test_account import create_account
+		from erpnext.stock.doctype.landed_cost_voucher.landed_cost_voucher import (
+			IncorrectCompanyValidationError,
+		)
+
+		company_a = "_Test Company"
+		company_b = "_Test Company with perpetual inventory"
+
+		srbnb = create_account(
+			account_name="Stock Received But Not Billed",
+			account_type="Stock Received But Not Billed",
+			parent_account="Stock Liabilities - _TC",
+			company=company_a,
+			account_currency="INR",
+		)
+
+		epi = is_perpetual_inventory_enabled(company_a)
+		company_doc = frappe.get_doc("Company", company_a)
+		old_inventory_account = company_doc.default_inventory_account
+		company_doc.enable_perpetual_inventory = 1
+		company_doc.stock_received_but_not_billed = srbnb
+		company_doc.default_inventory_account = "Stock In Hand - _TC"
+		company_doc.save()
+
+		pr = make_purchase_receipt(
+			company=company_a,
+			warehouse="Stores - _TC",
+			qty=1,
+			rate=100,
+		)
+
+		lcv = make_landed_cost_voucher(
+			company=company_b,
+			receipt_document_type="Purchase Receipt",
+			receipt_document=pr.name,
+			charges=50,
+			do_not_save=True,
+		)
+
+		self.assertRaises(IncorrectCompanyValidationError, lcv.validate_receipt_documents)
+		lcv.company = company_a
+
+		self.assertRaises(IncorrectCompanyValidationError, lcv.validate_expense_accounts)
+		lcv.taxes[0].expense_account = get_expense_account(company_a)
+
+		lcv.save()
+		distribute_landed_cost_on_items(lcv)
+		lcv.submit()
+
+		frappe.db.set_value(
+			"Company",
+			company_a,
+			{"enable_perpetual_inventory": epi, "default_inventory_account": old_inventory_account},
+		)
+		frappe.local.enable_perpetual_inventory = {}
 
 	def test_landed_cost_voucher_for_zero_purchase_rate(self):
 		"Test impact of LCV on future stock balances."
@@ -367,6 +426,7 @@ class TestLandedCostVoucher(IntegrationTestCase):
 					"doctype": "Serial No",
 					"item_code": item_code,
 					"serial_no": serial_no,
+					"company": "_Test Company",
 				}
 			).insert()
 
@@ -567,9 +627,6 @@ class TestLandedCostVoucher(IntegrationTestCase):
 			"Company", "_Test Company", "capital_work_in_progress_account", "CWIP Account - _TC"
 		)
 
-		if not frappe.db.exists("Asset Category", "Computers"):
-			create_asset_category()
-
 		if not frappe.db.exists("Item", "Macbook Pro"):
 			create_fixed_asset_item()
 
@@ -638,6 +695,7 @@ class TestLandedCostVoucher(IntegrationTestCase):
 						"doctype": "Serial No",
 						"item_code": sn_item,
 						"serial_no": sn,
+						"company": "_Test Company",
 					}
 				)
 				sn_doc.insert()
@@ -788,6 +846,7 @@ class TestLandedCostVoucher(IntegrationTestCase):
 						"doctype": "Serial No",
 						"item_code": sn_item,
 						"serial_no": sn,
+						"company": "_Test Company",
 					}
 				)
 				sn_doc.insert()
@@ -949,6 +1008,7 @@ class TestLandedCostVoucher(IntegrationTestCase):
 
 	def test_do_not_validate_against_landed_cost_voucher_for_serial_for_legacy_pr(self):
 		from erpnext.stock.doctype.item.test_item import make_item
+		from erpnext.stock.doctype.serial_and_batch_bundle.serial_and_batch_bundle import get_auto_batch_nos
 
 		frappe.flags.ignore_serial_batch_bundle_validation = True
 		frappe.flags.use_serial_and_batch_fields = True
@@ -977,6 +1037,7 @@ class TestLandedCostVoucher(IntegrationTestCase):
 						"doctype": "Serial No",
 						"item_code": sn_item,
 						"serial_no": sn,
+						"company": "_Test Company",
 					}
 				)
 				sn_doc.insert()
@@ -1259,6 +1320,7 @@ def make_landed_cost_voucher(**args):
 	lcv = frappe.new_doc("Landed Cost Voucher")
 	lcv.company = args.company or "_Test Company"
 	lcv.distribute_charges_based_on = args.distribute_charges_based_on or "Amount"
+	expense_account = get_expense_account(args.company or "_Test Company")
 
 	lcv.set(
 		"purchase_receipts",
@@ -1279,7 +1341,7 @@ def make_landed_cost_voucher(**args):
 			[
 				{
 					"description": "Shipping Charges",
-					"expense_account": args.expense_account or "Expenses Included In Valuation - TCP1",
+					"expense_account": args.expense_account or expense_account,
 					"amount": args.charges,
 				}
 			],
@@ -1299,6 +1361,7 @@ def create_landed_cost_voucher(receipt_document_type, receipt_document, company,
 	lcv = frappe.new_doc("Landed Cost Voucher")
 	lcv.company = company
 	lcv.distribute_charges_based_on = "Amount"
+	expense_account = get_expense_account(company)
 
 	lcv.set(
 		"purchase_receipts",
@@ -1318,7 +1381,7 @@ def create_landed_cost_voucher(receipt_document_type, receipt_document, company,
 		[
 			{
 				"description": "Insurance Charges",
-				"expense_account": "Expenses Included In Valuation - TCP1",
+				"expense_account": expense_account,
 				"amount": charges,
 			}
 		],
@@ -1333,6 +1396,11 @@ def create_landed_cost_voucher(receipt_document_type, receipt_document, company,
 	return lcv
 
 
+def get_expense_account(company):
+	company_abbr = frappe.get_cached_value("Company", company, "abbr")
+	return f"Expenses Included In Valuation - {company_abbr}"
+
+
 def distribute_landed_cost_on_items(lcv):
 	based_on = lcv.distribute_charges_based_on.lower()
 	total = sum(flt(d.get(based_on)) for d in lcv.get("items"))
@@ -1340,3 +1408,265 @@ def distribute_landed_cost_on_items(lcv):
 	for item in lcv.get("items"):
 		item.applicable_charges = flt(item.get(based_on)) * flt(lcv.total_taxes_and_charges) / flt(total)
 		item.applicable_charges = flt(item.applicable_charges, lcv.precision("applicable_charges", item))
+
+
+def ensure_dimension_fields_on_lcv_charges(dimensions):
+	from erpnext.accounts.doctype.accounting_dimension.accounting_dimension import (
+		make_dimension_in_accounting_doctypes,
+	)
+
+	created = False
+
+	for name in dimensions:
+		dimension = frappe.get_doc("Accounting Dimension", name)
+		if frappe.db.exists(
+			"Custom Field", {"dt": "Landed Cost Taxes and Charges", "fieldname": dimension.fieldname}
+		):
+			continue
+
+		make_dimension_in_accounting_doctypes(dimension, ["Landed Cost Taxes and Charges"])
+		created = True
+
+	if created:
+		frappe.clear_cache(doctype="Landed Cost Taxes and Charges")
+
+
+def create_branch(branch):
+	if not frappe.db.exists("Branch", branch):
+		frappe.get_doc({"doctype": "Branch", "branch": branch}).insert()
+
+	return branch
+
+
+class TestLandedCostVoucherAccountingDimensions(ERPNextTestSuite):
+	def setUp(self):
+		self.company = "_Test Company with perpetual inventory"
+		self.warehouse = "Stores - TCP1"
+		self.expense_account = get_expense_account(self.company)
+
+		ensure_dimension_fields_on_lcv_charges(["Branch"])
+		self.branch_a = create_branch("_Test LCV Branch A")
+		self.branch_b = create_branch("_Test LCV Branch B")
+
+	def make_lcv(self, pr, charges, do_not_submit=False):
+		lcv = frappe.new_doc("Landed Cost Voucher")
+		lcv.company = self.company
+		lcv.distribute_charges_based_on = "Amount"
+		lcv.set(
+			"purchase_receipts",
+			[
+				{
+					"receipt_document_type": "Purchase Receipt",
+					"receipt_document": pr.name,
+					"supplier": pr.supplier,
+					"posting_date": pr.posting_date,
+					"grand_total": pr.base_grand_total,
+				}
+			],
+		)
+
+		for idx, charge in enumerate(charges):
+			lcv.append(
+				"taxes",
+				{
+					"description": f"_Test Charge {idx + 1}",
+					"expense_account": charge.pop("expense_account", self.expense_account),
+					**charge,
+				},
+			)
+
+		lcv.insert()
+
+		if not do_not_submit:
+			lcv.submit()
+
+		return lcv
+
+	def get_lcv_gl_entries(self, pr, account=None):
+		return frappe.get_all(
+			"GL Entry",
+			filters={
+				"voucher_type": "Purchase Receipt",
+				"voucher_no": pr.name,
+				"is_cancelled": 0,
+				**({"account": account} if account else {}),
+			},
+			fields=["account", "debit", "credit", "cost_center", "project", "branch"],
+			order_by="credit desc",
+		)
+
+	def make_dimension_mandatory(self, name, mandatory_for_pl=0, mandatory_for_bs=0):
+		dimension = frappe.get_doc("Accounting Dimension", name)
+		row = next((d for d in dimension.dimension_defaults if d.company == self.company), None)
+
+		if row:
+			previous = (row.mandatory_for_pl, row.mandatory_for_bs)
+			self.addCleanup(self.restore_dimension_default, name, previous)
+		else:
+			row = dimension.append(
+				"dimension_defaults",
+				{"company": self.company, "reference_document": dimension.document_type},
+			)
+			self.addCleanup(self.remove_dimension_default, name)
+
+		row.mandatory_for_pl = mandatory_for_pl
+		row.mandatory_for_bs = mandatory_for_bs
+		dimension.save()
+
+	def restore_dimension_default(self, name, previous):
+		dimension = frappe.get_doc("Accounting Dimension", name)
+		for row in dimension.dimension_defaults:
+			if row.company == self.company:
+				row.mandatory_for_pl, row.mandatory_for_bs = previous
+		dimension.save()
+
+	def remove_dimension_default(self, name):
+		dimension = frappe.get_doc("Accounting Dimension", name)
+		dimension.set(
+			"dimension_defaults",
+			[d for d in dimension.dimension_defaults if d.company != self.company],
+		)
+		dimension.save()
+
+	def test_charge_row_dimension_reaches_gl_entry(self):
+		pr = make_purchase_receipt(company=self.company, warehouse=self.warehouse)
+		self.make_lcv(pr, [{"amount": 100, "branch": self.branch_a}])
+
+		charge_entries = self.get_lcv_gl_entries(pr, self.expense_account)
+		self.assertEqual(len(charge_entries), 1)
+		self.assertEqual(charge_entries[0].credit, 100.0)
+		self.assertEqual(charge_entries[0].branch, self.branch_a)
+
+		stock_account = get_inventory_account(self.company, self.warehouse)
+		self.assertFalse(self.get_lcv_gl_entries(pr, stock_account)[0].branch)
+
+	def test_charge_row_cost_center_and_project_override_receipt_item(self):
+		from erpnext.accounts.doctype.cost_center.test_cost_center import create_cost_center
+
+		create_cost_center(
+			cost_center_name="_Test LCV Cost Center",
+			company=self.company,
+			parent_cost_center=f"{self.company} - TCP1",
+		)
+		cost_center = "_Test LCV Cost Center - TCP1"
+
+		if not frappe.db.exists("Project", {"project_name": "_Test LCV Project"}):
+			frappe.get_doc(
+				{"doctype": "Project", "project_name": "_Test LCV Project", "company": self.company}
+			).insert()
+		project = frappe.db.get_value("Project", {"project_name": "_Test LCV Project"})
+
+		pr = make_purchase_receipt(company=self.company, warehouse=self.warehouse)
+		item_cost_center = pr.items[0].cost_center
+
+		self.make_lcv(pr, [{"amount": 100, "cost_center": cost_center, "project": project}])
+
+		charge_entries = self.get_lcv_gl_entries(pr, self.expense_account)
+		self.assertEqual(len(charge_entries), 1)
+		self.assertEqual(charge_entries[0].cost_center, cost_center)
+		self.assertEqual(charge_entries[0].project, project)
+
+		stock_account = get_inventory_account(self.company, self.warehouse)
+		self.assertEqual(self.get_lcv_gl_entries(pr, stock_account)[0].cost_center, item_cost_center)
+
+	def test_blank_charge_row_falls_back_to_receipt_item(self):
+		pr = make_purchase_receipt(company=self.company, warehouse=self.warehouse)
+		self.make_lcv(pr, [{"amount": 100}])
+
+		charge_entries = self.get_lcv_gl_entries(pr, self.expense_account)
+		self.assertEqual(len(charge_entries), 1)
+		self.assertEqual(charge_entries[0].cost_center, pr.items[0].cost_center)
+		self.assertFalse(charge_entries[0].branch)
+
+	def test_charge_rows_on_same_account_with_different_dimensions_stay_separate(self):
+		pr = make_purchase_receipt(company=self.company, warehouse=self.warehouse)
+		self.make_lcv(
+			pr,
+			[
+				{"amount": 60, "branch": self.branch_a},
+				{"amount": 40, "branch": self.branch_b},
+			],
+		)
+
+		charge_entries = self.get_lcv_gl_entries(pr, self.expense_account)
+		self.assertEqual(len(charge_entries), 2)
+		self.assertEqual(
+			{(e.branch, e.credit) for e in charge_entries},
+			{(self.branch_a, 60.0), (self.branch_b, 40.0)},
+		)
+		self.assertEqual(sum(e.credit for e in charge_entries), 100.0)
+
+	def test_two_vouchers_on_same_account_with_different_dimensions_stay_separate(self):
+		pr = make_purchase_receipt(company=self.company, warehouse=self.warehouse)
+		self.make_lcv(pr, [{"amount": 60, "branch": self.branch_a}])
+		self.make_lcv(pr, [{"amount": 40, "branch": self.branch_b}])
+
+		charge_entries = self.get_lcv_gl_entries(pr, self.expense_account)
+		self.assertEqual(len(charge_entries), 2)
+		self.assertEqual(
+			{(e.branch, e.credit) for e in charge_entries},
+			{(self.branch_a, 60.0), (self.branch_b, 40.0)},
+		)
+
+	def test_mandatory_pl_dimension_is_satisfied_by_charge_row(self):
+		pr = make_purchase_receipt(company=self.company, warehouse=self.warehouse)
+		self.make_dimension_mandatory("Branch", mandatory_for_pl=1)
+
+		self.make_lcv(pr, [{"amount": 100, "branch": self.branch_a}])
+
+		charge_entries = self.get_lcv_gl_entries(pr, self.expense_account)
+		self.assertEqual(len(charge_entries), 1)
+		self.assertEqual(charge_entries[0].branch, self.branch_a)
+
+	def test_missing_mandatory_dimension_is_reported_on_the_voucher(self):
+		pr = make_purchase_receipt(company=self.company, warehouse=self.warehouse)
+		self.make_dimension_mandatory("Branch", mandatory_for_pl=1)
+
+		with self.assertRaises(frappe.ValidationError) as raised:
+			self.make_lcv(pr, [{"amount": 100}])
+
+		message = str(raised.exception)
+		self.assertIn("Branch", message)
+		self.assertIn(self.expense_account, message)
+
+	def test_dimensions_survive_reposting(self):
+		pr = make_purchase_receipt(company=self.company, warehouse=self.warehouse)
+		self.make_lcv(
+			pr,
+			[
+				{"amount": 60, "branch": self.branch_a},
+				{"amount": 40, "branch": self.branch_b},
+			],
+		)
+
+		before = {(e.branch, e.credit) for e in self.get_lcv_gl_entries(pr, self.expense_account)}
+
+		items, warehouses = pr.get_items_and_warehouses()
+		update_gl_entries_after(pr.posting_date, pr.posting_time, warehouses, items, company=pr.company)
+
+		after = {(e.branch, e.credit) for e in self.get_lcv_gl_entries(pr, self.expense_account)}
+		self.assertEqual(before, after)
+
+	def test_cancelling_the_voucher_nets_each_dimension_to_zero(self):
+		pr = make_purchase_receipt(company=self.company, warehouse=self.warehouse)
+		lcv = self.make_lcv(
+			pr,
+			[
+				{"amount": 60, "branch": self.branch_a},
+				{"amount": 40, "branch": self.branch_b},
+			],
+		)
+
+		lcv.reload()
+		lcv.cancel()
+
+		balances = {}
+		for entry in frappe.get_all(
+			"GL Entry",
+			filters={"voucher_no": pr.name, "account": self.expense_account},
+			fields=["branch", "debit", "credit"],
+		):
+			balances[entry.branch] = balances.get(entry.branch, 0.0) + entry.debit - entry.credit
+
+		for branch, balance in balances.items():
+			self.assertEqual(flt(balance, 2), 0.0, msg=f"branch {branch} does not net to zero")

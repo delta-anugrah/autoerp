@@ -165,6 +165,8 @@ class TransactionDeletionRecord(Document):
 
 	def validate(self):
 		frappe.only_for("System Manager")
+		if not self.doctypes_to_be_ignored:
+			self.populate_doctypes_to_be_ignored_table()
 		self.validate_to_delete_list()
 
 	def validate_to_delete_list(self):
@@ -316,11 +318,22 @@ class TransactionDeletionRecord(Document):
 		Returns:
 		        list: List of child table DocType names (Table field options)
 		"""
-		return frappe.get_all(
+		child_tables = frappe.get_all(
 			"DocField",
 			filters={"parent": doctype_name, "fieldtype": ["in", ["Table", "Table MultiSelect"]]},
 			pluck="options",
 		)
+
+		if not child_tables:
+			return []
+
+		child_tables = frappe.get_all(
+			"DocType",
+			filters={"name": ["in", child_tables], "is_virtual": 0},
+			pluck="name",
+		)
+
+		return child_tables
 
 	def _get_to_delete_row_infos(self, doctype_name, company_field=None, company=None):
 		"""Get child tables and document count for a To Delete list row
@@ -638,6 +651,8 @@ class TransactionDeletionRecord(Document):
 
 	@frappe.whitelist()
 	def start_deletion_tasks(self):
+		self.check_permission("write")
+
 		# This method is the entry point for the chain of events that follow
 		self.db_set("status", "Running")
 		self._set_deletion_cache()
@@ -734,10 +749,11 @@ class TransactionDeletionRecord(Document):
 				self.enqueue_task(task="Clear Notifications")
 				return
 
-			company_obj = frappe.get_doc("Company", self.company)
-			company_obj.total_monthly_sales = 0
-			company_obj.sales_monthly_history = None
-			company_obj.save()
+			frappe.db.set_value(
+				"Company",
+				self.company,
+				{"total_monthly_sales": 0, "sales_monthly_history": None},
+			)
 			self.db_set("reset_company_default_values_status", "Completed")
 		self.enqueue_task(task="Clear Notifications")
 

@@ -15,6 +15,8 @@ erpnext.financial_statements = {
 	},
 
 	formatter: function (value, row, column, data, default_formatter, filter) {
+		if (erpnext.financial_statements.is_blank_row(data)) return "";
+
 		const report_params = [value, row, column, data, default_formatter, filter];
 		// Growth/Margin
 		if (erpnext.financial_statements._is_special_view(column, data))
@@ -25,9 +27,40 @@ erpnext.financial_statements = {
 		else return erpnext.financial_statements._format_standard_report(...report_params);
 	},
 
+	is_blank_row: function (data) {
+		if (!data || data.segment_values) return false;
+		return (
+			!data.account &&
+			!data.accounts &&
+			!data.child_accounts &&
+			!data.account_name &&
+			!data.section_name
+		);
+	},
+
 	_is_special_view: function (column, data) {
 		if (!data) return false;
 		const view = get_filter_value("selected_view");
+
+		if (!["Growth", "Margin"].includes(view)) return false;
+
+		if (get_filter_value("report_template")) {
+			const columnInfo = erpnext.financial_statements._parse_column_info(column.fieldname, data);
+			// Account column
+			if (columnInfo.isAccount) return false;
+
+			const periodKeys = data._segment_info?.period_keys || [];
+
+			if (!periodKeys.includes(columnInfo.fieldname)) return false;
+
+			if (view === "Growth") {
+				// First period of new segment
+				if (periodKeys[0] === columnInfo.fieldname) return false;
+			}
+
+			return true;
+		}
+
 		return (view === "Growth" && column.colIndex >= 3) || (view === "Margin" && column.colIndex >= 2);
 	},
 
@@ -64,7 +97,7 @@ erpnext.financial_statements = {
 		const isPeriodColumn = periodKeys.includes(baseName);
 
 		return {
-			isAccount: baseName === erpnext.financial_statements.name_field,
+			isAccount: baseName === "account", // DO NOT USE `name_field` ! This can be overridden in some reports!
 			isPeriod: isPeriodColumn,
 			segmentIndex: valueMatch && valueMatch[1] ? parseInt(valueMatch[1]) : null,
 			fieldname: baseName,
@@ -230,7 +263,10 @@ erpnext.financial_statements = {
 
 		value = default_formatter(value, row, column, data);
 
-		if (data && !data.parent_account && !data.parent_section) {
+		if (
+			data &&
+			((!data.parent_account && !data.parent_section) || data.is_group_account || data.is_group)
+		) {
 			value = $(`<span>${value}</span>`);
 
 			var $value = $(value).css("font-weight", "bold");
@@ -295,7 +331,7 @@ erpnext.financial_statements = {
 		let fiscal_year = erpnext.utils.get_fiscal_year(frappe.datetime.get_today());
 		var filters = report.get_values();
 
-		if (!filters.period_start_date || !filters.period_end_date) {
+		if (fiscal_year && (!filters.period_start_date || !filters.period_end_date)) {
 			frappe.model.with_doc("Fiscal Year", fiscal_year, function (r) {
 				var fy = frappe.model.get_doc("Fiscal Year", fiscal_year);
 				frappe.query_report.set_filter_value({
@@ -419,16 +455,16 @@ function get_filters() {
 			label: __("Start Year"),
 			fieldtype: "Link",
 			options: "Fiscal Year",
-			reqd: 1,
 			depends_on: "eval:doc.filter_based_on == 'Fiscal Year'",
+			mandatory_depends_on: "eval:doc.filter_based_on == 'Fiscal Year'",
 		},
 		{
 			fieldname: "to_fiscal_year",
 			label: __("End Year"),
 			fieldtype: "Link",
 			options: "Fiscal Year",
-			reqd: 1,
 			depends_on: "eval:doc.filter_based_on == 'Fiscal Year'",
+			mandatory_depends_on: "eval:doc.filter_based_on == 'Fiscal Year'",
 		},
 		{
 			fieldname: "periodicity",
@@ -452,6 +488,7 @@ function get_filters() {
 			label: __("Currency"),
 			fieldtype: "Select",
 			options: erpnext.get_presentation_currency_list(),
+			depends_on: "eval: !doc.report_template",
 		},
 		{
 			fieldname: "cost_center",

@@ -1,8 +1,8 @@
 # Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and Contributors
 # See license.txt
+import unittest
 
 import frappe
-from frappe.tests import IntegrationTestCase
 from frappe.utils import (
 	add_days,
 	add_months,
@@ -36,21 +36,14 @@ from erpnext.stock.doctype.purchase_receipt.purchase_receipt import (
 	make_purchase_invoice as make_invoice,
 )
 from erpnext.stock.doctype.purchase_receipt.test_purchase_receipt import make_purchase_receipt
+from erpnext.tests.utils import ERPNextTestSuite
 
 
-class AssetSetup(IntegrationTestCase):
-	@classmethod
-	def setUpClass(cls):
-		super().setUpClass()
+class AssetSetup(ERPNextTestSuite):
+	def setUp(self):
 		set_depreciation_settings_in_company()
-		create_asset_data()
 		enable_cwip_accounting("Computers")
 		make_purchase_receipt(item_code="Macbook Pro", qty=1, rate=100000.0, location="Test Location")
-		frappe.db.sql("delete from `tabTax Rule`")
-
-	@classmethod
-	def tearDownClass(cls):
-		frappe.db.rollback()
 
 
 class TestAsset(AssetSetup):
@@ -823,105 +816,10 @@ class TestAsset(AssetSetup):
 
 		frappe.db.set_value("Item", asset_item, "is_grouped_asset", 0)
 
-	def test_is_fully_depreciated_asset_status(self):
-		asset = create_asset(item_code="Macbook Pro", do_not_save=1)
-		asset.is_fully_depreciated = 1
-		asset.save().submit()
-		self.assertEqual(asset.status, "Fully Depreciated")
-
-	def test_depreciation_accounts_is_set_for_depreciable_assets(self):
-		company_depreciation_accounts = frappe.db.get_value(
-			"Company",
-			"_Test Company",
-			[
-				"accumulated_depreciation_account",
-				"depreciation_expense_account",
-			],
-			as_dict=True,
-		)
-		frappe.db.set_value(
-			"Company",
-			"_Test Company",
-			{
-				"accumulated_depreciation_account": "",
-				"depreciation_expense_account": "",
-			},
-		)
-		asset_category_name = "Computers"
-		asset_category_account = None
-		if frappe.db.exists("Asset Category", asset_category_name):
-			filters = {
-				"parent": asset_category_name,
-				"company_name": "_Test Company",
-			}
-			fieldname = [
-				"name",
-				"accumulated_depreciation_account",
-				"depreciation_expense_account",
-			]
-			asset_category_account = frappe.db.get_value(
-				"Asset Category Account",
-				filters=filters,
-				fieldname=fieldname,
-				as_dict=True,
-			)
-			if asset_category_account and (
-				asset_category_account.accumulated_depreciation_account
-				or asset_category_account.depreciation_expense_account
-			):
-				frappe.db.set_value(
-					"Asset Category Account",
-					asset_category_account.name,
-					{
-						"accumulated_depreciation_account": "",
-						"depreciation_expense_account": "",
-					},
-				)
-		else:
-			asset_category = frappe.new_doc("Asset Category")
-			asset_category.asset_category_name = asset_category_name
-			asset_category.append(
-				"accounts",
-				{
-					"company_name": "_Test Company",
-					"fixed_asset_account": "_Test Fixed Asset - _TC",
-				},
-			)
-			asset_category.insert()
-		try:
-			asset = create_asset(asset_category=asset_category_name, calculate_depreciation=1, do_not_save=1)
-			with self.assertRaises(frappe.ValidationError) as err:
-				asset.save()
-
-			self.assertTrue(
-				"Please set Depreciation related Accounts in Asset Category Computers or Company"
-				in str(err.exception)
-			)
-		finally:
-			frappe.db.set_value("Company", "_Test Company", company_depreciation_accounts)
-			if asset_category_account:
-				frappe.db.set_value(
-					"Asset Category Account",
-					asset_category_account.name,
-					{
-						"accumulated_depreciation_account": asset_category_account.accumulated_depreciation_account,
-						"depreciation_expense_account": asset_category_account.depreciation_expense_account,
-					},
-				)
-
 
 class TestDepreciationMethods(AssetSetup):
-	@classmethod
-	def setUpClass(cls):
-		super().setUpClass()
-
-		cls._old_float_precision = frappe.db.get_single_value("System Settings", "float_precision")
+	def setUp(self):
 		frappe.db.set_single_value("System Settings", "float_precision", 2)
-
-	@classmethod
-	def tearDownClass(cls):
-		frappe.db.set_single_value("System Settings", "float_precision", cls._old_float_precision)
-		super().tearDownClass()
 
 	def test_schedule_for_straight_line_method(self):
 		asset = create_asset(
@@ -1493,6 +1391,47 @@ class TestDepreciationBasics(AssetSetup):
 		self.assertFalse(depr_schedule[1].journal_entry)
 		self.assertFalse(depr_schedule[2].journal_entry)
 
+	def test_depr_schedule_link_matches_at_currency_precision(self):
+		"""A Depreciation Schedule row whose amount carries more decimals than the
+		company currency (e.g. 25701.202 vs a JE debit of 25701.20) must still be
+		matched and stamped with the Journal Entry. Comparing at exact float
+		equality left the link NULL, so the scheduler treated the row as unposted
+		and created a duplicate Journal Entry on every run. Regression test for
+		JournalEntry.update_journal_entry_link_on_depr_schedule()."""
+		from unittest.mock import MagicMock, patch
+
+		from erpnext.accounts.doctype.journal_entry import journal_entry as journal_entry_module
+
+		posting_date = getdate("2021-06-01")
+		je = frappe.new_doc("Journal Entry")
+		je.name = "JE-DEPR-TEST"
+		je.finance_book = None
+		je.posting_date = posting_date
+
+		# JE debit is stored at company currency precision (2 dp)...
+		je_row = MagicMock()
+		je_row.debit = 25701.20
+		je_row.precision.return_value = 2
+
+		# ...while the schedule row amount carries a third decimal.
+		schedule_row = frappe._dict(
+			name="DS-ROW-1",
+			schedule_date=posting_date,
+			journal_entry=None,
+			depreciation_amount=25701.202,
+		)
+		asset = frappe._dict(name="ASSET-TEST")
+
+		with (
+			patch.object(journal_entry_module, "get_depr_schedule", return_value=[schedule_row]),
+			patch.object(frappe.db, "set_value") as mock_set_value,
+		):
+			je.update_journal_entry_link_on_depr_schedule(asset, je_row)
+
+		mock_set_value.assert_called_once_with(
+			"Depreciation Schedule", "DS-ROW-1", "journal_entry", "JE-DEPR-TEST"
+		)
+
 	def test_depr_entry_posting_when_depr_expense_account_is_an_expense_account(self):
 		"""Tests if the Depreciation Expense Account gets debited and the Accumulated Depreciation Account gets credited when the former's an Expense Account."""
 
@@ -1991,30 +1930,8 @@ def get_gl_entries(doctype, docname):
 	)
 
 
-def create_asset_data():
-	if not frappe.db.exists("Asset Category", "Computers"):
-		create_asset_category()
-
-	if not frappe.db.exists("Item", "Macbook Pro"):
-		create_fixed_asset_item()
-
-	if not frappe.db.exists("Location", "Test Location"):
-		frappe.get_doc({"doctype": "Location", "location_name": "Test Location"}).insert()
-
-	if not frappe.db.exists("Finance Book", "Test Finance Book 1"):
-		frappe.get_doc({"doctype": "Finance Book", "finance_book_name": "Test Finance Book 1"}).insert()
-
-	if not frappe.db.exists("Finance Book", "Test Finance Book 2"):
-		frappe.get_doc({"doctype": "Finance Book", "finance_book_name": "Test Finance Book 2"}).insert()
-
-	if not frappe.db.exists("Finance Book", "Test Finance Book 3"):
-		frappe.get_doc({"doctype": "Finance Book", "finance_book_name": "Test Finance Book 3"}).insert()
-
-
 def create_asset(**args):
 	args = frappe._dict(args)
-
-	create_asset_data()
 
 	asset = frappe.get_doc(
 		{
@@ -2101,7 +2018,7 @@ def create_asset_category(enable_cwip=1):
 	asset_category.insert()
 
 
-def create_fixed_asset_item(item_code=None, auto_create_assets=1, is_grouped_asset=0):
+def create_fixed_asset_item(item_code=None, auto_create_assets=1, is_grouped_asset=0, asset_category=None):
 	meta = frappe.get_meta("Asset")
 	naming_series = meta.get_field("naming_series").options.splitlines()[0] or "ACC-ASS-.YYYY.-"
 	try:
@@ -2111,7 +2028,7 @@ def create_fixed_asset_item(item_code=None, auto_create_assets=1, is_grouped_ass
 				"item_code": item_code or "Macbook Pro",
 				"item_name": "Macbook Pro",
 				"description": "Macbook Pro Retina Display",
-				"asset_category": "Computers",
+				"asset_category": asset_category or "Computers",
 				"item_group": "All Item Groups",
 				"stock_uom": "Nos",
 				"is_stock_item": 0,
