@@ -145,6 +145,37 @@ class IntegrationTestPalmMillAPI(IntegrationTestCase):
 		second = visit("v-5", "B 3001 PL", day, "gate", time_in="15:00")
 		self.assertNotEqual(first["ticket"], second["ticket"])
 
+	def test_second_visit_inside_the_window_does_not_overwrite_the_first(self):
+		"""A truck that returns within the matching window is a second visit, not the same one.
+
+		The window match used to adopt any open ticket of the same truck, so the second visit
+		took over the first one's ticket and overwrote its visit id, scale number, gross and
+		time in -- the first visit's tonnage vanished from the books. Proved live on
+		BE 4412 OFL, four minutes apart: 8,150 kg lost and time out before time in."""
+		day = frappe.utils.today()
+		first = visit("v-8", "BE 4412 OFL", day, "gate", scale_ticket_no="OFL-9001", time_in="08:55")
+		second = visit("v-9", "BE 4412 OFL", day, "gate", scale_ticket_no="OFL-9010", time_in="08:59")
+
+		self.assertNotEqual(first["ticket"], second["ticket"])
+		kept = frappe.get_doc("Weighbridge Ticket", first["ticket"])
+		self.assertEqual((kept.autograde_visit_id, kept.scale_ticket_no), ("v-8", "OFL-9001"))
+		self.assertEqual(str(kept.time_in), "8:55:00")
+		self.assertEqual(kept.gross_weight_kg, 14560)
+
+	def test_window_still_joins_the_sends_of_one_visit(self):
+		"""The guard must not split a single visit: weigh-in and weigh-out arrive separately."""
+		day = frappe.utils.today()
+		gate = visit("v-10", "BE 4413 OFL", day, "gate", scale_ticket_no="OFL-9020", time_in="09:10")
+		left = visit("v-10", "BE 4413 OFL", day, "departed", scale_ticket_no="OFL-9020", time_in="09:10")
+		self.assertEqual(gate["ticket"], left["ticket"])
+
+	def test_window_joins_a_send_that_carries_no_scale_number_yet(self):
+		"""An open ticket with blank keys is still adoptable -- that is the hand-typed path."""
+		day = frappe.utils.today()
+		gate = visit("v-11", "BE 4414 OFL", day, "gate", time_in="10:05")
+		left = visit("v-11", "BE 4414 OFL", day, "departed", scale_ticket_no="OFL-9030", time_in="10:05")
+		self.assertEqual(gate["ticket"], left["ticket"])
+
 	def test_unknown_plate_becomes_truck_without_owner_and_internal(self):
 		day = frappe.utils.today()
 		gate = visit("v-6", "BE 1234 QQ", day, "gate", supplier=AGEN_SUPPLIER)
