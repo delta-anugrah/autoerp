@@ -5,7 +5,6 @@ erpnext.PointOfSale.ItemDetails = class {
 		this.hide_images = settings.hide_images;
 		this.allow_rate_change = settings.allow_rate_change;
 		this.allow_discount_change = settings.allow_discount_change;
-		this.allow_warehouse_change = settings.allow_warehouse_change;
 		this.current_item = {};
 		this.frm_doctype = settings.frm_doctype;
 
@@ -84,6 +83,17 @@ erpnext.PointOfSale.ItemDetails = class {
 			this.item_row = item;
 			this.currency = this.events.get_frm().doc.currency;
 
+			if (item.has_serial_no == null || item.has_batch_no == null) {
+				const r = await frappe.db.get_value("Item", item.item_code, [
+					"has_serial_no",
+					"has_batch_no",
+				]);
+				if (r && r.message) {
+					item.has_serial_no = r.message.has_serial_no;
+					item.has_batch_no = r.message.has_batch_no;
+				}
+			}
+
 			this.current_item = item;
 
 			this.render_dom(item);
@@ -130,24 +140,26 @@ erpnext.PointOfSale.ItemDetails = class {
 			return ``;
 		}
 
-		this.$item_name.html(item_name);
+		this.$item_name.html(frappe.utils.escape_html(item_name));
 		this.$item_description.html(get_description_html());
 		this.$item_price.html(format_currency(price_list_rate, this.currency));
 		if (!this.hide_images && image) {
 			this.$item_image.html(
 				`<img
 					onerror="cur_pos.item_details.handle_broken_image(this)"
-					class="h-full" src="${image}"
-					alt="${frappe.get_abbr(item_name)}"
+					class="h-full" src="${frappe.utils.escape_html(image)}"
+					alt="${frappe.utils.escape_html(frappe.get_abbr(item_name))}"
 					style="object-fit: cover;">`
 			);
 		} else {
-			this.$item_image.html(`<div class="item-abbr">${frappe.get_abbr(item_name)}</div>`);
+			this.$item_image.html(
+				`<div class="item-abbr">${frappe.utils.escape_html(frappe.get_abbr(item_name))}</div>`
+			);
 		}
 	}
 
 	handle_broken_image($img) {
-		const item_abbr = $($img).attr("alt");
+		const item_abbr = frappe.utils.escape_html($($img).attr("alt"));
 		$($img).replaceWith(`<div class="item-abbr">${item_abbr}</div>`);
 	}
 
@@ -288,7 +300,6 @@ erpnext.PointOfSale.ItemDetails = class {
 					filters: { company: this.events.get_frm().doc.company, is_group: 0 },
 				};
 			};
-			this.warehouse_control.df.read_only = !this.allow_warehouse_change;
 			this.warehouse_control.refresh();
 		}
 

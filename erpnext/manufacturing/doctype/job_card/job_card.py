@@ -31,6 +31,9 @@ from erpnext.manufacturing.doctype.bom.bom import add_additional_cost, get_bom_i
 from erpnext.manufacturing.doctype.manufacturing_settings.manufacturing_settings import (
 	get_mins_between_operations,
 )
+from erpnext.manufacturing.doctype.production_plan.work_order_quantities import (
+	ProductionPlanWorkOrderQuantities,
+)
 from erpnext.manufacturing.doctype.workstation_type.workstation_type import get_workstations
 from erpnext.subcontracting.doctype.subcontracting_bom.subcontracting_bom import (
 	get_subcontracting_boms_for_finished_goods,
@@ -71,7 +74,9 @@ class JobCard(Document):
 		from erpnext.manufacturing.doctype.job_card_scheduled_time.job_card_scheduled_time import (
 			JobCardScheduledTime,
 		)
-		from erpnext.manufacturing.doctype.job_card_scrap_item.job_card_scrap_item import JobCardScrapItem
+		from erpnext.manufacturing.doctype.job_card_secondary_item.job_card_secondary_item import (
+			JobCardSecondaryItem,
+		)
 		from erpnext.manufacturing.doctype.job_card_time_log.job_card_time_log import JobCardTimeLog
 
 		actual_end_date: DF.Datetime | None
@@ -101,6 +106,7 @@ class JobCard(Document):
 		operation_id: DF.Data | None
 		operation_row_id: DF.Int
 		operation_row_number: DF.Literal[None]
+		pending_qty: DF.Float
 		posting_date: DF.Date | None
 		process_loss_qty: DF.Float
 		production_item: DF.Link | None
@@ -110,7 +116,7 @@ class JobCard(Document):
 		remarks: DF.SmallText | None
 		requested_qty: DF.Float
 		scheduled_time_logs: DF.Table[JobCardScheduledTime]
-		scrap_items: DF.Table[JobCardScrapItem]
+		secondary_items: DF.Table[JobCardSecondaryItem]
 		semi_fg_bom: DF.Link | None
 		sequence_id: DF.Int
 		serial_and_batch_bundle: DF.Link | None
@@ -120,12 +126,14 @@ class JobCard(Document):
 		status: DF.Literal[
 			"Open",
 			"Work In Progress",
+			"Partially Transferred",
 			"Material Transferred",
 			"On Hold",
 			"Submitted",
 			"Cancelled",
 			"Completed",
 		]
+		stock_uom: DF.Link | None
 		sub_operations: DF.Table[JobCardOperation]
 		target_warehouse: DF.Link | None
 		time_logs: DF.Table[JobCardTimeLog]
@@ -145,6 +153,8 @@ class JobCard(Document):
 		self.set_onload("job_card_excess_transfer", excess_transfer)
 		self.set_onload("work_order_closed", self.is_work_order_closed())
 		self.set_onload("has_stock_entry", self.has_stock_entry())
+		if self.docstatus == 0:
+			self.set_onload("max_completable_qty", self.get_max_completable_qty())
 
 	def on_discard(self):
 		self.db_set("status", "Cancelled")
@@ -154,6 +164,7 @@ class JobCard(Document):
 
 	def before_validate(self):
 		self.set_wip_warehouse()
+		self.set_stock_uom()
 
 	def validate(self):
 		self.validate_time_logs()
@@ -173,7 +184,7 @@ class JobCard(Document):
 			self.validate_semi_finished_goods()
 
 	def validate_semi_finished_goods(self):
-		if not self.track_semi_finished_goods:
+		if not self.track_semi_finished_goods or self.is_subcontracted:
 			return
 
 		if self.items and not self.transferred_qty and not self.skip_material_transfer:
@@ -199,6 +210,7 @@ class JobCard(Document):
 
 	def set_manufactured_qty(self):
 		table_name = "Stock Entry"
+		child_name = "Stock Entry Detail"
 		if self.is_subcontracted:
 			table_name = "Subcontracting Receipt Item"
 
@@ -208,8 +220,13 @@ class JobCard(Document):
 		if self.is_subcontracted:
 			query = query.select(Sum(table.qty))
 		else:
-			query = query.select(Sum(table.fg_completed_qty))
-			query = query.where(table.purpose == "Manufacture")
+			child = frappe.qb.DocType(child_name)
+			query = (
+				query.join(child)
+				.on(table.name == child.parent)
+				.select(Sum(child.transfer_qty))
+				.where((table.purpose == "Manufacture") & (child.is_finished_item == 1))
+			)
 
 		qty = query.run()[0][0] or 0.0
 		self.manufactured_qty = flt(qty)
@@ -232,15 +249,16 @@ class JobCard(Document):
 
 		wo_qty = wo_qty + (wo_qty * over_production_percentage / 100)
 
-		job_card_qty = frappe.get_all(
-			"Job Card",
-			fields=[{"SUM": "for_quantity"}],
-			filters={
-				"work_order": self.work_order,
-				"operation_id": self.operation_id,
-				"docstatus": ["!=", 2],
-			},
-			as_list=1,
+		job_card = frappe.qb.DocType("Job Card")
+		job_card_qty = (
+			frappe.qb.from_(job_card)
+			.select(Sum(job_card.for_quantity - IfNull(job_card.pending_qty, 0)))
+			.where(
+				(job_card.work_order == self.work_order)
+				& (job_card.operation_id == self.operation_id)
+				& (job_card.docstatus != 2)
+			)
+			.run()
 		)
 
 		job_card_qty = flt(job_card_qty[0][0]) if job_card_qty else 0
@@ -267,25 +285,34 @@ class JobCard(Document):
 				row.sub_operation = row.operation
 				self.append("sub_operations", row)
 
-	def set_scrap_items(self):
-		if not self.semi_fg_bom:
+	def set_secondary_items(self):
+		if not self.semi_fg_bom and not self.bom_no:
 			return
 
 		items_dict = get_bom_items_as_dict(
-			self.semi_fg_bom, self.company, qty=self.for_quantity, fetch_exploded=0, fetch_scrap_items=1
+			self.semi_fg_bom or self.bom_no,
+			self.company,
+			qty=self.for_quantity,
+			fetch_exploded=0,
+			fetch_secondary_items=1,
 		)
-		for item_code, values in items_dict.items():
+		for values in items_dict.values():
 			values = frappe._dict(values)
+			secondary_item = {
+				"item_code": values.item_code,
+				"stock_qty": values.qty,
+				"item_name": values.item_name,
+				"stock_uom": values.stock_uom,
+				"secondary_item_type": values.secondary_item_type,
+				"bom_secondary_item": values.name,
+			}
 
-			self.append(
-				"scrap_items",
-				{
-					"item_code": item_code,
-					"stock_qty": values.qty,
-					"item_name": values.item_name,
-					"stock_uom": values.stock_uom,
-				},
+			secondary_item["stock_qty"] -= flt(
+				secondary_item["stock_qty"] * (flt(values.process_loss_per) / 100),
+				self.precision("for_quantity"),
 			)
+
+			self.append("secondary_items", secondary_item)
 
 	def validate_time_logs(self, save=False):
 		self.total_time_in_mins = 0.0
@@ -383,9 +410,8 @@ class JobCard(Document):
 		# if key number reaches/crosses to production_capacity means capacity is full and overlap error generated
 		# this will store last to_time of sequential job cards
 		alloted_capacity = {1: time_logs[0]["to_time"]}
-		# flag for sequential Job card found
-		sequential_job_card_found = False
 		for i in range(1, len(time_logs)):
+			sequential_job_card_found = False
 			# scanning for all Existing keys
 			for key in alloted_capacity.keys():
 				# if current Job Card from time is greater than last to_time in that key means these job card are sequential
@@ -771,27 +797,27 @@ class JobCard(Document):
 			["action_if_quality_inspection_is_not_submitted", "action_if_quality_inspection_is_rejected"],
 		)
 
-		item = self.finished_good or self.production_item
-		bom_inspection_required = frappe.db.get_value(
-			"BOM", self.semi_fg_bom or self.bom_no, "inspection_required"
+		bom_inspection_required = frappe.get_value("BOM", self.bom_no, "inspection_required")
+		operation_inspection_required = frappe.get_value(
+			"Work Order Operation", self.operation_id, "quality_inspection_required"
 		)
-		if bom_inspection_required:
+		if bom_inspection_required and operation_inspection_required:
 			if not self.quality_inspection:
 				frappe.throw(
 					_(
 						"Quality Inspection is required for the item {0} before completing the job card {1}"
-					).format(get_link_to_form("Item", item), bold(self.name))
+					).format(get_link_to_form("Item", self.finished_good), bold(self.name))
 				)
-			qa_status, docstatus = frappe.db.get_value(
+
+			qa_status, docstatus = frappe.get_value(
 				"Quality Inspection", self.quality_inspection, ["status", "docstatus"]
 			)
-
 			if docstatus != 1:
 				if action_submit == "Stop":
 					frappe.throw(
 						_("Quality Inspection {0} is not submitted for the item: {1}").format(
 							get_link_to_form("Quality Inspection", self.quality_inspection),
-							get_link_to_form("Item", item),
+							get_link_to_form("Item", self.finished_good),
 						),
 						title=_("Inspection Submission"),
 						exc=QualityInspectionNotSubmittedError,
@@ -800,7 +826,7 @@ class JobCard(Document):
 					frappe.msgprint(
 						_("Quality Inspection {0} is not submitted for the item: {1}").format(
 							get_link_to_form("Quality Inspection", self.quality_inspection),
-							get_link_to_form("Item", item),
+							get_link_to_form("Item", self.finished_good),
 						),
 						alert=True,
 						indicator="orange",
@@ -810,7 +836,7 @@ class JobCard(Document):
 					frappe.throw(
 						_("Quality Inspection {0} is rejected for the item: {1}").format(
 							get_link_to_form("Quality Inspection", self.quality_inspection),
-							get_link_to_form("Item", item),
+							get_link_to_form("Item", self.finished_good),
 						),
 						title=_("Inspection Rejected"),
 						exc=QualityInspectionRejectedError,
@@ -819,13 +845,16 @@ class JobCard(Document):
 					frappe.msgprint(
 						_("Quality Inspection {0} is rejected for the item: {1}").format(
 							get_link_to_form("Quality Inspection", self.quality_inspection),
-							get_link_to_form("Item", item),
+							get_link_to_form("Item", self.finished_good),
 						),
 						alert=True,
 						indicator="orange",
 					)
 
 	def validate_transfer_qty(self):
+		if self.track_semi_finished_goods and self.skip_material_transfer:
+			return
+
 		if (
 			not self.finished_good
 			and not self.is_corrective_job_card
@@ -839,15 +868,28 @@ class JobCard(Document):
 			)
 
 	def validate_job_card(self):
-		if self.track_semi_finished_goods:
-			return
-
 		if self.work_order and frappe.get_cached_value("Work Order", self.work_order, "status") == "Stopped":
 			frappe.throw(
 				_("Transaction not allowed against stopped Work Order {0}").format(
 					get_link_to_form("Work Order", self.work_order)
 				)
 			)
+
+		self.validate_not_on_hold()
+		self.validate_time_logs_present()
+
+	def validate_not_on_hold(self):
+		if self.is_paused:
+			frappe.throw(
+				_(
+					"Cannot submit Job Card {0} while it is On Hold. Please resume and complete the job before submission."
+				).format(get_link_to_form("Job Card", self.name)),
+				title=_("Job Card On Hold"),
+			)
+
+	def validate_time_logs_present(self):
+		if self.track_semi_finished_goods and self.is_subcontracted:
+			return
 
 		if not self.time_logs:
 			frappe.throw(
@@ -863,20 +905,21 @@ class JobCard(Document):
 					)
 
 		precision = self.precision("total_completed_qty")
-		total_completed_qty = flt(
-			flt(self.total_completed_qty, precision) + flt(self.process_loss_qty, precision)
+		accounted_qty = flt(
+			flt(self.total_completed_qty, precision)
+			+ flt(self.process_loss_qty, precision)
+			+ flt(self.pending_qty, precision)
 		)
 
-		if self.for_quantity and flt(total_completed_qty, precision) != flt(self.for_quantity, precision):
-			total_completed_qty_label = bold(_("Total Completed Qty"))
-			qty_to_manufacture = bold(_("Qty to Manufacture"))
-
+		if self.for_quantity and flt(accounted_qty, precision) != flt(self.for_quantity, precision):
 			frappe.throw(
-				_("The {0} ({1}) must be equal to {2} ({3})").format(
-					total_completed_qty_label,
-					bold(flt(total_completed_qty, precision)),
-					qty_to_manufacture,
-					bold(self.for_quantity),
+				_(
+					"Total Completed Qty ({0}), Process Loss Qty ({1}) and Pending Qty ({2}) must add up to the Qty to Manufacture ({3})."
+				).format(
+					bold(self.get_qty_with_uom(self.total_completed_qty)),
+					bold(self.get_qty_with_uom(self.process_loss_qty)),
+					bold(self.get_qty_with_uom(self.pending_qty)),
+					bold(self.get_qty_with_uom(self.for_quantity)),
 				)
 			)
 
@@ -911,8 +954,10 @@ class JobCard(Document):
 
 		self.process_loss_qty = 0.0
 		if self.total_completed_qty and self.for_quantity > self.total_completed_qty:
-			self.process_loss_qty = flt(self.for_quantity, precision) - flt(
-				self.total_completed_qty, precision
+			self.process_loss_qty = (
+				flt(self.for_quantity, precision)
+				- flt(self.total_completed_qty, precision)
+				- flt(self.pending_qty, precision)
 			)
 
 	def update_work_order(self):
@@ -926,13 +971,14 @@ class JobCard(Document):
 		):
 			return
 
-		for_quantity, time_in_mins, process_loss_qty = 0, 0, 0
+		for_quantity, time_in_mins, process_loss_qty, pending_qty = 0, 0, 0, 0
 
 		data = self.get_current_operation_data()
 		if data and len(data) > 0:
 			for_quantity = flt(data[0].completed_qty)
 			time_in_mins = flt(data[0].time_in_mins)
 			process_loss_qty = flt(data[0].process_loss_qty)
+			pending_qty = flt(data[0].pending_qty)
 
 		wo = frappe.get_doc("Work Order", self.work_order)
 
@@ -940,22 +986,38 @@ class JobCard(Document):
 			self.update_corrective_in_work_order(wo)
 
 		elif self.operation_id:
-			self.validate_produced_quantity(for_quantity, process_loss_qty, wo)
-			self.update_work_order_data(for_quantity, process_loss_qty, time_in_mins, wo)
+			self.validate_produced_quantity(for_quantity, process_loss_qty, pending_qty, wo)
+			self.update_work_order_data(for_quantity, process_loss_qty, pending_qty, time_in_mins, wo)
 
 	def update_semi_finished_good_details(self):
-		if self.operation_id:
-			qty = max(flt(self.manufactured_qty), flt(self.total_completed_qty))
+		if not self.operation_id:
+			return
 
-			frappe.db.set_value("Work Order Operation", self.operation_id, "completed_qty", qty)
-			if (
-				self.finished_good
-				and frappe.get_cached_value("Work Order", self.work_order, "production_item")
-				== self.finished_good
-			):
-				_wo_doc = frappe.get_doc("Work Order", self.work_order)
-				_wo_doc.db_set("produced_qty", self.manufactured_qty)
-				_wo_doc.db_set("status", _wo_doc.get_status())
+		work_order = frappe.get_doc("Work Order", self.work_order)
+		if work_order.production_plan:
+			ProductionPlanWorkOrderQuantities(work_order.production_plan).lock_plan_row(work_order)
+
+		job_cards = frappe.get_all(
+			"Job Card",
+			filters={
+				"work_order": self.work_order,
+				"operation_id": self.operation_id,
+				"docstatus": 1,
+				"is_corrective_job_card": 0,
+			},
+			fields=["manufactured_qty", "total_completed_qty"],
+		)
+
+		completed_qty = sum(max(flt(row.manufactured_qty), flt(row.total_completed_qty)) for row in job_cards)
+
+		frappe.db.set_value("Work Order Operation", self.operation_id, "completed_qty", completed_qty)
+		if self.finished_good and work_order.production_item == self.finished_good:
+			work_order.db_set("produced_qty", sum(flt(row.manufactured_qty) for row in job_cards))
+			if work_order.production_plan:
+				ProductionPlanWorkOrderQuantities(work_order.production_plan).validate_work_order(
+					work_order, process_loss_qty=work_order.process_loss_qty
+				)
+			work_order.db_set("status", work_order.get_status())
 
 	def update_corrective_in_work_order(self, wo):
 		wo.corrective_operation_cost = 0.0
@@ -970,11 +1032,11 @@ class JobCard(Document):
 		wo.flags.ignore_validate_update_after_submit = True
 		wo.save()
 
-	def validate_produced_quantity(self, for_quantity, process_loss_qty, wo):
+	def validate_produced_quantity(self, for_quantity, process_loss_qty, pending_qty, wo):
 		if self.docstatus < 2:
 			return
 
-		if wo.produced_qty > for_quantity + process_loss_qty:
+		if wo.produced_qty > for_quantity + process_loss_qty + pending_qty:
 			first_part_msg = _(
 				"The {0} {1} is used to calculate the valuation cost for the finished good {2}."
 			).format(frappe.bold(_("Job Card")), frappe.bold(self.name), frappe.bold(self.production_item))
@@ -987,7 +1049,7 @@ class JobCard(Document):
 				_("{0} {1}").format(first_part_msg, second_part_msg), JobCardCancelError, title=_("Error")
 			)
 
-	def update_work_order_data(self, for_quantity, process_loss_qty, time_in_mins, wo):
+	def update_work_order_data(self, for_quantity, process_loss_qty, pending_qty, time_in_mins, wo):
 		workstation_hour_rate = frappe.get_value("Workstation", self.workstation, "hour_rate")
 		jc = frappe.qb.DocType("Job Card")
 		jctl = frappe.qb.DocType("Job Card Time Log")
@@ -1009,6 +1071,7 @@ class JobCard(Document):
 			if data.get("name") == self.operation_id:
 				data.completed_qty = for_quantity
 				data.process_loss_qty = process_loss_qty
+				data.pending_qty = pending_qty
 				data.actual_operation_time = time_in_mins
 				data.actual_start_time = time_data[0].start_time if time_data else None
 				data.actual_end_time = time_data[0].end_time if time_data else None
@@ -1022,6 +1085,9 @@ class JobCard(Document):
 		wo.calculate_operating_cost()
 		wo.set_actual_dates()
 
+		if wo.track_semi_finished_goods:
+			wo.set_process_loss_qty()
+
 		if time_data:
 			wo.status = "In Process"
 
@@ -1034,6 +1100,7 @@ class JobCard(Document):
 				{"SUM": "total_time_in_mins", "as": "time_in_mins"},
 				{"SUM": "total_completed_qty", "as": "completed_qty"},
 				{"SUM": "process_loss_qty", "as": "process_loss_qty"},
+				{"SUM": "pending_qty", "as": "pending_qty"},
 			],
 			filters={
 				"docstatus": 1,
@@ -1110,7 +1177,10 @@ class JobCard(Document):
 					_(
 						"Row #{0}: Cannot transfer more than Required Qty {1} for Item {2} against Job Card {3}"
 					).format(
-						row.idx, frappe.bold(required_qty), frappe.bold(row.item_code), ste_doc.job_card
+						row.idx,
+						frappe.bold(self.get_qty_with_uom(required_qty, row.item_code)),
+						frappe.bold(row.item_code),
+						ste_doc.job_card,
 					),
 					title=_("Excess Transfer"),
 					exc=JobCardOverTransferError,
@@ -1129,6 +1199,8 @@ class JobCard(Document):
 				_validate_over_transfer(row, transferred_qty)
 
 			frappe.db.set_value("Job Card Item", row.job_card_item, "transferred_qty", flt(transferred_qty))
+
+		self.set_status(update_status=True)
 
 	def set_transferred_qty(self, update_status=False):
 		from frappe.query_builder.functions import Sum
@@ -1182,7 +1254,7 @@ class JobCard(Document):
 	def set_status(self, update_status=False):
 		self.status = {0: "Open", 1: "Submitted", 2: "Cancelled"}[self.docstatus or 0]
 		if self.finished_good and self.docstatus == 1:
-			if self.manufactured_qty >= self.for_quantity:
+			if (self.manufactured_qty + self.process_loss_qty) >= self.get_qty_to_produce():
 				self.status = "Completed"
 			elif self.transferred_qty > 0 or self.skip_material_transfer:
 				self.status = "Work In Progress"
@@ -1191,14 +1263,30 @@ class JobCard(Document):
 			self.status = "Work In Progress"
 
 		if not self.track_semi_finished_goods and self.docstatus < 2:
-			if flt(self.for_quantity) <= flt(self.transferred_qty):
+			if self.items:
+				item_data = frappe.get_all(
+					"Job Card Item",
+					filters={"parent": self.name},
+					fields=["transferred_qty", "required_qty"],
+				)
+				all_transferred = item_data and all(
+					flt(d.transferred_qty) >= flt(d.required_qty) for d in item_data
+				)
+				any_transferred = any(flt(d.transferred_qty) > 0 for d in item_data)
+
+				if all_transferred:
+					self.status = "Material Transferred"
+				elif any_transferred:
+					self.status = "Partially Transferred"
+			elif flt(self.for_quantity) <= flt(self.transferred_qty):
 				self.status = "Material Transferred"
 
 			if self.time_logs:
 				self.status = "Work In Progress"
 
 			if self.docstatus == 1 and (
-				self.for_quantity <= (self.total_completed_qty + self.process_loss_qty) or not self.items
+				self.get_qty_to_produce() <= (self.total_completed_qty + self.process_loss_qty)
+				or not self.items
 			):
 				self.status = "Completed"
 
@@ -1211,9 +1299,26 @@ class JobCard(Document):
 		if self.workstation:
 			self.update_workstation_status()
 
+	def get_qty_to_produce(self):
+		"""Qty this job card is expected to produce, the pending qty is left to another job card."""
+		return flt(self.for_quantity) - flt(self.pending_qty)
+
+	def get_qty_with_uom(self, qty, item_code=None):
+		"""A quantity in a message reads as a count of nothing without the unit it is measured in."""
+		uom = self.stock_uom
+		if item_code:
+			uom = frappe.get_cached_value("Item", item_code, "stock_uom")
+
+		return f"{flt(qty, self.precision('total_completed_qty'))} {uom or ''}".strip()
+
 	def set_wip_warehouse(self):
 		if not self.wip_warehouse:
 			self.wip_warehouse = frappe.get_cached_value("Company", self.company, "default_wip_warehouse")
+
+	def set_stock_uom(self):
+		item_code = self.finished_good or self.production_item
+		if item_code:
+			self.stock_uom = frappe.get_cached_value("Item", item_code, "stock_uom")
 
 	def validate_operation_id(self):
 		if (
@@ -1234,6 +1339,10 @@ class JobCard(Document):
 
 	@frappe.whitelist()
 	def pause_job(self, **kwargs):
+		frappe.has_permission("Job Card", "write", doc=self, throw=True)
+
+		self.validate_docstatus()
+
 		if isinstance(kwargs, dict):
 			kwargs = frappe._dict(kwargs)
 
@@ -1242,6 +1351,10 @@ class JobCard(Document):
 
 	@frappe.whitelist()
 	def resume_job(self, **kwargs):
+		frappe.has_permission("Job Card", "write", doc=self, throw=True)
+
+		self.validate_docstatus()
+
 		if isinstance(kwargs, dict):
 			kwargs = frappe._dict(kwargs)
 
@@ -1269,18 +1382,25 @@ class JobCard(Document):
 
 		current_operation_qty += flt(self.total_completed_qty)
 
-		data = frappe.get_all(
-			"Work Order Operation",
-			fields=["operation", "status", "completed_qty", "sequence_id"],
-			filters={"docstatus": 1, "parent": self.work_order, "sequence_id": ("<", self.sequence_id)},
-			order_by="sequence_id, idx",
-		)
+		previous_operations = self.get_previous_operations()
 
 		message = "Job Card {}: As per the sequence of the operations in the work order {}".format(
 			bold(self.name), bold(get_link_to_form("Work Order", self.work_order))
 		)
 
-		for row in data:
+		if self.track_semi_finished_goods and previous_operations:
+			manufactured_qty = self.get_manufactured_qty_per_operation(
+				[row.name for row in previous_operations]
+			)
+
+			for row in previous_operations:
+				row.manufactured_qty = flt(manufactured_qty.get(row.name))
+
+		for row in previous_operations:
+			if self.track_semi_finished_goods:
+				self.validate_previous_operation_manufactured_qty(row, current_operation_qty)
+				continue
+
 			if not row.completed_qty:
 				frappe.throw(
 					_("{0}, complete the operation {1} before the operation {2}.").format(
@@ -1302,12 +1422,93 @@ class JobCard(Document):
 					_(
 						"The completed quantity {0} of an operation {1} cannot be greater than the completed quantity {2} of a previous operation {3}."
 					).format(
-						bold(current_operation_qty),
+						bold(self.get_qty_with_uom(current_operation_qty)),
 						bold(self.operation),
-						bold(row.completed_qty),
+						bold(self.get_qty_with_uom(row.completed_qty, row.finished_good)),
 						bold(row.operation),
 					)
 				)
+
+	def get_manufactured_qty_per_operation(self, operation_ids):
+		job_card = frappe.qb.DocType("Job Card")
+
+		data = (
+			frappe.qb.from_(job_card)
+			.select(job_card.operation_id, Sum(job_card.manufactured_qty))
+			.where(
+				(job_card.work_order == self.work_order)
+				& (job_card.docstatus == 1)
+				& (IfNull(job_card.is_corrective_job_card, 0) == 0)
+				& (job_card.operation_id.isin(operation_ids))
+			)
+			.groupby(job_card.operation_id)
+		).run()
+
+		return dict(data)
+
+	def get_previous_operations(self):
+		return frappe.get_all(
+			"Work Order Operation",
+			fields=["name", "operation", "status", "completed_qty", "sequence_id", "finished_good"],
+			filters={"docstatus": 1, "parent": self.work_order, "sequence_id": ("<", self.sequence_id)},
+			order_by="sequence_id, idx",
+		)
+
+	def get_current_operation_completed_qty(self):
+		current_operation_qty = 0.0
+		data = self.get_current_operation_data()
+		if data and len(data) > 0:
+			current_operation_qty = flt(data[0].completed_qty)
+
+		return current_operation_qty + flt(self.total_completed_qty)
+
+	def get_max_completable_qty(self):
+		if self.is_corrective_job_card or not (self.work_order and self.sequence_id):
+			return None
+
+		previous_operations = self.get_previous_operations()
+		if not previous_operations:
+			return None
+
+		if self.track_semi_finished_goods:
+			totals = self.get_manufactured_qty_per_operation([row.name for row in previous_operations])
+			for row in previous_operations:
+				row.manufactured_qty = flt(totals.get(row.name))
+
+		qty_field = "manufactured_qty" if self.track_semi_finished_goods else "completed_qty"
+		min_completed_qty = min(flt(row.get(qty_field)) for row in previous_operations)
+
+		precision = self.precision("total_completed_qty")
+		return flt(min_completed_qty - self.get_current_operation_completed_qty(), precision)
+
+	def validate_previous_operation_manufactured_qty(self, row, current_operation_qty):
+		manufactured_qty = flt(row.manufactured_qty)
+
+		if not manufactured_qty:
+			frappe.throw(
+				_(
+					"Job Card {0}: As per the sequence of the operations in the work order {1}, submit the manufacturing entry for the operation {2} before the operation {3}."
+				).format(
+					bold(self.name),
+					bold(get_link_to_form("Work Order", self.work_order)),
+					bold(row.operation),
+					bold(self.operation),
+				),
+				OperationSequenceError,
+			)
+
+		if manufactured_qty < current_operation_qty:
+			frappe.throw(
+				_(
+					"The completed quantity {0} of an operation {1} cannot be greater than the manufactured quantity {2} of a previous operation {3}. Submit the manufacturing entry for the operation {3} first."
+				).format(
+					bold(self.get_qty_with_uom(current_operation_qty)),
+					bold(self.operation),
+					bold(self.get_qty_with_uom(manufactured_qty, row.finished_good)),
+					bold(row.operation),
+				),
+				OperationSequenceError,
+			)
 
 	def validate_work_order(self):
 		if self.is_work_order_closed():
@@ -1321,9 +1522,9 @@ class JobCard(Document):
 
 	def is_work_order_closed(self):
 		if self.work_order:
-			status = frappe.get_value("Work Order", self.work_order)
+			status = frappe.get_value("Work Order", self.work_order, "status")
 
-			if status == "Closed":
+			if status in ["Closed", "Stopped"]:
 				return True
 
 		return False
@@ -1414,6 +1615,10 @@ class JobCard(Document):
 
 	@frappe.whitelist()
 	def start_timer(self, **kwargs):
+		frappe.has_permission("Job Card", "write", doc=self, throw=True)
+		self.validate_docstatus()
+		self.validate_transfer_qty()
+
 		if isinstance(kwargs, dict):
 			kwargs = frappe._dict(kwargs)
 
@@ -1428,10 +1633,47 @@ class JobCard(Document):
 		if isinstance(kwargs, dict):
 			kwargs = frappe._dict(kwargs)
 
-		if kwargs.end_time:
-			if kwargs.for_quantity:
-				self.for_quantity = kwargs.for_quantity
+		frappe.has_permission("Job Card", "write", doc=self, throw=True)
+		self.validate_docstatus()
+		self.validate_transfer_qty()
 
+		if isinstance(kwargs, dict):
+			kwargs = frappe._dict(kwargs)
+
+		self.set_for_quantity(kwargs)
+		self.validate_complete_job_card_qty(kwargs)
+
+	def set_for_quantity(self, kwargs):
+		"""Qty to Manufacture of the completion dialog covers the current cycle only,
+		so the qty completed by the earlier cycles of this job card is kept."""
+		if not flt(kwargs.for_quantity):
+			return
+
+		self.for_quantity = flt(self.total_completed_qty) + flt(kwargs.for_quantity)
+
+	def validate_docstatus(self):
+		if self.docstatus == 2:
+			frappe.throw(_("Cancelled Job Card cannot be processed."))
+
+		if self.docstatus == 1:
+			frappe.throw(_("Submitted Job Card cannot be processed."))
+
+	def validate_complete_job_card_qty(self, kwargs):
+		if flt(kwargs.pending_qty) and flt(kwargs.pending_qty) < 0:
+			frappe.throw(_("Pending quantity cannot be negative."))
+
+		if flt(kwargs.process_loss_qty) and flt(kwargs.process_loss_qty) < 0:
+			frappe.throw(_("Process loss quantity cannot be negative."))
+
+		if flt(kwargs.pending_qty) and flt(kwargs.pending_qty) > self.for_quantity:
+			frappe.throw(_("Pending quantity cannot be greater than the for quantity."))
+
+		self.validate_completion_qty_split(kwargs)
+
+		self.pending_qty = flt(kwargs.pending_qty)
+		self.process_loss_qty = flt(kwargs.process_loss_qty)
+
+		if kwargs.end_time:
 			self.add_time_logs(
 				to_time=kwargs.end_time,
 				completed_qty=kwargs.qty,
@@ -1456,13 +1698,49 @@ class JobCard(Document):
 				_("Job Card {0} has been completed").format(get_link_to_form("Job Card", self.name))
 			)
 
+	def validate_completion_qty_split(self, kwargs):
+		if not flt(kwargs.for_quantity):
+			return
+
+		precision = self.precision("total_completed_qty")
+		accounted_qty = flt(
+			flt(kwargs.qty, precision)
+			+ flt(kwargs.pending_qty, precision)
+			+ flt(kwargs.process_loss_qty, precision)
+		)
+
+		if flt(accounted_qty, precision) == flt(kwargs.for_quantity, precision):
+			return
+
+		frappe.throw(
+			_(
+				"Completed Quantity ({0}), Pending Quantity ({1}) and Process Loss Quantity ({2}) must add up to the Qty to Manufacture ({3})."
+			).format(
+				bold(self.get_qty_with_uom(kwargs.qty)),
+				bold(self.get_qty_with_uom(kwargs.pending_qty)),
+				bold(self.get_qty_with_uom(kwargs.process_loss_qty)),
+				bold(self.get_qty_with_uom(kwargs.for_quantity)),
+			)
+		)
+
+	def get_consumed_process_loss(self):
+		table = frappe.qb.DocType("Stock Entry")
+		query = (
+			frappe.qb.from_(table)
+			.select(Sum(table.process_loss_qty))
+			.where((table.purpose == "Manufacture") & (table.job_card == self.name) & (table.docstatus == 1))
+		)
+		return query.run()[0][0] or 0
+
 	@frappe.whitelist()
-	def make_stock_entry_for_semi_fg_item(self, auto_submit=False):
+	def make_stock_entry_for_semi_fg_item(self, auto_submit: bool = False):
 		from erpnext.stock.doctype.stock_entry_type.stock_entry_type import ManufactureEntry
 
+		consumed_process_loss = self.get_consumed_process_loss()
 		ste = ManufactureEntry(
 			{
-				"for_quantity": self.for_quantity - self.manufactured_qty,
+				"for_quantity": self.get_qty_to_produce() - self.manufactured_qty - consumed_process_loss,
+				"process_loss_qty": max(self.process_loss_qty - consumed_process_loss, 0),
 				"job_card": self.name,
 				"skip_material_transfer": self.skip_material_transfer,
 				"backflush_from_wip_warehouse": self.backflush_from_wip_warehouse,
@@ -1482,9 +1760,10 @@ class JobCard(Document):
 		wo_doc = frappe.get_doc("Work Order", self.work_order)
 		add_additional_cost(ste.stock_entry, wo_doc, self)
 
-		ste.stock_entry.set_scrap_items()
+		ste.stock_entry.pro_doc = frappe.get_doc("Work Order", self.work_order)
+		ste.stock_entry.set_secondary_items_from_job_card()
 		for row in ste.stock_entry.items:
-			if row.is_scrap_item and not row.t_warehouse:
+			if (row.secondary_item_type or row.valuation_type) and not row.t_warehouse:
 				row.t_warehouse = self.target_warehouse
 
 		if auto_submit:
@@ -1531,9 +1810,7 @@ def make_subcontracting_po(source_name, target_doc=None):
 		"Job Card",
 		source_name,
 		{
-			"Job Card": {
-				"doctype": "Purchase Order",
-			},
+			"Job Card": {"doctype": "Purchase Order", "field_no_map": ["naming_series"]},
 		},
 		target_doc,
 		set_missing_values,
@@ -1617,7 +1894,7 @@ def make_material_request(source_name, target_doc=None):
 
 
 @frappe.whitelist()
-def make_stock_entry(source_name, target_doc=None):
+def make_stock_entry(source_name: str, target_doc: Document | str | None = None):
 	def update_item(source, target, source_parent):
 		target.t_warehouse = source_parent.wip_warehouse
 
@@ -1629,6 +1906,9 @@ def make_stock_entry(source_name, target_doc=None):
 			target.qty = pending_rm_qty
 
 	def set_missing_values(source, target):
+		if not source.items:
+			frappe.throw(_("This Job Card has no raw materials to transfer."))
+
 		if source.finished_good and not source.target_warehouse:
 			frappe.throw(_("Please set the Target Warehouse in the Job Card"))
 
@@ -1649,6 +1929,8 @@ def make_stock_entry(source_name, target_doc=None):
 		target.set_missing_values()
 		target.set_stock_entry_type()
 
+		from erpnext.stock.doctype.stock_entry.stock_entry import set_previous_operation_serial_batch
+
 		wo_allows_alternate_item = frappe.db.get_value(
 			"Work Order", target.work_order, "allow_alternative_item"
 		)
@@ -1657,6 +1939,7 @@ def make_stock_entry(source_name, target_doc=None):
 				wo_allows_alternate_item
 				and frappe.get_cached_value("Item", item.item_code, "allow_alternative_item")
 			)
+			set_previous_operation_serial_batch(target, item)
 
 	doclist = get_mapped_doc(
 		"Job Card",
@@ -1689,12 +1972,13 @@ def time_diff_in_minutes(string_ed_date, string_st_date):
 
 
 @frappe.whitelist()
-def get_job_details(start, end, filters=None):
+def get_job_details(start: str, end: str, filters: str | None = None):
 	events = []
 
 	event_color = {
 		"Completed": "#cdf5a6",
 		"Material Transferred": "#ffdd9e",
+		"Partially Transferred": "#ffe5b4",
 		"Work In Progress": "#D3D3D3",
 	}
 

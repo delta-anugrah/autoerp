@@ -11,7 +11,7 @@ import frappe
 from frappe import _
 from frappe.query_builder.functions import Max, Min, Sum
 from frappe.utils import add_days, add_months, cint, cstr, flt, formatdate, get_first_day, getdate
-from pypika.terms import ExistsCriterion
+from pypika.terms import Bracket, ExistsCriterion, LiteralValue
 
 from erpnext.accounts.doctype.accounting_dimension.accounting_dimension import (
 	get_accounting_dimensions,
@@ -564,18 +564,15 @@ def get_accounting_entries(
 		account_filter_query = get_account_filter_query(root_lft, root_rgt, root_type, gl_entry)
 		query = query.where(ExistsCriterion(account_filter_query))
 
+	if group_by_account:
+		query = query.groupby("account")
+
 	from frappe.desk.reportview import build_match_conditions
 
-	query, params = query.walk()
-	match_conditions = build_match_conditions(doctype)
+	if match_conditions := build_match_conditions(doctype):
+		query = query.where(Bracket(LiteralValue(match_conditions)))
 
-	if match_conditions:
-		query += "and" + match_conditions
-
-	if group_by_account:
-		query += " GROUP BY `account`"
-
-	return frappe.db.sql(query, params, as_dict=True)
+	return query.run(as_dict=True)
 
 
 def get_account_filter_query(root_lft, root_rgt, root_type, gl_entry):
@@ -740,6 +737,9 @@ def compute_growth_view_data(data, columns):
 	data_copy = copy.deepcopy(data)
 
 	for row_idx in range(len(data_copy)):
+		if not data_copy[row_idx]:
+			continue
+
 		for column_idx in range(1, len(columns)):
 			previous_period_key = columns[column_idx - 1].get("key")
 			current_period_key = columns[column_idx].get("key")
@@ -788,11 +788,19 @@ def compute_margin_view_data(data, columns, accumulated_values):
 
 		for column in columns:
 			curr_period = column.get("key")
-			base_value = base_row[curr_period]
-			curr_value = row[curr_period]
 
-			if curr_value is None or base_value <= 0:
+			base_value = base_row.get(curr_period)
+			curr_value = row.get(curr_period)
+
+			if base_value is None or curr_value is None:
 				data[row_idx][curr_period] = None
+				continue
+
+			if base_value == 0:
+				if curr_value == 0:
+					data[row_idx][curr_period] = 0
+				else:
+					data[row_idx][curr_period] = None
 				continue
 
 			margin_percent = round((curr_value / base_value) * 100, 2)

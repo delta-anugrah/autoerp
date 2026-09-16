@@ -31,7 +31,8 @@ def repost(only_actual=False, allow_negative_stock=False, allow_zero_rate=False,
 	for d in item_warehouses:
 		try:
 			repost_stock(d[0], d[1], allow_zero_rate, only_actual, only_bin, allow_negative_stock)
-			frappe.db.commit()
+			if not frappe.in_test:
+				frappe.db.commit()
 		except Exception:
 			frappe.db.rollback()
 
@@ -283,7 +284,7 @@ def set_stock_balance_as_per_serial_no(
 	if not posting_time:
 		posting_time = nowtime()
 
-	condition = " and item.name='%s'" % item_code.replace("'", "'") if item_code else ""
+	condition = " and item.name=%s" % frappe.db.escape(item_code, percent=False) if item_code else ""
 
 	bin = frappe.db.sql(
 		"""select bin.item_code, bin.warehouse, bin.actual_qty, item.stock_uom

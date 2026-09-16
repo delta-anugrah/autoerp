@@ -25,13 +25,15 @@ erpnext.buying = {
 					};
 				});
 
-				this.frm.set_query("project", function (doc) {
-					return {
-						filters: {
-							company: doc.company,
-						},
-					};
+				const get_project_filters = () => ({
+					query: "erpnext.controllers.queries.get_project_name",
+					filters: {
+						company: this.frm.doc.company,
+					},
 				});
+
+				this.frm.set_query("project", get_project_filters);
+				this.frm.set_query("project", "items", get_project_filters);
 
 				if (
 					this.frm.doc.__islocal &&
@@ -67,7 +69,7 @@ erpnext.buying = {
 				if (this.frm.fields_dict.buying_price_list) {
 					this.frm.set_query("buying_price_list", function () {
 						return {
-							filters: { buying: 1 },
+							filters: { buying: 1, enabled: 1 },
 						};
 					});
 				}
@@ -609,6 +611,9 @@ erpnext.buying.get_items_from_product_bundle = function (frm) {
 				fieldname: "product_bundle",
 				options: "Product Bundle",
 				reqd: 1,
+				get_query: () => {
+					return { filters: { disabled: 0 } };
+				},
 			},
 			{
 				fieldtype: "Currency",
@@ -681,4 +686,11 @@ erpnext.buying.get_items_from_product_bundle = function (frm) {
 	});
 
 	dialog.show();
+};
+erpnext.buying.prevent_past_schedule_dates = function (frm) {
+	if (frm.doc.transaction_date) {
+		frm.fields_dict["schedule_date"].datepicker?.update({
+			minDate: new Date(frm.doc.transaction_date),
+		});
+	}
 };

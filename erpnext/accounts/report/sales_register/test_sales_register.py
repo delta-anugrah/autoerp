@@ -1,21 +1,25 @@
 import frappe
-from frappe.tests import IntegrationTestCase
-from frappe.utils import getdate, today
+from frappe.utils import add_days, flt, getdate, today
 
+from erpnext.accounts.doctype.pos_profile.test_pos_profile import make_pos_profile
 from erpnext.accounts.doctype.sales_invoice.test_sales_invoice import create_sales_invoice
 from erpnext.accounts.report.sales_register.sales_register import execute
 from erpnext.accounts.test.accounts_mixin import AccountsTestMixin
+from erpnext.selling.doctype.customer.test_customer import make_customer
+from erpnext.selling.doctype.sales_order.test_sales_order import make_sales_order
+from erpnext.tests.utils import ERPNextTestSuite
 
 
-class TestItemWiseSalesRegister(AccountsTestMixin, IntegrationTestCase):
+class TestItemWiseSalesRegister(ERPNextTestSuite, AccountsTestMixin):
 	def setUp(self):
-		self.create_company()
-		self.create_customer()
-		self.create_item()
+		self.company = "_Test Company"
+		self.customer = "_Test Customer"
+		self.item = "_Test Item"
+		self.debit_to = "Debtors - _TC"
+		self.cost_center = "Main - _TC"
+		self.income_account = "Sales - _TC"
+		self.cash = "Cash - _TC"
 		self.create_child_cost_center()
-
-	def tearDown(self):
-		frappe.db.rollback()
 
 	def create_child_cost_center(self):
 		cc_name = "South Wing"
@@ -74,6 +78,43 @@ class TestItemWiseSalesRegister(AccountsTestMixin, IntegrationTestCase):
 
 		report_output = {k: v for k, v in report[1][0].items() if k in expected_result}
 		self.assertDictEqual(report_output, expected_result)
+
+	def test_sales_register_ignores_tax_rows_from_other_doctype(self):
+		si = self.create_sales_invoice(rate=98)
+
+		# Real workflow setup: create a Sales Order with taxes in the shared child table.
+		so = make_sales_order(
+			item=self.item,
+			company=self.company,
+			customer=self.customer,
+			rate=77,
+			do_not_save=1,
+			do_not_submit=1,
+		)
+		so.append(
+			"taxes",
+			{
+				"charge_type": "Actual",
+				"account_head": self.income_account,
+				"description": "SO Tax",
+				"tax_amount": 55.0,
+			},
+		)
+		so.insert()
+		so.submit()
+
+		# Mimic custom naming collision across doctypes (same parent value in shared child table).
+		frappe.rename_doc("Sales Order", so.name, si.name, force=True)
+
+		filters = frappe._dict({"from_date": today(), "to_date": today(), "company": self.company})
+		report = execute(filters)
+
+		self.assertEqual(len(report[1]), 1)
+		result = frappe._dict(report[1][0])
+		self.assertEqual(result.voucher_no, si.name)
+		self.assertEqual(result.net_total, 98.0)
+		self.assertEqual(result.tax_total, 0)
+		self.assertEqual(result.grand_total, 98.0)
 
 	def test_journal_with_cost_center_filter(self):
 		je1 = frappe.get_doc(
@@ -177,3 +218,65 @@ class TestItemWiseSalesRegister(AccountsTestMixin, IntegrationTestCase):
 		}
 		result_output = {k: v for k, v in filtered_output[0].items() if k in expected_result}
 		self.assertDictEqual(result_output, expected_result)
+
+	def test_ledger_view_nets_pos_paid_invoice(self):
+		# A POS payment settles the receivable inside the invoice, so the ledger view must credit it
+		# and net to zero instead of showing a phantom outstanding.
+		make_pos_profile()
+		si = create_sales_invoice(
+			item=self.item,
+			company=self.company,
+			customer=self.customer,
+			debit_to=self.debit_to,
+			posting_date=today(),
+			parent_cost_center=self.cost_center,
+			cost_center=self.cost_center,
+			rate=100,
+			price_list_rate=100,
+			do_not_save=1,
+		)
+		si.is_pos = 1
+		si.append("payments", {"mode_of_payment": "Cash", "amount": 100})
+		si = si.save().submit()
+		self.assertEqual(flt(si.outstanding_amount), 0.0)
+
+		filters = frappe._dict(
+			{
+				"from_date": today(),
+				"to_date": today(),
+				"company": self.company,
+				"include_payments": True,
+				"customer": self.customer,
+			}
+		)
+		rows = execute(filters)[1]
+		inv_row = next(x for x in rows if x.get("voucher_no") == si.name)
+
+		self.assertEqual(flt(inv_row.get("debit")), 100.0)
+		self.assertEqual(flt(inv_row.get("credit")), 100.0)
+
+		# running balance is unchanged by a fully-paid POS invoice
+		idx = rows.index(inv_row)
+		self.assertEqual(flt(inv_row.get("balance")), flt(rows[idx - 1].get("balance")))
+
+	def test_outstanding_currency_conversion(self):
+		foreign_invoice = create_sales_invoice(
+			customer="_Test Customer",
+			posting_date=add_days(today(), -1),
+			qty=1,
+			rate=100,
+		)
+		foreign_invoice.db_set("currency", "USD")
+		foreign_invoice.db_set("conversion_rate", 80)
+		foreign_invoice.db_set("outstanding_amount", 100.236)
+		make_customer("_Test Customer2")
+		local_invoice = create_sales_invoice(
+			customer="_Test Customer2", currency="INR", conversion_rate=1, qty=1, rate=200
+		)
+		local_invoice.db_set("outstanding_amount", 200.456)
+		columns, data, *_ = execute(frappe._dict({"company": foreign_invoice.company}))
+		outstanding_precision = 2
+
+		data_by_name = {x.get("voucher_no"): x.get("outstanding_amount") for x in data}
+		self.assertEqual(data_by_name.get(foreign_invoice.name), flt((100.236 * 80), outstanding_precision))
+		self.assertEqual(data_by_name.get(local_invoice.name), flt(200.456, outstanding_precision))

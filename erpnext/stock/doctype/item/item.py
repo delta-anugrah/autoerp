@@ -1,6 +1,8 @@
 # Copyright (c) 2021, Frappe Technologies Pvt. Ltd. and Contributors
 # License: GNU General Public License v3. See license.txt
 
+import copy
+import json
 
 import frappe
 from frappe import _, bold
@@ -18,6 +20,7 @@ from frappe.utils import (
 	now_datetime,
 	nowtime,
 	strip,
+	strip_html,
 )
 from frappe.utils.html_utils import clean_html
 from pypika import Order
@@ -79,7 +82,6 @@ class Item(Document):
 		brand: DF.Link | None
 		country_of_origin: DF.Link | None
 		create_new_batch: DF.Check
-		customer: DF.Link | None
 		customer_code: DF.SmallText | None
 		customer_items: DF.Table[ItemCustomerDetail]
 		customs_tariff_number: DF.Link | None
@@ -179,24 +181,16 @@ class Item(Document):
 			for default in self.item_defaults or [frappe._dict()]:
 				self.add_price(default.default_price_list)
 
-		if self.opening_stock:
-			if self.opening_stock > 10000 and self.has_serial_no:
-				frappe.enqueue(
-					self.set_opening_stock,
-					queue="long",
-					timeout=600,
-					job_name=f"set_opening_stock_for_{self.name}",
-				)
-				frappe.msgprint(
-					_(
-						"Opening stock creation has been queued and will be created in the background. Please check the stock entry after some time."
-					),
-					indicator="orange",
-					alert=True,
-				)
+			frappe.msgprint(
+				_("Item Price created at rate {0}").format(
+					frappe.format(self.standard_rate, {"fieldtype": "Currency"})
+				),
+				indicator="green",
+				alert=True,
+			)
 
-			else:
-				self.set_opening_stock()
+		if self.opening_stock:
+			self.set_opening_stock()
 
 	def validate(self):
 		if not self.item_name:
@@ -208,6 +202,7 @@ class Item(Document):
 		self.validate_conversion_factor()
 		self.validate_item_type()
 		self.validate_naming_series()
+		self.validate_shelf_life()
 		self.check_for_active_boms()
 		self.fill_customer_code()
 		self.check_item_tax()
@@ -215,6 +210,7 @@ class Item(Document):
 		self.validate_warehouse_for_reorder()
 		self.update_bom_item_desc()
 
+		self.validate_variant()
 		self.validate_has_variants()
 		self.validate_attributes_in_variants()
 		self.validate_stock_exists_for_template_item()
@@ -230,6 +226,7 @@ class Item(Document):
 		self.validate_item_defaults()
 		self.validate_auto_reorder_enabled_in_stock_settings()
 		self.cant_change()
+		self.validate_serialized_change_with_bundle()
 		self.validate_item_tax_net_rate_range()
 
 		if not self.is_new():
@@ -294,14 +291,10 @@ class Item(Document):
 
 	def set_opening_stock(self):
 		"""set opening stock"""
-		if (
-			not self.is_stock_item
-			or (self.has_serial_no and not self.serial_no_series)
-			or (self.has_batch_no and (not self.create_new_batch or not self.batch_number_series))
-		):
+		if not self.is_stock_item or self.has_serial_no or self.has_batch_no:
 			return
 
-		if not self.valuation_rate and not self.standard_rate and not self.is_customer_provided_item:
+		if self.valuation_rate is None and not self.is_customer_provided_item:
 			frappe.throw(_("Valuation Rate is mandatory if Opening Stock entered"))
 
 		from erpnext.stock.doctype.stock_entry.stock_entry_utils import make_stock_entry
@@ -326,13 +319,37 @@ class Item(Document):
 					item_code=self.name,
 					target=default_warehouse,
 					qty=self.opening_stock,
-					rate=self.valuation_rate or self.standard_rate,
+					rate=self.valuation_rate,
 					company=default.company,
 					posting_date=getdate(),
 					posting_time=nowtime(),
+					do_not_save=True,
 				)
 
+				if self.valuation_rate == 0:
+					for item in stock_entry.items:
+						item.allow_zero_valuation_rate = 1
+
+				stock_entry.insert()
+				stock_entry.submit()
+				stock_entry.load_from_db()
 				stock_entry.add_comment("Comment", _("Opening Stock"))
+
+				stock_entry_link = frappe.utils.get_link_to_form("Stock Entry", stock_entry.name)
+				if self.valuation_rate == 0:
+					frappe.msgprint(
+						_("Opening Stock entry created with zero valuation rate: {0}").format(
+							stock_entry_link
+						),
+						indicator="orange",
+						alert=True,
+					)
+				else:
+					frappe.msgprint(
+						_("Opening Stock entry created: {0}").format(stock_entry_link),
+						indicator="green",
+						alert=True,
+					)
 
 	def validate_fixed_asset(self):
 		if self.is_fixed_asset:
@@ -359,6 +376,19 @@ class Item(Document):
 				_(
 					"{0} Retain Sample is based on batch, please check Has Batch No to retain sample of item"
 				).format(self.item_code)
+			)
+
+	def validate_shelf_life(self):
+		if (
+			self.has_batch_no
+			and self.has_expiry_date
+			and self.create_new_batch
+			and cint(self.shelf_life_in_days) <= 0
+		):
+			frappe.throw(
+				_("{0} must be greater than zero.").format(
+					self.get_label_from_fieldname("shelf_life_in_days")
+				)
 			)
 
 	def clear_retain_sample(self):
@@ -794,6 +824,19 @@ class Item(Document):
 					{"company": defaults.get("company"), "default_warehouse": defaults.default_warehouse},
 				)
 
+		if not self.taxes and item_group.taxes:
+			for tax in item_group.taxes:
+				self.append(
+					"taxes",
+					{
+						"item_tax_template": tax.item_tax_template,
+						"tax_category": tax.tax_category,
+						"valid_from": tax.valid_from,
+						"minimum_net_rate": tax.minimum_net_rate,
+						"maximum_net_rate": tax.maximum_net_rate,
+					},
+				)
+
 	def update_variants(self):
 		if self.flags.dont_update_variants or frappe.db.get_single_value(
 			"Item Variant Settings", "do_not_update_variants"
@@ -814,6 +857,58 @@ class Item(Document):
 						timeout=600,
 						enqueue_after_commit=True,
 					)
+
+	def validate_variant(self):
+		if self.variant_of:
+			has_variants, based_on = frappe.get_value(
+				"Item", self.variant_of, ["has_variants", "variant_based_on"]
+			)
+			if not has_variants:
+				frappe.throw(_("Item {0} is not a template item.").format(frappe.bold(self.variant_of)))
+
+			if based_on == "Item Attribute":
+				previous_doc = self.get_doc_before_save()
+				saved_attributes = (
+					{(row.attribute, row.attribute_value) for row in previous_doc.attributes}
+					if previous_doc
+					else set()
+				)
+
+				for d in self.attributes:
+					if (d.attribute, d.attribute_value) in saved_attributes:
+						continue
+
+					if not frappe.db.exists(
+						"Item Variant Attribute", {"attribute": d.attribute, "parent": self.variant_of}
+					):
+						frappe.throw(
+							_("Attribute {0} is not valid for the selected template.").format(
+								frappe.bold(d.attribute)
+							)
+						)
+
+					numeric_values, disabled = frappe.get_value(
+						"Item Variant Attribute",
+						{"attribute": d.attribute, "parent": self.variant_of},
+						["numeric_values", "disabled"],
+					)
+
+					if disabled:
+						frappe.throw(_("Attribute {0} is disabled.").format(frappe.bold(d.attribute)))
+
+					if (
+						not numeric_values
+						and d.attribute_value
+						and not frappe.db.exists(
+							"Item Attribute Value",
+							{"parent": d.attribute, "attribute_value": d.attribute_value},
+						)
+					):
+						frappe.throw(
+							_("Attribute Value {0} is not valid for the selected attribute {1}.").format(
+								frappe.bold(d.attribute_value), frappe.bold(d.attribute)
+							)
+						)
 
 	def validate_has_variants(self):
 		if self.is_new():
@@ -942,6 +1037,9 @@ class Item(Document):
 	def validate_uom_conversion_factor(self):
 		if self.uoms:
 			for d in self.uoms:
+				if d.conversion_factor:
+					continue
+
 				value = get_uom_conv_factor(d.uom, self.stock_uom)
 				if value:
 					d.conversion_factor = value
@@ -1031,6 +1129,25 @@ class Item(Document):
 				)
 
 			frappe.throw(msg, title=_("Linked with submitted documents"))
+
+	def validate_serialized_change_with_bundle(self):
+		"""Block turning a serialized item non-serialized while any Serial and Batch Bundle still exists
+		for it. Such bundles carry the item's serial numbers; the user must delete or cancel them first."""
+		if self.is_new() or self.has_serial_no or not self._doc_before_save:
+			return
+
+		# Only relevant when the item was serialized before and is now being unset.
+		if not self._doc_before_save.has_serial_no:
+			return
+
+		# Draft (docstatus 0) or submitted (docstatus 1) bundles block the change; cancelled ones don't.
+		if frappe.db.count("Serial and Batch Bundle", {"item_code": self.name, "docstatus": ("<", 2)}):
+			frappe.throw(
+				_(
+					"Cannot change Item {0} from serialized to non-serialized because a Serial and Batch Bundle exists for it. Please delete or cancel the Serial and Batch Bundle first."
+				).format(frappe.bold(self.name)),
+				title=_("Serial and Batch Bundle Exists"),
+			)
 
 	def _get_linked_submitted_documents(self, changed_fields: list[str]) -> dict[str, str] | None:
 		linked_doctypes = [
@@ -1353,7 +1470,7 @@ def get_item_details(item_code, company=None):
 
 
 @frappe.whitelist()
-def get_uom_conv_factor(uom, stock_uom):
+def get_uom_conv_factor(uom: str | None, stock_uom: str | None):
 	"""Get UOM conversion factor from uom to stock_uom
 	e.g. uom = "Kg", stock_uom = "Gram" then returns 1000.0
 	"""
@@ -1372,7 +1489,7 @@ def get_uom_conv_factor(uom, stock_uom):
 		"UOM Conversion Factor", {"to_uom": from_uom, "from_uom": to_uom}, ["value"], as_dict=1
 	)
 	if inverse_match:
-		return 1 / inverse_match.value
+		return flt(1 / inverse_match.value, frappe.get_precision("UOM Conversion Factor", "value"))
 
 	# This attempts to try and get conversion from intermediate UOM.
 	# case:
@@ -1395,7 +1512,7 @@ def get_uom_conv_factor(uom, stock_uom):
 	)
 
 	if intermediate_match:
-		return intermediate_match[0].value
+		return flt(intermediate_match[0].value, frappe.get_precision("UOM Conversion Factor", "value"))
 
 
 @frappe.whitelist()
@@ -1457,3 +1574,41 @@ def get_child_warehouses(warehouse):
 	from erpnext.stock.doctype.warehouse.warehouse import get_child_warehouses
 
 	return get_child_warehouses(warehouse)
+
+
+@frappe.whitelist()
+def get_item_prices(item_code: str):
+	"""Fetch valid item prices for the item prices tab."""
+	if not frappe.has_permission("Item Price", "read"):
+		frappe.throw(_("Not permitted"), frappe.PermissionError)
+	today = getdate()
+
+	ItemPrice = frappe.qb.DocType("Item Price")
+
+	prices = (
+		frappe.qb.from_(ItemPrice)
+		.select(
+			ItemPrice.name,
+			ItemPrice.price_list,
+			ItemPrice.price_list_rate,
+			ItemPrice.currency,
+			ItemPrice.uom,
+			ItemPrice.customer,
+			ItemPrice.supplier,
+			ItemPrice.buying,
+			ItemPrice.selling,
+			ItemPrice.valid_upto,
+		)
+		.where(ItemPrice.item_code == item_code)
+		.where(ItemPrice.docstatus != 2)
+		.where((ItemPrice.valid_upto.isnull()) | (ItemPrice.valid_upto >= today))
+		.orderby(ItemPrice.price_list)
+		.limit(11)
+		.run(as_dict=True)
+	)
+
+	has_more = len(prices) == 11
+	return {
+		"prices": prices[:10],
+		"has_more": has_more,
+	}

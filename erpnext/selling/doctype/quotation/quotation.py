@@ -7,8 +7,9 @@ import json
 import frappe
 from frappe import _
 from frappe.model.mapper import get_mapped_doc
-from frappe.utils import flt, getdate, nowdate
+from frappe.utils import cint, flt, getdate, nowdate
 
+from erpnext.controllers.mapper import get_qty_already_mapped
 from erpnext.controllers.selling_controller import SellingController
 
 form_grid_templates = {"items": "templates/form_grid/item_grid.html"}
@@ -112,6 +113,7 @@ class Quotation(SellingController):
 		tc_name: DF.Link | None
 		terms: DF.TextEditor | None
 		territory: DF.Link | None
+		title: DF.Data | None
 		total: DF.Currency
 		total_net_weight: DF.Float
 		total_qty: DF.Float
@@ -149,6 +151,9 @@ class Quotation(SellingController):
 		from erpnext.stock.doctype.packed_item.packed_item import make_packing_list
 
 		make_packing_list(self)
+
+	def after_insert(self):
+		self.carry_forward_communication()
 
 	def before_submit(self):
 		self.set_has_alternative_item()
@@ -191,7 +196,7 @@ class Quotation(SellingController):
 		)
 
 		for row in self._items:
-			if row.name not in ordered_items or row.qty > ordered_items[row.name]:
+			if row.name not in ordered_items or row.stock_qty > ordered_items[row.name]:
 				return "Partially Ordered"
 
 		return "Ordered"
@@ -257,7 +262,11 @@ class Quotation(SellingController):
 		opp.set_status(status=status, update=True)
 
 	@frappe.whitelist()
-	def declare_enquiry_lost(self, lost_reasons_list, competitors, detailed_reason=None):
+	def declare_enquiry_lost(
+		self, lost_reasons_list: list, competitors: list, detailed_reason: str | None = None
+	):
+		self.check_permission("write")
+
 		if not (self.is_fully_ordered() or self.is_partially_ordered()):
 			get_lost_reasons = frappe.get_list("Quotation Lost Reason", fields=["name"])
 			lost_reasons_lst = [reason.get("name") for reason in get_lost_reasons]
@@ -305,6 +314,18 @@ class Quotation(SellingController):
 		self.set_status(update=True)
 		self.update_opportunity("Open")
 		self.update_lead()
+
+	def carry_forward_communication(self):
+		from erpnext.crm.utils import copy_comments, link_communications
+
+		if not (
+			self.opportunity
+			and frappe.get_single_value("CRM Settings", "carry_forward_communication_and_comments")
+		):
+			return
+
+		copy_comments("Opportunity", self.opportunity, self)
+		link_communications("Opportunity", self.opportunity, self)
 
 	def print_other_charges(self, docname):
 		print_lst = []
@@ -376,6 +397,9 @@ def _make_sales_order(source_name, target_doc=None, ignore_permissions=False, ar
 
 	customer = _make_customer(source_name, ignore_permissions)
 	ordered_items = get_ordered_items(source_name)
+	mapped_items = get_qty_already_mapped(target_doc, "quotation_item", "stock_qty")
+	for name, stock_qty in mapped_items.items():
+		ordered_items[name] = flt(ordered_items.get(name)) + stock_qty
 
 	selected_rows = [x.get("name") for x in frappe.flags.get("args", {}).get("selected_items", [])]
 
@@ -413,9 +437,9 @@ def _make_sales_order(source_name, target_doc=None, ignore_permissions=False, ar
 		target.run_method("calculate_taxes_and_totals")
 
 	def update_item(obj, target, source_parent):
-		balance_qty = obj.qty if is_unit_price_row(obj) else obj.qty - ordered_items.get(obj.name, 0.0)
-		target.qty = balance_qty if balance_qty > 0 else 0
-		target.stock_qty = flt(target.qty) * flt(obj.conversion_factor)
+		balance_stock_qty = obj.stock_qty - ordered_items.get(obj.name, 0.0)
+		target.stock_qty = balance_stock_qty if balance_stock_qty > 0 else 0
+		target.qty = flt(target.stock_qty) / flt(obj.conversion_factor)
 
 		if obj.against_blanket_order:
 			target.against_blanket_order = obj.against_blanket_order
@@ -429,7 +453,10 @@ def _make_sales_order(source_name, target_doc=None, ignore_permissions=False, ar
 		2. If selections: Is Alternative Item/Has Alternative Item: Map if selected and adequate qty
 		3. If no selections: Simple row: Map if adequate qty
 		"""
-		if not ((item.qty > ordered_items.get(item.name, 0.0)) or is_unit_price_row(item)):
+		if not (
+			(item.stock_qty > ordered_items.get(item.name, 0.0))
+			or (is_unit_price_row(item) and item.name not in mapped_items)
+		):
 			return False
 
 		if not selected_rows:
@@ -446,6 +473,10 @@ def _make_sales_order(source_name, target_doc=None, ignore_permissions=False, ar
 		child_filter = d.name in filtered_items if filtered_items else True
 		return child_filter
 
+	automatically_fetch_payment_terms = cint(
+		frappe.get_single_value("Accounts Settings", "automatically_fetch_payment_terms")
+	)
+
 	doclist = get_mapped_doc(
 		"Quotation",
 		source_name,
@@ -453,6 +484,7 @@ def _make_sales_order(source_name, target_doc=None, ignore_permissions=False, ar
 			"Quotation": {
 				"doctype": "Sales Order",
 				"validation": {"docstatus": ["=", 1]},
+				"field_no_map": ["payment_terms_template"],
 			},
 			"Quotation Item": {
 				"doctype": "Sales Order Item",
@@ -462,12 +494,14 @@ def _make_sales_order(source_name, target_doc=None, ignore_permissions=False, ar
 			},
 			"Sales Taxes and Charges": {"doctype": "Sales Taxes and Charges", "reset_value": True},
 			"Sales Team": {"doctype": "Sales Team", "add_if_empty": True},
-			"Payment Schedule": {"doctype": "Payment Schedule", "add_if_empty": True},
 		},
 		target_doc,
 		set_missing_values,
 		ignore_permissions=ignore_permissions,
 	)
+
+	if automatically_fetch_payment_terms:
+		doclist.set_payment_schedule()
 
 	return doclist
 
@@ -557,7 +591,9 @@ def _make_customer(source_name, ignore_permissions=False):
 	if quotation.quotation_to == "Customer":
 		return frappe.get_doc("Customer", quotation.party_name)
 	elif quotation.quotation_to == "CRM Deal":
-		return frappe.get_doc("Customer", {"crm_deal": quotation.party_name})
+		customer_name = frappe.get_value("Customer", {"crm_deal": quotation.party_name})
+		if customer_name:
+			return frappe.get_doc("Customer", customer_name)
 
 	# Check if a Customer already exists for the Lead or Prospect.
 	existing_customer = None

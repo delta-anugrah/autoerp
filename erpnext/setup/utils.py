@@ -4,43 +4,10 @@
 import frappe
 from frappe import _
 from frappe.utils import add_days, flt, get_datetime_str, nowdate
-from frappe.utils.data import now_datetime
+from frappe.utils.data import getdate, now_datetime
 from frappe.utils.nestedset import get_root_of
 
 from erpnext import get_default_company
-
-
-def before_tests():
-	frappe.clear_cache()
-	# complete setup if missing
-	from frappe.desk.page.setup_wizard.setup_wizard import setup_complete
-
-	if not frappe.db.a_row_exists("Company"):
-		current_year = now_datetime().year
-		setup_complete(
-			{
-				"currency": "USD",
-				"full_name": "Test User",
-				"company_name": "Wind Power LLC",
-				"timezone": "America/New_York",
-				"company_abbr": "WP",
-				"industry": "Manufacturing",
-				"country": "United States",
-				"fy_start_date": f"{current_year}-01-01",
-				"fy_end_date": f"{current_year}-12-31",
-				"language": "english",
-				"company_tagline": "Testing",
-				"email": "test@erpnext.com",
-				"password": "test",
-				"chart_of_accounts": "Standard",
-			}
-		)
-
-	_enable_all_roles_for_admin()
-
-	set_defaults_for_tests()
-
-	frappe.db.commit()
 
 
 def get_pegged_currencies():
@@ -128,7 +95,7 @@ def get_exchange_rate(from_currency, to_currency, transaction_date=None, args=No
 	if entries:
 		return flt(entries[0].exchange_rate)
 
-	if frappe.get_cached_value("Currency Exchange Settings", "Currency Exchange Settings", "disabled"):
+	if frappe.get_single_value("Currency Exchange Settings", "disabled"):
 		return 0.00
 
 	pegged_currencies = {}
@@ -220,6 +187,8 @@ def set_defaults_for_tests():
 	for key, value in defaults.items():
 		frappe.db.set_default(key, value)
 	frappe.db.set_single_value("Stock Settings", "auto_insert_price_list_rate_if_missing", 0)
+
+	frappe.db.set_single_value("Stock Settings", "enable_serial_and_batch_no_for_item", 1)
 
 
 def insert_record(records):

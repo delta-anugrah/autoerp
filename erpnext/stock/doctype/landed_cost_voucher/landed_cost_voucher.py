@@ -3,15 +3,20 @@
 
 
 import frappe
-from frappe import _
+from frappe import _, bold
 from frappe.model.document import Document
 from frappe.model.meta import get_field_precision
 from frappe.query_builder.custom import ConstantColumn
 from frappe.utils import cint, flt
 
 import erpnext
+from erpnext import is_perpetual_inventory_enabled
 from erpnext.controllers.taxes_and_totals import init_landed_taxes_and_totals
 from erpnext.stock.doctype.serial_no.serial_no import get_serial_nos
+
+
+class IncorrectCompanyValidationError(frappe.ValidationError):
+	pass
 
 
 class LandedCostVoucher(Document):
@@ -75,6 +80,7 @@ class LandedCostVoucher(Document):
 		self.check_mandatory()
 		self.validate_receipt_documents()
 		self.validate_line_items()
+		self.validate_expense_accounts()
 		init_landed_taxes_and_totals(self)
 		self.set_total_taxes_and_charges()
 		if not self.get("items"):
@@ -82,6 +88,7 @@ class LandedCostVoucher(Document):
 
 		self.set_applicable_charges_on_item()
 		self.set_total_vendor_invoices_cost()
+		self.validate_mandatory_dimensions()
 
 	def set_total_vendor_invoices_cost(self):
 		self.total_vendor_invoices_cost = 0.0
@@ -116,10 +123,27 @@ class LandedCostVoucher(Document):
 		receipt_documents = []
 
 		for d in self.get("purchase_receipts"):
-			docstatus = frappe.db.get_value(d.receipt_document_type, d.receipt_document, "docstatus")
+			docstatus, company = frappe.get_cached_value(
+				d.receipt_document_type, d.receipt_document, ["docstatus", "company"]
+			)
 			if docstatus != 1:
 				msg = f"Row {d.idx}: {d.receipt_document_type} {frappe.bold(d.receipt_document)} must be submitted"
 				frappe.throw(_(msg), title=_("Invalid Document"))
+
+			if company != self.company:
+				frappe.throw(
+					_(
+						"Row {0}: {1} {2} is linked to company {3}. Please select a document belonging to company {4}."
+					).format(
+						d.idx,
+						d.receipt_document_type,
+						frappe.bold(d.receipt_document),
+						frappe.bold(company),
+						frappe.bold(self.company),
+					),
+					title=_("Incorrect Company"),
+					exc=IncorrectCompanyValidationError,
+				)
 
 			if d.receipt_document_type == "Purchase Invoice":
 				update_stock = frappe.db.get_value(
@@ -151,6 +175,113 @@ class LandedCostVoucher(Document):
 				frappe.throw(
 					_("Row {0}: Cost center is required for an item {1}").format(item.idx, item.item_code)
 				)
+
+	def validate_expense_accounts(self):
+		if not is_perpetual_inventory_enabled(self.company):
+			return
+
+		for t in self.taxes:
+			company = frappe.get_cached_value("Account", t.expense_account, "company")
+
+			if company != self.company:
+				frappe.throw(
+					_(
+						"Row {0}: Expense Account {1} is linked to company {2}. Please select an account belonging to company {3}."
+					).format(
+						t.idx,
+						frappe.bold(t.expense_account),
+						frappe.bold(company),
+						frappe.bold(self.company),
+					),
+					title=_("Incorrect Account"),
+					exc=IncorrectCompanyValidationError,
+				)
+
+	def validate_mandatory_dimensions(self):
+		from erpnext.accounts.doctype.accounting_dimension.accounting_dimension import (
+			get_accounting_dimensions,
+			get_checks_for_pl_and_bs_accounts,
+		)
+		from erpnext.accounts.doctype.accounting_dimension_filter.accounting_dimension_filter import (
+			get_dimension_filter_map,
+		)
+
+		if not is_perpetual_inventory_enabled(self.company):
+			return
+
+		company_checks = [
+			check
+			for check in get_checks_for_pl_and_bs_accounts()
+			if check.company == self.company and (check.mandatory_for_pl or check.mandatory_for_bs)
+		]
+		dimension_filter_map = get_dimension_filter_map()
+
+		if not company_checks and not dimension_filter_map:
+			return
+
+		labels = {d.fieldname: d.label for d in get_accounting_dimensions(as_list=False)}
+		receipts = {}
+
+		for tax in self.get("taxes"):
+			if not tax.expense_account:
+				continue
+
+			report_type = frappe.get_cached_value("Account", tax.expense_account, "report_type")
+
+			mandatory = {}
+			for check in company_checks:
+				is_mandatory = (
+					check.mandatory_for_pl if report_type == "Profit and Loss" else check.mandatory_for_bs
+				)
+				if is_mandatory:
+					mandatory[check.fieldname] = check.label
+
+			for (fieldname, account), dimension_filter in dimension_filter_map.items():
+				if account == tax.expense_account and dimension_filter.get("is_mandatory"):
+					mandatory.setdefault(fieldname, labels.get(fieldname) or frappe.unscrub(fieldname))
+
+			for fieldname, label in mandatory.items():
+				if tax.get(fieldname):
+					continue
+
+				for item in self.get("items"):
+					if self.get_receipt_dimension(receipts, item, fieldname):
+						continue
+
+					frappe.throw(
+						_(
+							"Row {0}: Accounting Dimension {1} is mandatory for account {2}."
+							" Set it on this Taxes and Charges row, or on Item Row {3} ({4})."
+						).format(
+							tax.idx,
+							frappe.bold(label),
+							frappe.bold(tax.expense_account),
+							item.idx,
+							frappe.bold(item.item_code),
+						),
+						title=_("Missing Accounting Dimension"),
+					)
+
+	def get_receipt_dimension(self, receipts, item, fieldname):
+		if item.get(fieldname):
+			return item.get(fieldname)
+
+		key = (item.receipt_document_type, item.receipt_document)
+		if key not in receipts:
+			receipts[key] = frappe.get_doc(*key) if item.receipt_document else None
+
+		receipt = receipts[key]
+		if not receipt:
+			return None
+
+		row_fieldname = "stock_entry_item" if receipt.doctype == "Stock Entry" else "purchase_receipt_item"
+		receipt_row_name = item.get(row_fieldname)
+
+		for row in receipt.get("items") or []:
+			if row.name == receipt_row_name and row.get(fieldname):
+				return row.get(fieldname)
+
+		return receipt.get(fieldname)
 
 	def set_total_taxes_and_charges(self):
 		self.total_taxes_and_charges = sum(flt(d.base_amount) for d in self.get("taxes"))
@@ -293,7 +424,7 @@ class LandedCostVoucher(Document):
 			# update stock & gl entries for cancelled state of PR
 			doc.docstatus = 2
 			doc.update_stock_ledger(allow_negative_stock=True, via_landed_cost_voucher=True)
-			doc.make_gl_entries_on_cancel()
+			doc.make_gl_entries_on_cancel(from_repost=True)
 
 			# update stock & gl entries for submit state of PR
 			doc.docstatus = 1
@@ -475,3 +606,25 @@ def get_vendor_invoice_query(filters):
 		query = query.where(doctype.name == filters.get("name"))
 
 	return query
+
+
+def get_lcv_dimension_fields():
+	from erpnext.accounts.doctype.accounting_dimension.accounting_dimension import (
+		get_accounting_dimensions,
+	)
+
+	return ["cost_center", "project", *get_accounting_dimensions()]
+
+
+def get_row_dimensions(tax_row, lcv_item, dimension_fields):
+	return frappe._dict(
+		{field: (tax_row.get(field) or lcv_item.get(field) or None) for field in dimension_fields}
+	)
+
+
+def get_custom_dimension_overrides(entry):
+	return {
+		dimension: value
+		for dimension, value in (entry.dimensions or {}).items()
+		if value and dimension not in ("cost_center", "project")
+	}

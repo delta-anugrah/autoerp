@@ -3,7 +3,6 @@
 
 
 import frappe
-from frappe.tests import IntegrationTestCase
 from frappe.utils import add_days, getdate, today
 
 from erpnext.accounts.doctype.process_statement_of_accounts.process_statement_of_accounts import (
@@ -12,19 +11,18 @@ from erpnext.accounts.doctype.process_statement_of_accounts.process_statement_of
 )
 from erpnext.accounts.doctype.sales_invoice.test_sales_invoice import create_sales_invoice
 from erpnext.accounts.test.accounts_mixin import AccountsTestMixin
+from erpnext.tests.utils import ERPNextTestSuite
 
 
-class TestProcessStatementOfAccounts(AccountsTestMixin, IntegrationTestCase):
-	@classmethod
-	def setUpClass(cls):
-		super().setUpClass()
-		cls.enterClassContext(cls.change_settings("Selling Settings", validate_selling_price=0))
-
+class TestProcessStatementOfAccounts(ERPNextTestSuite, AccountsTestMixin):
 	def setUp(self):
-		self.create_company()
-		self.create_customer()
+		frappe.db.set_single_value("Selling Settings", "validate_selling_price", 0)
+		letterhead = frappe.get_doc("Letter Head", "Company Letterhead - Grey")
+		letterhead.is_default = 0
+		letterhead.save()
+
+		self.company = "_Test Company"
 		self.create_customer(customer_name="Other Customer")
-		self.clear_old_entries()
 		self.si = create_sales_invoice()
 		create_sales_invoice(customer="Other Customer")
 
@@ -89,9 +87,6 @@ class TestProcessStatementOfAccounts(AccountsTestMixin, IntegrationTestCase):
 	def check_ageing_summary(self, ageing, expected_ageing):
 		for age_range in expected_ageing:
 			self.assertEqual(expected_ageing[age_range], ageing.get(age_range))
-
-	def tearDown(self):
-		frappe.db.rollback()
 
 
 def create_process_soa(**args):

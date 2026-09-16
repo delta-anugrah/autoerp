@@ -1,6 +1,6 @@
 import frappe
 from frappe.desk.reportview import build_match_conditions
-from frappe.utils import cint, flt
+from frappe.utils import cint, escape_html, flt
 
 from erpnext.stock.doctype.stock_reservation_entry.stock_reservation_entry import (
 	get_sre_reserved_qty_for_items_and_warehouses as get_reserved_stock_details,
@@ -12,6 +12,9 @@ def get_data(
 	item_code=None, warehouse=None, item_group=None, start=0, sort_by="actual_qty", sort_order="desc"
 ):
 	"""Return data to render the item dashboard"""
+	if not frappe.has_permission("Bin", "read"):
+		return []
+
 	filters = []
 	if item_code:
 		filters.append(["item_code", "=", item_code])
@@ -33,7 +36,10 @@ def get_data(
 		if build_match_conditions("Warehouse", user=frappe.session.user):
 			filters.append(["warehouse", "in", [w.name for w in frappe.get_list("Warehouse")]])
 	except frappe.PermissionError:
-		# user does not have access on warehouse
+		# user does not have access on warehouse; build_match_conditions already queued a
+		# "Not permitted" message via frappe.throw before this was caught, drop it so the
+		# client doesn't show a spurious error for a request that's failing gracefully here
+		frappe.clear_last_message()
 		return []
 
 	items = frappe.db.get_all(
@@ -53,6 +59,11 @@ def get_data(
 			"reserved_qty": ["!=", 0],
 			"reserved_qty_for_production": ["!=", 0],
 			"reserved_qty_for_sub_contract": ["!=", 0],
+			"reserved_qty_for_production_plan": ["!=", 0],
+			"reserved_stock": ["!=", 0],
+			"ordered_qty": ["!=", 0],
+			"indented_qty": ["!=", 0],
+			"planned_qty": ["!=", 0],
 			"actual_qty": ["!=", 0],
 		},
 		filters=filters,
@@ -70,8 +81,10 @@ def get_data(
 	for item in items:
 		item.update(
 			{
-				"item_name": frappe.get_cached_value("Item", item.item_code, "item_name"),
-				"stock_uom": frappe.get_cached_value("Item", item.item_code, "stock_uom"),
+				"item_code": escape_html(item.item_code),
+				"item_name": escape_html(frappe.get_cached_value("Item", item.item_code, "item_name")),
+				"stock_uom": escape_html(frappe.get_cached_value("Item", item.item_code, "stock_uom")),
+				"warehouse": escape_html(item.warehouse),
 				"disable_quick_entry": frappe.get_cached_value("Item", item.item_code, "has_batch_no")
 				or frappe.get_cached_value("Item", item.item_code, "has_serial_no"),
 				"projected_qty": flt(item.projected_qty, precision),

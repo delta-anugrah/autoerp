@@ -127,9 +127,9 @@ def upsert_visit(
 		frappe.throw(_("weighing.time_in is required: it dates the visit"))
 
 	plate = truck_info.get("erp_name") or truck_info.get("plate_number")
-	truck_doc = get_or_create_truck(
-		plate, source=AUTOGRADE, supplier=supplier_erp_name, autograde_id=truck_info.get("autograde_id")
-	)
+	# A plate first seen in a visit becomes a truck without an owner (interface B); the
+	# supplier in the message belongs to the ticket, not to the truck master.
+	truck_doc = get_or_create_truck(plate, source=AUTOGRADE, autograde_id=truck_info.get("autograde_id"))
 	start = to_site_datetime(weighing["time_in"])
 	end = to_site_datetime(weighing["time_out"]) if weighing.get("time_out") else None
 	pct = _grading_percentages(grading) if grading else None

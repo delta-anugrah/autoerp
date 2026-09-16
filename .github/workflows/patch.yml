@@ -105,6 +105,8 @@ jobs:
         env:
           DB: mariadb
           TYPE: server
+          # Anonymous git to github.com gets throttled to a 401; authenticate the clones.
+          CI_GITHUB_TOKEN: ${{ github.token }}
 
       - name: Run Patch Tests
         run: |
@@ -134,6 +136,7 @@ jobs:
 
             # Resetup env and install apps
             pgrep honcho | xargs kill
+            sleep 10
             rm -rf ~/frappe-bench/env
             bench -v setup env --python python$2
             bench pip install -e ./apps/erpnext
@@ -143,7 +146,6 @@ jobs:
           }
 
           update_to_version 15 3.13
-          update_to_version 16 3.14
 
           echo "Updating to latest version"
           git -C "apps/frappe" fetch --depth 1 upstream "${GITHUB_BASE_REF:-${GITHUB_REF##*/}}"

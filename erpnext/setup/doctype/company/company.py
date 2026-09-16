@@ -12,7 +12,9 @@ from frappe.contacts.address_and_contact import load_address_and_contact
 from frappe.custom.doctype.property_setter.property_setter import make_property_setter
 from frappe.desk.page.setup_wizard.setup_wizard import make_records
 from frappe.utils import (
+	add_months,
 	cint,
+	formatdate,
 	get_first_day,
 	get_last_day,
 	get_link_to_form,
@@ -78,6 +80,7 @@ class Company(NestedSet):
 		default_operating_cost_account: DF.Link | None
 		default_payable_account: DF.Link | None
 		default_provisional_account: DF.Link | None
+		default_purchase_price_variance_account: DF.Link | None
 		default_receivable_account: DF.Link | None
 		default_sales_contact: DF.Link | None
 		default_scrap_warehouse: DF.Link | None
@@ -95,6 +98,8 @@ class Company(NestedSet):
 		exception_budget_approver_role: DF.Link | None
 		exchange_gain_loss_account: DF.Link | None
 		existing_company: DF.Link | None
+		expenses_added_to_stock_account: DF.Link | None
+		expenses_added_to_stock_contra_account: DF.Link | None
 		fax: DF.Data | None
 		is_group: DF.Check
 		lft: DF.Int
@@ -405,6 +410,7 @@ class Company(NestedSet):
 			)
 			warehouse.flags.ignore_permissions = True
 			warehouse.flags.ignore_mandatory = True
+			warehouse.flags.ignore_inventory_account_validation = True
 			warehouse.insert()
 
 			if wh_detail["is_group"]:
@@ -682,21 +688,6 @@ class Company(NestedSet):
 
 			self.db_set("disposal_account", disposal_acct)
 
-		if not self.service_expense_account:
-			service_expense_acct = frappe.db.get_value(
-				"Account",
-				{
-					"account_name": _("Marketing Expenses"),
-					"company": self.name,
-					"is_group": 0,
-					"root_type": "Expense",
-				},
-				"name",
-			)
-
-			if service_expense_acct:
-				self.db_set("service_expense_account", service_expense_acct)
-
 	def _set_default_account(self, fieldname, account_type):
 		if self.get(fieldname):
 			return
@@ -767,6 +758,13 @@ class Company(NestedSet):
 		"""
 		Trash accounts and cost centers for this company if no gl entry exists
 		"""
+		if frappe.db.get_single_value("Global Defaults", "demo_company") == self.name:
+			frappe.throw(
+				_("{0} is the site's Demo Company and cannot be deleted directly. Use {1} instead.").format(
+					bold(self.name), bold(_("Delete Demo Data"))
+				)
+			)
+
 		NestedSet.validate_if_child_exists(self)
 		frappe.utils.nestedset.update_nsm(self)
 
@@ -818,7 +816,7 @@ class Company(NestedSet):
 		boms = frappe.db.sql_list("select name from tabBOM where company=%s", self.name)
 		if boms:
 			frappe.db.sql("delete from tabBOM where company=%s", self.name)
-			for dt in ("BOM Operation", "BOM Item", "BOM Scrap Item", "BOM Explosion Item"):
+			for dt in ("BOM Operation", "BOM Item", "BOM Secondary Item", "BOM Explosion Item"):
 				frappe.db.sql(
 					"delete from `tab{}` where parent in ({})".format(dt, ", ".join(["%s"] * len(boms))),
 					tuple(boms),
@@ -925,7 +923,7 @@ def update_transactions_annual_history(company, commit=False):
 	transactions_history = get_all_transactions_annual_history(company)
 	frappe.db.set_value("Company", company, "transactions_annual_history", json.dumps(transactions_history))
 
-	if commit:
+	if commit and not frappe.in_test:
 		frappe.db.commit()
 
 
@@ -934,7 +932,9 @@ def cache_companies_monthly_sales_history():
 	for company in companies:
 		update_company_monthly_sales(company)
 		update_transactions_annual_history(company)
-	frappe.db.commit()
+
+	if not frappe.in_test:
+		frappe.db.commit()
 
 
 @frappe.whitelist()
@@ -1082,6 +1082,8 @@ def get_billing_shipping_address(name, billing_address=None, shipping_address=No
 @frappe.whitelist()
 def create_transaction_deletion_request(company):
 	frappe.only_for("System Manager")
+	# User Permission check
+	frappe.has_permission("Company", ptype="delete", doc=company, throw=True)
 
 	from erpnext.setup.doctype.transaction_deletion_record.transaction_deletion_record import (
 		is_deletion_doc_running,
@@ -1090,13 +1092,13 @@ def create_transaction_deletion_request(company):
 	is_deletion_doc_running(company)
 
 	tdr = frappe.get_doc({"doctype": "Transaction Deletion Record", "company": company})
+	tdr.flags.ignore_permissions = 1
 	tdr.insert()
 
 	tdr.generate_to_delete_list()
 	tdr.reload()
 
 	tdr.submit()
-	tdr.start_deletion_tasks()
 
 	frappe.msgprint(
 		_("Transaction Deletion Document {0} has been triggered for company {1}").format(

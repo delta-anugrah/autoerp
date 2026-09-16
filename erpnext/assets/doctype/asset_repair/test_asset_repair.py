@@ -1,10 +1,10 @@
 # Copyright (c) 2017, Frappe Technologies Pvt. Ltd. and Contributors
 # See license.txt
+import unittest
 
 import frappe
 from frappe import qb
 from frappe.query_builder.functions import Sum
-from frappe.tests import IntegrationTestCase
 from frappe.utils import add_days, add_months, flt, get_first_day, nowdate, nowtime, today
 
 from erpnext.assets.doctype.asset.asset import (
@@ -14,7 +14,6 @@ from erpnext.assets.doctype.asset.asset import (
 )
 from erpnext.assets.doctype.asset.test_asset import (
 	create_asset,
-	create_asset_data,
 	set_depreciation_settings_in_company,
 )
 from erpnext.assets.doctype.asset_depreciation_schedule.asset_depreciation_schedule import (
@@ -25,16 +24,14 @@ from erpnext.stock.doctype.serial_and_batch_bundle.test_serial_and_batch_bundle 
 	get_serial_nos_from_bundle,
 	make_serial_batch_bundle,
 )
+from erpnext.tests.utils import ERPNextTestSuite
 
 
-class TestAssetRepair(IntegrationTestCase):
-	@classmethod
-	def setUpClass(cls):
-		super().setUpClass()
+class TestAssetRepair(ERPNextTestSuite):
+	def setUp(self):
+		self.load_test_records("Stock Entry")
 		set_depreciation_settings_in_company()
-		create_asset_data()
 		create_item("_Test Stock Item")
-		frappe.db.sql("delete from `tabTax Rule`")
 
 	def test_asset_status(self):
 		date = nowdate()
@@ -99,6 +96,21 @@ class TestAssetRepair(IntegrationTestCase):
 	def test_repair_status_after_submit(self):
 		asset_repair = create_asset_repair(submit=1)
 		self.assertNotEqual(asset_repair.repair_status, "Pending")
+
+	def test_downtime_stays_in_sync_with_dates(self):
+		asset = create_asset(submit=1)
+		asset_repair = create_asset_repair(asset=asset)
+
+		asset_repair.failure_date = "2026-07-31 09:00:00"
+		asset_repair.completion_date = "2026-07-31 11:00:00"
+		asset_repair.repair_status = "Completed"
+		asset_repair.save()
+		self.assertEqual(asset_repair.downtime, "2.0 Hrs")
+
+		# editing a date must refresh downtime, not leave a stale value
+		asset_repair.completion_date = "2026-07-31 14:30:00"
+		asset_repair.save()
+		self.assertEqual(asset_repair.downtime, "5.5 Hrs")
 
 	def test_stock_items(self):
 		asset_repair = create_asset_repair(stock_consumption=1)
@@ -210,29 +222,26 @@ class TestAssetRepair(IntegrationTestCase):
 		self.assertRaises(frappe.ValidationError, asset_repair2.save)
 
 	def test_gl_entries_with_perpetual_inventory(self):
-		company = "_Test Company with perpetual inventory"
-		set_depreciation_settings_in_company(company)
+		set_depreciation_settings_in_company(company="_Test Company with perpetual inventory")
 
 		asset_category = frappe.get_doc("Asset Category", "Computers")
-
-		if not any(row.company_name == company for row in asset_category.accounts):
-			asset_category.append(
-				"accounts",
-				{
-					"company_name": company,
-					"fixed_asset_account": "_Test Fixed Asset - TCP1",
-					"accumulated_depreciation_account": "_Test Accumulated Depreciations - TCP1",
-					"depreciation_expense_account": "_Test Depreciations - TCP1",
-					"capital_work_in_progress_account": "CWIP Account - TCP1",
-				},
-			)
-			asset_category.save()
+		asset_category.append(
+			"accounts",
+			{
+				"company_name": "_Test Company with perpetual inventory",
+				"fixed_asset_account": "_Test Fixed Asset - TCP1",
+				"accumulated_depreciation_account": "_Test Accumulated Depreciations - TCP1",
+				"depreciation_expense_account": "_Test Depreciations - TCP1",
+				"capital_work_in_progress_account": "CWIP Account - TCP1",
+			},
+		)
+		asset_category.save()
 
 		asset_repair = create_asset_repair(
 			capitalize_repair_cost=1,
 			stock_consumption=1,
 			warehouse="Stores - TCP1",
-			company=company,
+			company="_Test Company with perpetual inventory",
 			pi_expense_account1="Administrative Expenses - TCP1",
 			pi_expense_account2="Legal Expenses - TCP1",
 			item="_Test Non Stock Item",
