@@ -16,7 +16,7 @@ EXTRA_TEST_RECORD_DEPENDENCIES = ["Supplier"]
 # Copied from AutoGrade `src/palmgrade/domain/qr.py`. Written out in full rather than
 # imported: the two apps run on different machines and neither can import the other,
 # so the only thing that can keep them in step is a test that fails loudly.
-AUTOGRADE_BENTUK_PLAT = r"^[A-Z]{0,2}\d{1,5}[A-Z]{0,4}$"
+AUTOGRADE_BENTUK_PLAT = r"^(?:[A-Z]{1,2}\d{1,5}[A-Z]{0,4}|\d{1,5}[A-Z]{1,4})$"
 
 
 class IntegrationTestQRCard(IntegrationTestCase):
@@ -37,10 +37,12 @@ class IntegrationTestQRCard(IntegrationTestCase):
 		"""Backoffice may register an odd plate after confirming the warning, so the
 		gate must accept it. What must still be refused is anything that is not a
 		plate at all - one bad scan otherwise adds a ghost truck to master data."""
-		for plate in ("BE 4412 OFL", "B 1234", "BE 12345 OFL", "B 1 A", "12345"):
+		for plate in ("BE 4412 OFL", "B 1234", "BE 12345 OFL", "B 1 A", "1234 AB"):
 			self.assertTrue(is_scannable_plate(plate), plate)
 
-		for rubbish in ("TRK-0042", "TRK0042", "INV-2026-0001", "https://example.id/x", "!!!", ""):
+		# `1234` is rubbish, not an odd plate: a bare number could be a ticket number,
+		# a weight or a price, and the gate scanner reads whatever is put in front of it.
+		for rubbish in ("TRK-0042", "TRK0042", "INV-2026-0001", "https://example.id/x", "!!!", "", "1234"):
 			self.assertFalse(is_scannable_plate(rubbish), rubbish)
 
 	def test_card_encodes_the_normalised_plate_and_nothing_else(self):

@@ -28,13 +28,15 @@ INDONESIAN_PLATE = re.compile(r"^([A-Z]{1,2})(\d{1,4})([A-Z]{0,3})$")
 #
 # Deliberately wider than INDONESIAN_PLATE above: government, old and out-of-area
 # plates are shaped differently, and backoffice may register those after confirming
-# a warning. It is NOT unlimited - the two-letter cap is what keeps an ERP id like
-# `TRK0042` (letters then digits, the same shape as a plate) from being scannable.
+# a warning. It is NOT unlimited - two limits keep rubbish out. The two-letter cap
+# stops an ERP id like `TRK0042` (letters then digits, the same shape as a plate);
+# requiring at least one letter stops a bare number like `1234`, which could be a
+# ticket number, a weight or a price.
 #
 # Must stay identical to `_BENTUK_PLAT` in AutoGrade's `domain/qr.py`. The test
 # `test_scannable_plate_matches_autograde` pins the exact pattern; if you change it
 # here, change it there in the same pull request.
-SCANNABLE_PLATE = re.compile(r"^[A-Z]{0,2}\d{1,5}[A-Z]{0,4}$")
+SCANNABLE_PLATE = re.compile(r"^(?:[A-Z]{1,2}\d{1,5}[A-Z]{0,4}|\d{1,5}[A-Z]{1,4})$")
 
 
 def is_scannable_plate(plate: str | None) -> bool:
