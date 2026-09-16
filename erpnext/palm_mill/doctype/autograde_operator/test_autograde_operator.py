@@ -277,25 +277,25 @@ class IntegrationTestAutoGradeOperator(IntegrationTestCase):
 			f"{DOCTYPE} is missing from the workspace sidebar",
 		)
 
-	def test_peran_default_operator(self):
+	def test_role_default_operator(self):
 		"""A new account is an operator until someone says otherwise."""
 		doc = frappe.get_doc(
 			{
 				"doctype": DOCTYPE,
-				"email": "peran-default@example.com",
+				"email": "role-default@example.com",
 				"full_name": "Peran Default",
 			}
 		).insert(ignore_permissions=True)
-		self.assertEqual(doc.peran, "operator")
+		self.assertEqual(doc.role, "operator")
 
-	def test_peran_support_tersimpan(self):
+	def test_role_support_tersimpan(self):
 		"""`support` is a value the field accepts, not just free text."""
 		doc = frappe.get_doc(
 			{
 				"doctype": DOCTYPE,
-				"email": "peran-support@example.com",
+				"email": "role-support@example.com",
 				"full_name": "Peran Support",
-				"peran": "support",
+				"role": "support",
 			}
 		).insert(ignore_permissions=True)
-		self.assertEqual(frappe.db.get_value(DOCTYPE, doc.name, "peran"), "support")
+		self.assertEqual(frappe.db.get_value(DOCTYPE, doc.name, "role"), "support")

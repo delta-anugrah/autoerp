@@ -10,7 +10,7 @@
   "email",
   "full_name",
   "active",
-  "peran",
+  "role",
   "credential_section",
   "new_password",
   "password_hash"
@@ -43,11 +43,11 @@
   },
   {
    "default": "operator",
-   "description": "support membuka menu diagnostik di konsol AutoGrade (log, antrean ERP, uji PLC). Naikkan hanya untuk orang yang memang menangani gangguan pabrik.",
-   "fieldname": "peran",
+   "description": "support unlocks the diagnostic screens in the AutoGrade console (log, ERP queue, PLC test). Raise it only for someone who actually handles mill faults.",
+   "fieldname": "role",
    "fieldtype": "Select",
    "in_list_view": 1,
-   "label": "Peran",
+   "label": "Role",
    "options": "operator\nsupport",
    "reqd": 1
   },
