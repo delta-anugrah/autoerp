@@ -5,7 +5,7 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 
-from erpnext.palm_mill.utils import canonical_plate, normalize_plate
+from erpnext.palm_mill.utils import canonical_plate, is_scannable_plate, normalize_plate
 
 
 class Truck(Document):
@@ -39,6 +39,32 @@ class Truck(Document):
 				_("Plate {0} is already registered as Truck {1}").format(self.plate_number, other),
 				frappe.DuplicateEntryError,
 			)
+
+		self._warn_if_not_scannable()
+
+	def _warn_if_not_scannable(self):
+		"""Warn - never block - when the plate will not scan at the gate.
+
+		A typo is the common case and the warning catches it while the record is still
+		open. But government, old and out-of-area plates are shaped differently and are
+		perfectly real, so backoffice has the last word: the truck is saved either way.
+
+		What it cannot do is stay silent. Without this, a mistyped plate is only found
+		out at the gate, after the card has been printed and stuck to the windscreen,
+		with the driver waiting.
+		"""
+		if is_scannable_plate(self.plate_number):
+			return
+		frappe.msgprint(
+			_(
+				"Plate {0} is not shaped like an Indonesian plate, so its QR card will not "
+				"scan at the gate. Please check it. If it is correct - a government or "
+				"out-of-area plate, for instance - save it as it is and weigh this truck "
+				"without scanning."
+			).format(frappe.bold(self.plate_number)),
+			title=_("Check this plate"),
+			indicator="orange",
+		)
 
 
 def get_truck_by_plate(plate: str) -> str | None:
