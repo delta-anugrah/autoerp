@@ -36,6 +36,7 @@ class AutoGradeOperator(Document):
 		full_name: DF.Data
 		new_password: DF.Data | None
 		password_hash: DF.Data | None
+		role: DF.Literal["operator", "support"]
 	# end: auto-generated types
 
 	def before_naming(self):

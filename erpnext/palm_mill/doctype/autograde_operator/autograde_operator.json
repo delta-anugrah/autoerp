@@ -10,6 +10,7 @@
   "email",
   "full_name",
   "active",
+  "role",
   "credential_section",
   "new_password",
   "password_hash"
@@ -39,6 +40,16 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Active"
+  },
+  {
+   "default": "operator",
+   "description": "support unlocks the diagnostic screens in the AutoGrade console (log, ERP queue, PLC test). Raise it only for someone who actually handles mill faults.",
+   "fieldname": "role",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Role",
+   "options": "operator\nsupport",
+   "reqd": 1
   },
   {
    "fieldname": "credential_section",
