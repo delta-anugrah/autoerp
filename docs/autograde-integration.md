@@ -84,6 +84,7 @@ line returns rejects, and keep it only where rejects are accepted with a discoun
 | Supplier (name, contact, group, payment terms)     | AutoERP       | AutoERP → AutoGrade cloud (pull) → edge (existing sync)                                          |
 | Truck (plate, supplier, class, capacity)           | AutoERP       | AutoERP → AutoGrade; **unknown plates** AutoGrade → AutoERP                                       |
 | Site ↔ Company / Warehouse mapping                 | AutoERP       | configured once on the AutoGrade site record                                                     |
+| Truck QR card (the printed card itself)            | AutoERP       | printed in Desk from `Truck`; AutoGrade keeps `qr.png` as the offline fallback                    |
 | Line assignment, per-bunch inspections, images     | AutoGrade     | stays; ERP gets a summary and a deep link                                                        |
 | Grading session summary (per visit)                | AutoGrade     | AutoGrade cloud → AutoERP                                                                        |
 | Gross / tare / net, time in / out                  | Scale program | Scale → AutoGrade edge → cloud → AutoERP, inside the visit message (or typed on the ticket form) |
@@ -94,6 +95,14 @@ Not synced: users, roles, machines, per-bunch rows, images, anything edge → ER
 
 ## 3. Identity
 
+- **Truck QR card.** Printed from ERP Desk since 2026-09-17 (backoffice registers the truck, so the
+  button belongs where they already are). What is encoded is `plate_normalized` and nothing else — not
+  the ERP id: a borrowed truck has none until someone registers it, and the gate must keep working while
+  the link to this server is down, where `TRK-0042` means nothing and a plate means itself. A plate that
+  is not shaped like a plate only *warns* on save, so the gate is deliberately just as permissive:
+  `SCANNABLE_PLATE` here must stay identical to `_BENTUK_PLAT` in AutoGrade's `domain/qr.py`, pinned by
+  `test_scannable_plate_matches_autograde`. A gate stricter than the printer means printed cards the
+  scanner refuses, found out with the driver waiting.
 - **Truck.** Normalised plate `upper(regexp_replace(plate, '[^A-Za-z0-9]', ''))` is the cross-system key.
   AutoERP `Truck` gains `plate_normalized` (unique). AutoGrade already has this index (`init-db/022`,
   `src/utils/plateNormalizer.ts`). Both sides store the other's id: AutoGrade `trucks.erp_name`,
