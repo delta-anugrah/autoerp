@@ -100,15 +100,15 @@ def upsert_truck(
 @frappe.whitelist(methods=["POST"])
 @logged(AUTOGRADE)
 def upsert_visit(
-	visit_id,
-	truck,
-	weighing,
-	site=None,
-	supplier_erp_name=None,
-	scale_ticket_no=None,
-	grading=None,
-	stage=None,
-	emitted_at=None,
+	visit_id: str,
+	truck: dict | str,
+	weighing: dict | str,
+	site: str | None = None,
+	supplier_erp_name: str | None = None,
+	scale_ticket_no: str | None = None,
+	grading: dict | str | None = None,
+	stage: str | None = None,
+	emitted_at: str | None = None,
 ):
 	"""Interface C: one truck visit, sent by AutoGrade at each stage (gate, grading closed,
 	weigh-out) and resent daily. Every send is a full replacement of the sections it carries.
