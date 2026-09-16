@@ -26,6 +26,17 @@ SAMPAH = "Sampah"
 # Keys that identify one visit. A ticket carrying a different value for any of them
 # belongs to another visit, so the window match must leave it alone.
 IDENTITY_FIELDS = ("autograde_visit_id", "scale_ticket_no")
+_IDENTITY_CLAUSE = {
+	"autograde_visit_id": " and ifnull(`autograde_visit_id`, '') in ('', %s)",
+	"scale_ticket_no": " and ifnull(`scale_ticket_no`, '') in ('', %s)",
+}
+
+_WINDOW_MATCH_SQL = """select name from `tabWeighbridge Ticket`
+	where company = %s and truck = %s and docstatus = 0 and ticket_date = %s
+		and timestamp(ticket_date, ifnull(time_in, '00:00:00')) <= %s
+		and timestamp(ticket_date, ifnull(time_out, ifnull(time_in, '00:00:00'))) >= %s
+		/*identity*/
+	order by creation desc limit 1"""
 
 
 class WeighbridgeTicket(Document):
@@ -385,20 +396,17 @@ def find_or_create_ticket(
 			return frappe.get_doc("Weighbridge Ticket", name)
 
 	window = timedelta(hours=cint(settings().match_window_hours))
+	# Each clause is a fixed string picked by key from `_IDENTITY_CLAUSE`; only the
+	# values are interpolated, and those go in as query parameters.
 	conditions, values = "", []
 	for field in IDENTITY_FIELDS:
 		value = (identity or {}).get(field)
 		if not value:
 			continue
-		conditions += f" and ifnull(`{field}`, '') in ('', %s)"
+		conditions += _IDENTITY_CLAUSE[field]
 		values.append(value)
 	rows = frappe.db.sql(
-		f"""select name from `tabWeighbridge Ticket`
-		where company = %s and truck = %s and docstatus = 0 and ticket_date = %s
-			and timestamp(ticket_date, ifnull(time_in, '00:00:00')) <= %s
-			and timestamp(ticket_date, ifnull(time_out, ifnull(time_in, '00:00:00'))) >= %s
-			{conditions}
-		order by creation desc limit 1""",
+		_WINDOW_MATCH_SQL.replace("/*identity*/", conditions),
 		(company, truck, start.date(), (end or start) + window, start - window, *values),
 	)
 	if rows:
