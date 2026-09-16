@@ -1,13 +1,14 @@
 # Copyright (c) 2019, Frappe Technologies Pvt. Ltd. and Contributors
 # See license.txt
+import unittest
 
 import frappe
-from frappe.tests import IntegrationTestCase
 
 from erpnext.projects.doctype.task.test_task import create_task
+from erpnext.tests.utils import ERPNextTestSuite
 
 
-class TestProjectTemplate(IntegrationTestCase):
+class TestProjectTemplate(ERPNextTestSuite):
 	pass
 
 

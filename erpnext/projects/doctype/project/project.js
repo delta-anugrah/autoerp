@@ -67,9 +67,9 @@ frappe.ui.form.on("Project", {
 	},
 
 	refresh: function (frm) {
-		if (frm.doc.__islocal) {
-			frm.web_link && frm.web_link.remove();
-		} else {
+		frm.web_link && frm.web_link.closest(".user-action-row").remove();
+
+		if (!frm.doc.__islocal) {
 			frm.add_web_link("/projects?project=" + encodeURIComponent(frm.doc.name));
 
 			frm.trigger("show_dashboard");
@@ -205,7 +205,7 @@ frappe.ui.form.on("Project", {
 
 	collect_progress: function (frm) {
 		if (frm.doc.collect_progress && !frm.doc.subject) {
-			frm.set_value("subject", __("For project {0}, update your status", [frm.doc.name]));
+			frm.set_value("subject", __("For project - {0}, update your status", [frm.doc.project_name]));
 		}
 	},
 });
@@ -222,6 +222,9 @@ function open_form(frm, doctype, child_doctype, parentfield) {
 		new_child_doc.parenttype = doctype;
 		new_doc[parentfield] = [new_child_doc];
 		new_doc.project = frm.doc.name;
+		if (frm.doc.company) {
+			new_doc.company = frm.doc.company;
+		}
 
 		frappe.ui.form.make_quick_entry(doctype, null, null, new_doc);
 	});

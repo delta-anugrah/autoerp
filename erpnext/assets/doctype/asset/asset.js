@@ -36,6 +36,7 @@ frappe.ui.form.on("Asset", {
 	},
 
 	company: function (frm) {
+		frm.trigger("set_dynamic_labels");
 		erpnext.accounts.dimensions.update_dimension(frm, frm.doctype);
 	},
 
@@ -87,8 +88,15 @@ frappe.ui.form.on("Asset", {
 	},
 
 	refresh: async function (frm) {
+		frm.trigger("set_dynamic_labels");
+
 		frappe.ui.form.trigger("Asset", "asset_type");
 		frm.toggle_display("next_depreciation_date", frm.doc.docstatus < 1);
+
+		if (frm.doc.docstatus < 1 && frm.doc.calculate_depreciation && frm.doc.is_fully_depreciated) {
+			// Is Fully Depreciated is read-only while depreciation is calculated, so keep it unchecked
+			frm.set_value("is_fully_depreciated", 0);
+		}
 
 		let has_create_buttons = false;
 		if (frm.doc.docstatus == 1) {
@@ -139,7 +147,15 @@ frappe.ui.form.on("Asset", {
 						__("Actions")
 					);
 				}
-
+				if (frm.doc.status === "Fully Depreciated") {
+					frm.add_custom_button(
+						__("Asset Repair"),
+						function () {
+							frm.trigger("create_asset_repair");
+						},
+						__("Actions")
+					);
+				}
 				frm.add_custom_button(
 					__("Split Asset"),
 					function () {
@@ -225,6 +241,10 @@ frappe.ui.form.on("Asset", {
 				});
 			}
 		}
+	},
+
+	set_dynamic_labels: function (frm) {
+		frm.set_currency_labels(["net_purchase_amount"], erpnext.get_currency(frm.doc.company));
 	},
 
 	should_show_accounting_ledger: async function (frm) {
@@ -526,15 +546,22 @@ frappe.ui.form.on("Asset", {
 	},
 
 	set_finance_book: function (frm) {
+		let item_code = frm.doc.item_code;
+		let net_purchase_amount = frm.doc.net_purchase_amount;
+
 		frappe.call({
 			method: "erpnext.assets.doctype.asset.asset.get_item_details",
 			args: {
-				item_code: frm.doc.item_code,
+				item_code: item_code,
 				asset_category: frm.doc.asset_category,
-				net_purchase_amount: frm.doc.net_purchase_amount,
+				net_purchase_amount: net_purchase_amount,
 			},
 			callback: function (r, rt) {
-				if (r.message) {
+				if (
+					r.message &&
+					frm.doc.item_code === item_code &&
+					frm.doc.net_purchase_amount === net_purchase_amount
+				) {
 					frm.set_value("finance_books", r.message);
 				}
 			},
@@ -544,7 +571,9 @@ frappe.ui.form.on("Asset", {
 	asset_type: function (frm) {
 		if (frm.doc.docstatus == 0) {
 			if (frm.doc.asset_type == "Composite Asset") {
-				frm.set_value("net_purchase_amount", 0);
+				if (!frm.doc.net_purchase_amount) {
+					frm.set_value("net_purchase_amount", 0);
+				}
 			} else {
 				frm.set_df_property("net_purchase_amount", "read_only", 0);
 			}
@@ -718,6 +747,10 @@ frappe.ui.form.on("Asset", {
 
 	calculate_depreciation: function (frm) {
 		frm.toggle_reqd("finance_books", frm.doc.calculate_depreciation);
+		if (frm.doc.calculate_depreciation && frm.doc.is_fully_depreciated) {
+			// Is Fully Depreciated is read-only while depreciation is calculated, so keep it unchecked
+			frm.set_value("is_fully_depreciated", 0);
+		}
 		if (frm.doc.item_code && frm.doc.calculate_depreciation && frm.doc.net_purchase_amount) {
 			frm.trigger("set_finance_book");
 		} else {
@@ -726,10 +759,12 @@ frappe.ui.form.on("Asset", {
 	},
 
 	net_purchase_amount: function (frm) {
-		if (frm.doc.finance_books) {
+		if (frm.doc.finance_books && frm.doc.finance_books.length) {
 			frm.doc.finance_books.forEach((d) => {
 				frm.events.set_depreciation_rate(frm, d);
 			});
+		} else if (frm.doc.item_code && frm.doc.calculate_depreciation && frm.doc.net_purchase_amount) {
+			frm.trigger("set_finance_book");
 		}
 	},
 

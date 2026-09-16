@@ -5,7 +5,6 @@ import copy
 from collections import defaultdict
 
 import frappe
-from frappe.tests import IntegrationTestCase
 from frappe.utils import flt
 
 from erpnext.buying.doctype.purchase_order.purchase_order import get_mapped_subcontracting_order
@@ -26,14 +25,16 @@ from erpnext.controllers.tests.test_subcontracting_controller import (
 	set_backflush_based_on,
 )
 from erpnext.manufacturing.doctype.production_plan.test_production_plan import make_bom
+from erpnext.projects.doctype.project.test_project import make_project
 from erpnext.stock.doctype.item.test_item import make_item
 from erpnext.stock.doctype.stock_entry.test_stock_entry import make_stock_entry
 from erpnext.subcontracting.doctype.subcontracting_order.subcontracting_order import (
 	make_subcontracting_receipt,
 )
+from erpnext.tests.utils import ERPNextTestSuite
 
 
-class TestSubcontractingOrder(IntegrationTestCase):
+class TestSubcontractingOrder(ERPNextTestSuite):
 	def setUp(self):
 		make_subcontracted_items()
 		make_raw_materials()
@@ -111,6 +112,24 @@ class TestSubcontractingOrder(IntegrationTestCase):
 		scr.cancel()
 		sco.load_from_db()
 		self.assertEqual(sco.status, "Partially Received")
+
+	def test_project_is_carried_over_from_purchase_order(self):
+		project = make_project({"project_name": "_Test SCO Project"}).name
+		po = make_subcontracted_purchase_order(project)
+
+		sco = get_mapped_subcontracting_order(source_name=po.name)
+
+		self.assertEqual(sco.project, project)
+		self.assertEqual(sco.items[0].project, project)
+
+	def test_project_cannot_differ_from_purchase_order(self):
+		project = make_project({"project_name": "_Test SCO Project"}).name
+		other_project = make_project({"project_name": "_Test SCO Project 2"}).name
+		po = make_subcontracted_purchase_order(project)
+
+		sco = get_mapped_subcontracting_order(source_name=po.name)
+		sco.items[0].project = other_project
+		self.assertRaises(frappe.ValidationError, sco.save)
 
 	def test_make_rm_stock_entry(self):
 		sco = get_subcontracting_order()
@@ -336,6 +355,141 @@ class TestSubcontractingOrder(IntegrationTestCase):
 			bin_after_cancel_sco.reserved_qty_for_sub_contract, bin_before_sco.reserved_qty_for_sub_contract
 		)
 
+	def test_close_subcontracting_order_releases_reserved_qty(self):
+		# RM in stock at the reserve warehouse for transfer
+		make_stock_entry(target="_Test Warehouse - _TC", item_code="_Test Item", qty=10, basic_rate=100)
+		make_stock_entry(
+			target="_Test Warehouse - _TC", item_code="_Test Item Home Desktop 100", qty=20, basic_rate=100
+		)
+
+		bin_before_sco = frappe.db.get_value(
+			"Bin",
+			filters={"warehouse": "_Test Warehouse - _TC", "item_code": "_Test Item"},
+			fieldname="reserved_qty_for_sub_contract",
+			as_dict=1,
+		)
+
+		# Create SCO with a reserve warehouse on the supplied items
+		service_items = [
+			{
+				"warehouse": "_Test Warehouse - _TC",
+				"item_code": "Subcontracted Service Item 1",
+				"qty": 10,
+				"rate": 100,
+				"fg_item": "_Test FG Item",
+				"fg_item_qty": 10,
+			},
+		]
+		sco = get_subcontracting_order(service_items=service_items)
+
+		# Transfer only 90% of the raw materials to the supplier warehouse
+		ste = frappe.get_doc(make_rm_stock_entry(sco.name))
+		for item in ste.items:
+			item.qty *= 0.9
+		ste.save()
+		ste.submit()
+		sco.load_from_db()
+		self.assertEqual(sco.status, "Partial Material Transferred")
+
+		# Receive only a partial qty so the order stays open (per_received < 100)
+		scr = make_subcontracting_receipt(sco.name)
+		scr.items[0].qty -= 1
+		scr.save()
+		scr.submit()
+		sco.load_from_db()
+		self.assertEqual(sco.status, "Partially Received")
+
+		# Keep another SCO open so transfers from the closed SCO must not reduce its reservation
+		open_sco = get_subcontracting_order(service_items=service_items)
+		self.assertEqual(open_sco.status, "Open")
+
+		bin_before_close = frappe.db.get_value(
+			"Bin",
+			filters={"warehouse": "_Test Warehouse - _TC", "item_code": "_Test Item"},
+			fieldname=["reserved_qty_for_sub_contract", "projected_qty"],
+			as_dict=1,
+		)
+
+		# One unit remains reserved for the partially transferred SCO, plus ten for the open SCO
+		self.assertEqual(
+			bin_before_close.reserved_qty_for_sub_contract,
+			bin_before_sco.reserved_qty_for_sub_contract + 11,
+		)
+
+		# Close the partially-received order
+		sco.update_status("Closed")
+		self.assertEqual(sco.status, "Closed")
+
+		bin_after_close = frappe.db.get_value(
+			"Bin",
+			filters={"warehouse": "_Test Warehouse - _TC", "item_code": "_Test Item"},
+			fieldname=["reserved_qty_for_sub_contract", "projected_qty"],
+			as_dict=1,
+		)
+
+		# Closing releases the remaining unit without applying its transfer against the open SCO
+		self.assertEqual(
+			bin_after_close.reserved_qty_for_sub_contract,
+			bin_before_sco.reserved_qty_for_sub_contract + 10,
+		)
+		self.assertEqual(bin_after_close.projected_qty, bin_before_close.projected_qty + 1)
+
+	def test_send_to_subcontractor_ste_submit_without_sco_write_permission(self):
+		"""A Stock-only user (can submit Stock Entries but has no Subcontracting Order write) must be
+		able to submit and cancel a 'Send to Subcontractor' Stock Entry. The SCO status update on the
+		on_submit/on_cancel path goes through the no-permission-check internal helper, not the
+		whitelisted API boundary.
+
+		Regression: the permission hardening put check_permission('write') on the shared status
+		function, so a Stock Manager (no SCO write) hit PermissionError submitting/cancelling the
+		Stock Entry. The suite otherwise runs as Administrator and never caught it."""
+		from frappe.core.doctype.user_permission.test_user_permission import create_user
+
+		make_stock_entry(target="_Test Warehouse - _TC", item_code="_Test Item", qty=10, basic_rate=100)
+
+		service_items = [
+			{
+				"warehouse": "_Test Warehouse - _TC",
+				"item_code": "Subcontracted Service Item 1",
+				"qty": 10,
+				"rate": 100,
+				"fg_item": "_Test FG Item",
+				"fg_item_qty": 10,
+			},
+		]
+		sco = get_subcontracting_order(service_items=service_items)
+
+		rm_items = [
+			{
+				"item_code": "_Test FG Item",
+				"rm_item_code": "_Test Item",
+				"item_name": "_Test Item",
+				"qty": 10,
+				"warehouse": "_Test Warehouse - _TC",
+				"rate": 100,
+				"amount": 1000,
+				"stock_uom": "Nos",
+			},
+		]
+		ste = frappe.get_doc(make_rm_stock_entry(sco.name, rm_items))
+		ste.to_warehouse = "_Test Warehouse 1 - _TC"
+		ste.save()
+
+		stock_user = create_user("test_sco_stock_only@example.com", "Stock Manager")
+		self.assertFalse(
+			frappe.has_permission("Subcontracting Order", "write", user=stock_user.name),
+			"Precondition: the Stock-only user must not have Subcontracting Order write permission.",
+		)
+
+		frappe.set_user(stock_user.name)
+		try:
+			ste.reload()
+			ste.submit()  # must not raise PermissionError on the SCO status update
+			ste.reload()
+			ste.cancel()  # same on the cancel path
+		finally:
+			frappe.set_user("Administrator")
+
 	def test_exploded_items(self):
 		item_code = "_Test Subcontracted FG Item 11"
 		make_subcontracted_item(item_code=item_code)
@@ -460,6 +614,7 @@ class TestSubcontractingOrder(IntegrationTestCase):
 
 		set_backflush_based_on("BOM")
 
+	@ERPNextTestSuite.change_settings("Buying Settings", {"allow_multiple_items": True})
 	def test_supplied_qty(self):
 		item_code = "_Test Subcontracted FG Item 5"
 		make_item("Sub Contracted Raw Material 4", {"is_stock_item": 1, "is_sub_contracted_item": 1})
@@ -472,7 +627,7 @@ class TestSubcontractingOrder(IntegrationTestCase):
 		service_items = [
 			{
 				"warehouse": "_Test Warehouse - _TC",
-				"item_code": "Subcontracted Service Item 1",
+				"item_code": "Subcontracted Service Item 2",
 				"qty": order_qty,
 				"rate": 100,
 				"fg_item": item_code,
@@ -553,7 +708,12 @@ class TestSubcontractingOrder(IntegrationTestCase):
 		scr.submit()
 
 		# Get RM from Supplier
-		ste = get_materials_from_supplier(sco.name, [d.name for d in sco.supplied_items])
+		frappe.flags.args = frappe._dict(
+			subcontract_order=sco.name,
+			rm_details=[d.name for d in sco.supplied_items],
+			order_doctype=sco.doctype,
+		)
+		ste = get_materials_from_supplier(sco.name)
 		ste.save()
 		ste.submit()
 
@@ -678,6 +838,7 @@ class TestSubcontractingOrder(IntegrationTestCase):
 
 		self.assertEqual(requested_qty, new_requested_qty)
 
+	@ERPNextTestSuite.change_settings("System Settings", {"float_precision": 3})
 	def test_subcontracting_order_rm_required_items_for_precision(self):
 		item_code = "Subcontracted Item SA9"
 		raw_materials = ["Subcontracted SRM Item 9"]
@@ -858,3 +1019,31 @@ def create_subcontracting_order(**args):
 			sco.submit()
 
 	return sco
+
+
+def make_subcontracted_purchase_order(project):
+	from erpnext.buying.doctype.purchase_order.test_purchase_order import create_purchase_order
+
+	service_items = [
+		{
+			"warehouse": "_Test Warehouse - _TC",
+			"item_code": "Subcontracted Service Item 7",
+			"qty": 10,
+			"rate": 100,
+			"fg_item": "Subcontracted Item SA7",
+			"fg_item_qty": 10,
+		},
+	]
+	po = create_purchase_order(
+		rm_items=service_items,
+		is_subcontracted=1,
+		supplier_warehouse="_Test Warehouse 1 - _TC",
+		do_not_submit=1,
+	)
+	po.project = project
+	for item in po.items:
+		item.project = project
+	po.save()
+	po.submit()
+
+	return po

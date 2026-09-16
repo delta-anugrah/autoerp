@@ -5,7 +5,6 @@ import json
 
 import frappe
 from frappe.exceptions import ValidationError
-from frappe.tests import IntegrationTestCase
 from frappe.utils import cint, flt
 from frappe.utils.data import add_to_date, getdate
 
@@ -22,9 +21,10 @@ from erpnext.stock.doctype.serial_and_batch_bundle.test_serial_and_batch_bundle 
 from erpnext.stock.doctype.stock_entry.stock_entry_utils import make_stock_entry
 from erpnext.stock.get_item_details import ItemDetailsCtx, get_item_details
 from erpnext.stock.serial_batch_bundle import SerialBatchCreation
+from erpnext.tests.utils import ERPNextTestSuite
 
 
-class TestBatch(IntegrationTestCase):
+class TestBatch(ERPNextTestSuite):
 	def test_item_has_batch_enabled(self):
 		self.assertRaises(
 			ValidationError,
@@ -498,6 +498,24 @@ class TestBatch(IntegrationTestCase):
 		if not use_naming_series:
 			frappe.set_value("Stock Settings", "Stock Settings", "use_naming_series", 0)
 
+	def test_naming_series_prefix_is_not_rendered_as_jinja(self):
+		from frappe.model.naming import InvalidNamingSeriesError
+
+		stock_settings = frappe.get_single("Stock Settings")
+		use_naming_series = cint(stock_settings.use_naming_series)
+		original_prefix = stock_settings.naming_series_prefix
+
+		frappe.set_value("Stock Settings", "Stock Settings", "use_naming_series", 1)
+		frappe.set_value("Stock Settings", "Stock Settings", "naming_series_prefix", "{{ 7*7 }}")
+
+		try:
+			self.assertRaises(
+				InvalidNamingSeriesError, self.make_new_batch, "_Test Stock Item For Batch SSTI"
+			)
+		finally:
+			frappe.set_value("Stock Settings", "Stock Settings", "naming_series_prefix", original_prefix)
+			frappe.set_value("Stock Settings", "Stock Settings", "use_naming_series", use_naming_series)
+
 	def make_new_batch(self, item_name=None, batch_id=None, do_not_insert=0):
 		batch = frappe.new_doc("Batch")
 		item = self.make_batch_item(item_name)
@@ -543,6 +561,7 @@ class TestBatch(IntegrationTestCase):
 				"plc_conversion_rate": 1,
 				"customer": "_Test Customer",
 				"name": None,
+				"qty": 1,
 			}
 		)
 

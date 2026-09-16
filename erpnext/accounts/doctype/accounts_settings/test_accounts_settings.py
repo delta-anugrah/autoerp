@@ -1,14 +1,16 @@
+import unittest
+
 import frappe
-from frappe.tests import IntegrationTestCase
+
+from erpnext.accounts.doctype.accounts_settings.accounts_settings import get_posting_date_confirmation
+from erpnext.tests.utils import ERPNextTestSuite
 
 
-class TestAccountsSettings(IntegrationTestCase):
-	def tearDown(self):
-		# Just in case `save` method succeeds, we need to take things back to default so that other tests
-		# don't break
-		cur_settings = frappe.get_doc("Accounts Settings", "Accounts Settings")
-		cur_settings.allow_stale = 1
-		cur_settings.save()
+class TestAccountsSettings(ERPNextTestSuite):
+	def test_posting_date_confirmation_uses_current_setting(self):
+		for enabled in (0, 1, 0):
+			frappe.db.set_single_value("Accounts Settings", "confirm_before_resetting_posting_date", enabled)
+			self.assertEqual(get_posting_date_confirmation(), enabled)
 
 	def test_stale_days(self):
 		cur_settings = frappe.get_doc("Accounts Settings", "Accounts Settings")

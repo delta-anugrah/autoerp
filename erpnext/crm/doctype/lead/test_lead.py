@@ -1,5 +1,6 @@
 # Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and Contributors
 # License: GNU General Public License v3. See license.txt
+import unittest
 
 import frappe
 from frappe.utils import random_string, today
@@ -10,19 +11,16 @@ from erpnext.tests.utils import ERPNextTestSuite
 
 
 class TestLead(ERPNextTestSuite):
-	@classmethod
-	def setUpClass(cls):
-		super().setUpClass()
-		cls.make_leads()
-
 	def test_make_customer(self):
 		from erpnext.crm.doctype.lead.lead import make_customer
 
+		lead = frappe.db.get_all("Lead", {"lead_name": "_Test Lead"})[0].name
+
 		frappe.delete_doc_if_exists("Customer", "_Test Lead")
 
-		customer = make_customer(self.leads[0].name)
+		customer = make_customer(lead)
 		self.assertEqual(customer.doctype, "Customer")
-		self.assertEqual(customer.lead_name, self.leads[0].name)
+		self.assertEqual(customer.lead_name, lead)
 
 		customer.company = "_Test Company"
 		customer.customer_group = "_Test Customer Group"
@@ -46,9 +44,10 @@ class TestLead(ERPNextTestSuite):
 	def test_make_customer_from_organization(self):
 		from erpnext.crm.doctype.lead.lead import make_customer
 
-		customer = make_customer(self.leads[1].name)
+		lead = frappe.db.get_all("Lead", {"lead_name": "_Test Lead 1"})[0].name
+		customer = make_customer(lead)
 		self.assertEqual(customer.doctype, "Customer")
-		self.assertEqual(customer.lead_name, self.leads[1].name)
+		self.assertEqual(customer.lead_name, lead)
 
 		customer.company = "_Test Company"
 		customer.customer_group = "_Test Customer Group"
@@ -88,9 +87,6 @@ class TestLead(ERPNextTestSuite):
 		self.assertEqual(len(address_1.get("links")), 1)
 
 	def test_prospect_creation_from_lead(self):
-		frappe.db.sql("delete from `tabLead` where lead_name='Rahul Tripathi'")
-		frappe.db.sql("delete from `tabProspect` where name='Prospect Company'")
-
 		lead = make_lead(
 			first_name="Rahul",
 			last_name="Tripathi",
@@ -110,9 +106,6 @@ class TestLead(ERPNextTestSuite):
 		self.assertEqual(event.event_participants[1].reference_docname, prospect)
 
 	def test_opportunity_from_lead(self):
-		frappe.db.sql("delete from `tabLead` where lead_name='Rahul Tripathi'")
-		frappe.db.sql("delete from `tabOpportunity` where party_name='Rahul Tripathi'")
-
 		lead = make_lead(
 			first_name="Rahul",
 			last_name="Tripathi",
@@ -125,6 +118,7 @@ class TestLead(ERPNextTestSuite):
 		create_todo("followup", "Lead", lead.name)
 
 		opportunity = make_opportunity(lead.name)
+		opportunity.company = "_Test Company"
 		opportunity.save()
 
 		self.assertEqual(opportunity.get("party_name"), lead.name)
@@ -139,9 +133,6 @@ class TestLead(ERPNextTestSuite):
 		)
 
 	def test_copy_events_from_lead_to_prospect(self):
-		frappe.db.sql("delete from `tabLead` where lead_name='Rahul Tripathi'")
-		frappe.db.sql("delete from `tabProspect` where name='Prospect Company'")
-
 		lead = make_lead(
 			first_name="Rahul",
 			last_name="Tripathi",

@@ -94,11 +94,24 @@ DEFAULT_SETTINGS = {
 }
 
 
+# The two FFB sources the module reasons about (utils.PURCHASED_SOURCES, sumber_for_supplier).
+# Ticket.sumber_tbs is mandatory and links here, so a site without these rows cannot take
+# a visit; the demo dump carried them, a fresh install must create them.
+SOURCES = ("Internal", "External")
+
+
 def after_install():
 	create_custom_fields(CUSTOM_FIELDS, ignore_validate=frappe.flags.in_patch, update=True)
 	setup_roles()
+	setup_sources()
 	set_defaults()
 	set_favicon()
+
+
+def setup_sources():
+	for title in SOURCES:
+		if not frappe.db.exists("Sumber TBS", title):
+			frappe.get_doc({"doctype": "Sumber TBS", "title": title}).insert(ignore_permissions=True)
 
 
 def set_favicon():

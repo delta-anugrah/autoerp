@@ -5,8 +5,10 @@
 import frappe
 from frappe import _
 from frappe.model.document import Document
+from frappe.utils.data import cint
 
 from erpnext.assets.doctype.asset.depreciation import get_disposal_account_and_cost_center
+from erpnext.stock.doctype.serial_no.serial_no import get_serial_nos
 
 
 class SalesInvoiceItem(Document):
@@ -20,6 +22,7 @@ class SalesInvoiceItem(Document):
 
 		actual_batch_qty: DF.Float
 		actual_qty: DF.Float
+		against_pick_list: DF.Link | None
 		allow_zero_valuation_rate: DF.Check
 		amount: DF.Currency
 		apply_tds: DF.Check
@@ -70,6 +73,7 @@ class SalesInvoiceItem(Document):
 		parent: DF.Data
 		parentfield: DF.Data
 		parenttype: DF.Data
+		pick_list_item: DF.Data | None
 		pos_invoice: DF.Link | None
 		pos_invoice_item: DF.Data | None
 		price_list_rate: DF.Currency

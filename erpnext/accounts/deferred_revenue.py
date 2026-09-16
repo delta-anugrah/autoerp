@@ -7,6 +7,7 @@ from frappe.utils import (
 	cint,
 	date_diff,
 	flt,
+	formatdate,
 	get_first_day,
 	get_last_day,
 	get_link_to_form,
@@ -523,7 +524,8 @@ def make_gl_entries(
 	if gl_entries:
 		try:
 			make_gl_entries(gl_entries, cancel=(doc.docstatus == 2), merge_entries=True)
-			frappe.db.commit()
+			if not frappe.in_test:
+				frappe.db.commit()
 		except Exception as e:
 			if frappe.in_test:
 				doc.log_error(f"Error while processing deferred accounting for Invoice {doc.name}")
@@ -605,7 +607,8 @@ def book_revenue_via_journal_entry(
 		if submit:
 			journal_entry.submit()
 
-		frappe.db.commit()
+		if not frappe.in_test:
+			frappe.db.commit()
 	except Exception:
 		frappe.db.rollback()
 		doc.log_error(f"Error while processing deferred accounting for Invoice {doc.name}")

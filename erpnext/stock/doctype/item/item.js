@@ -7,6 +7,12 @@ const SALES_DOCTYPES = ["Quotation", "Sales Order", "Delivery Note", "Sales Invo
 const PURCHASE_DOCTYPES = ["Purchase Order", "Purchase Receipt", "Purchase Invoice"];
 
 frappe.ui.form.on("Item", {
+	stock_uom(frm) {
+		// Each factor is relative to Stock UOM and becomes invalid when it changes.
+		frm.clear_table("uoms");
+		frm.refresh_field("uoms");
+	},
+
 	valuation_method(frm) {
 		if (!frm.is_new() && frm.doc.valuation_method === "Moving Average") {
 			let stock_exists = frm.doc.__onload && frm.doc.__onload.stock_exists ? 1 : 0;
@@ -73,6 +79,7 @@ frappe.ui.form.on("Item", {
 			},
 		};
 	},
+
 	onload: function (frm) {
 		erpnext.item.setup_queries(frm);
 		if (frm.doc.variant_of) {
@@ -84,7 +91,64 @@ frappe.ui.form.on("Item", {
 		}
 	},
 
+	toggle_has_serial_batch_fields(frm) {
+		let hide_fields = cint(frappe.user_defaults?.enable_serial_and_batch_no_for_item) === 0 ? 1 : 0;
+
+		frm.toggle_display(
+			[
+				"serial_no_series",
+				"batch_number_series",
+				"create_new_batch",
+				"has_expiry_date",
+				"retain_sample",
+			],
+			!hide_fields
+		);
+		frm.toggle_enable(["has_serial_no", "has_batch_no"], !hide_fields);
+
+		if (hide_fields) {
+			let header = frm.fields_dict["serial_nos_and_batches"].wrapper;
+			let wrapper = header.find(".section-head.collapsible");
+
+			render_serial_batch_banner(wrapper);
+
+			if (!wrapper.data("banner-handler-added")) {
+				wrapper.data("banner-handler-added", true);
+
+				wrapper.on("click", function () {
+					setTimeout(() => {
+						let isCollapsed = $(this).hasClass("collapsed");
+
+						wrapper.find(".custom-serial-batch-banner").toggleClass("hidden", isCollapsed);
+					}, 10);
+				});
+			}
+
+			// Button action
+			wrapper.find(".go-to-settings").on("click", function () {
+				frappe.set_route("Form", "Stock Settings");
+			});
+		}
+	},
+
 	refresh: function (frm) {
+		frm.trigger("toggle_has_serial_batch_fields");
+
+		if (frappe.defaults.get_default("item_naming_by") != "Naming Series" || frm.doc.variant_of) {
+			frm.toggle_display("naming_series", false);
+		} else {
+			erpnext.toggle_naming_series();
+		}
+
+		frm.toggle_display(["standard_rate"], frappe.model.can_create("Item Price"));
+
+		if (frm.is_new()) {
+			frm.toggle_display("disabled", false);
+			return;
+		}
+
+		frm.toggle_display("disabled", true);
+
 		if (frm.doc.is_stock_item) {
 			frm.add_custom_button(
 				__("Stock Balance"),
@@ -187,30 +251,26 @@ frappe.ui.form.on("Item", {
 					__("Create")
 				);
 			}
-
-			// frm.page.set_inner_btn_group_as_primary(__('Create'));
 		}
 		if (frm.doc.variant_of) {
 			frm.set_intro(
 				__("This Item is a Variant of {0} (Template).", [
-					`<a href="/app/item/${frm.doc.variant_of}" onclick="location.reload()">${frm.doc.variant_of}</a>`,
+					`<a href="${frappe.utils.get_form_link(
+						"Item",
+						frm.doc.variant_of
+					)}" onclick="location.reload()">${frappe.utils.escape_html(frm.doc.variant_of)}</a>`,
 				]),
 				true
 			);
 		}
 
-		if (frappe.defaults.get_default("item_naming_by") != "Naming Series" || frm.doc.variant_of) {
-			frm.toggle_display("naming_series", false);
-		} else {
-			erpnext.toggle_naming_series();
-		}
-
-		erpnext.item.edit_prices_button(frm);
 		erpnext.item.toggle_attributes(frm);
 
 		if (!frm.doc.is_fixed_asset) {
 			erpnext.item.make_dashboard(frm);
 		}
+
+		erpnext.item.render_item_prices(frm);
 
 		frm.add_custom_button(__("Duplicate"), function () {
 			var new_item = frappe.model.copy_doc(frm.doc);
@@ -236,16 +296,6 @@ frappe.ui.form.on("Item", {
 			frm.set_df_property(fieldname, "read_only", stock_exists);
 		});
 		frm.set_df_property("is_fixed_asset", "read_only", frm.doc.__onload?.asset_exists ? 1 : 0);
-		frm.toggle_reqd("customer", frm.doc.is_customer_provided_item ? 1 : 0);
-		frm.set_query("item_group", () => {
-			return {
-				filters: {
-					is_group: 0,
-				},
-			};
-		});
-
-		frm.toggle_display(["standard_rate"], frappe.model.can_create("Item Price"));
 	},
 
 	validate: function (frm) {
@@ -254,10 +304,6 @@ frappe.ui.form.on("Item", {
 
 	image: function () {
 		refresh_field("image_view");
-	},
-
-	is_customer_provided_item: function (frm) {
-		frm.toggle_reqd("customer", frm.doc.is_customer_provided_item ? 1 : 0);
 	},
 
 	is_fixed_asset: function (frm) {
@@ -354,6 +400,63 @@ var set_customer_group = function (frm, cdt, cdn) {
 	return true;
 };
 
+function render_serial_batch_banner(wrapper) {
+	let hiddenClass = "";
+	if (wrapper.hasClass("collapsed")) {
+		hiddenClass = "hidden";
+	}
+
+	wrapper.find(".custom-serial-batch-banner").remove();
+
+	let banner_html = `
+		<div class="custom-serial-batch-banner ${hiddenClass}">
+			<div class="banner-content">
+				<span class="banner-icon">${frappe.utils.icon("solid-warning", "lg", "", "padding-bottom:2px")}</span>
+				<span class="banner-text">
+					${__("To use Serial / Batch feature, enable {0} in {1}.", [
+						`<b>${__("Activate Serial / Batch No for Item")}</b>`,
+						`<a class="go-to-settings" style="text-decoration: underline;">${__(
+							"Stock Settings"
+						)}</a>`,
+					])}
+				</span>
+			</div>
+		</div>
+		<style>
+			.custom-serial-batch-banner {
+				background-color: var(--amber-50);
+				border: 1px solid var(--amber-50);
+				border-radius: 8px;
+				padding: 12px 16px;
+				margin-top: 16px;
+			}
+
+			.custom-serial-batch-banner .banner-content {
+				display: flex;
+				align-items: center;
+				gap: 12px;
+			}
+
+			.custom-serial-batch-banner .banner-icon {
+				font-size: 18px;
+			}
+
+			.custom-serial-batch-banner .banner-text {
+				flex: 1;
+				font-size: 14px;
+				color: var(--gray-800);
+			}
+
+			.custom-serial-batch-banner .btn {
+				white-space: nowrap;
+			}
+		</style>
+	`;
+
+	// Insert banner at top of section
+	wrapper.append(banner_html);
+}
+
 $.extend(erpnext.item, {
 	setup_queries: function (frm) {
 		frm.fields_dict["item_defaults"].grid.get_field("expense_account").get_query = function (
@@ -443,12 +546,6 @@ $.extend(erpnext.item, {
 			};
 		};
 
-		frm.fields_dict["item_group"].get_query = function (doc, cdt, cdn) {
-			return {
-				filters: [["Item Group", "docstatus", "!=", 2]],
-			};
-		};
-
 		frm.fields_dict["item_defaults"].grid.get_field("deferred_revenue_account").get_query = function (
 			doc,
 			cdt,
@@ -532,7 +629,13 @@ $.extend(erpnext.item, {
 			};
 		});
 
-		let fields = ["purchase_expense_account", "purchase_expense_contra_account", "default_cogs_account"];
+		let fields = [
+			"purchase_expense_account",
+			"purchase_expense_contra_account",
+			"expenses_added_to_stock_account",
+			"expenses_added_to_stock_contra_account",
+			"default_cogs_account",
+		];
 
 		fields.forEach((field) => {
 			frm.set_query(field, "item_defaults", (doc, cdt, cdn) => {
@@ -562,10 +665,10 @@ $.extend(erpnext.item, {
 	make_dashboard: function (frm) {
 		if (frm.doc.__islocal) return;
 
-		// Show Stock Levels only if is_stock_item
 		if (frm.doc.is_stock_item) {
 			frappe.require("item-dashboard.bundle.js", function () {
-				const section = frm.dashboard.add_section("", __("Stock Levels"));
+				const section = frm.fields_dict["stock_levels_html"].$wrapper;
+
 				erpnext.item.item_dashboard = new erpnext.stock.ItemDashboard({
 					parent: section,
 					item_code: frm.doc.name,
@@ -578,24 +681,67 @@ $.extend(erpnext.item, {
 		}
 	},
 
-	edit_prices_button: function (frm) {
-		frm.add_custom_button(
-			__("Add / Edit Prices"),
-			function () {
-				frappe.set_route("List", "Item Price", { item_code: frm.doc.name });
-			},
-			__("Actions")
+	render_item_prices: function (frm) {
+		if (frm.doc.__islocal) return;
+
+		if (!frappe.model.can_read("Item Price")) {
+			frm.toggle_display("prices_html", false);
+			return;
+		}
+		frm.toggle_display("prices_html", true);
+
+		const requested_item = frm.doc.name;
+		const container = frm.fields_dict["prices_html"].$wrapper;
+
+		container.html(
+			`<div class="text-muted text-center" style="padding: 20px;">${__("Loading...")}</div>`
 		);
 
-		frm.add_custom_button(
-			__("Make Lead Time"),
-			function () {
-				frm.make_new("Item Lead Time", {
-					item_code: frm.doc.name,
+		frappe.call({
+			method: "erpnext.stock.doctype.item.item.get_item_prices",
+			args: { item_code: requested_item },
+
+			callback: function (r) {
+				if (requested_item !== frm.doc.name) return;
+
+				if (!r.message) return;
+
+				const { prices, has_more } = r.message;
+
+				const html = frappe.render_template("item_prices", {
+					prices,
+					has_more,
+					item_code: requested_item,
+					stock_uom: frm.doc.stock_uom,
+				});
+
+				container.html(html);
+
+				container.find(".add-price-btn").on("click", () => {
+					const filters = {};
+					if (frm.doc.is_sales_item && !frm.doc.is_purchase_item) {
+						filters.selling = 1;
+					} else if (frm.doc.is_purchase_item && !frm.doc.is_sales_item) {
+						filters.buying = 1;
+					}
+					frappe.new_doc(
+						"Item Price",
+						{ item_code: requested_item, uom: frm.doc.stock_uom },
+						(dialog) => {
+							if (Object.keys(filters).length) {
+								dialog.fields_dict.price_list.get_query = () => ({ filters });
+							}
+						}
+					);
+				});
+
+				container.find(".price-row").on("click", function (e) {
+					if ($(e.target).is("a")) return;
+
+					frappe.set_route("Form", "Item Price", $(this).data("name"));
 				});
 			},
-			__("Actions")
-		);
+		});
 	},
 
 	weight_to_validate: function (frm) {
@@ -653,61 +799,139 @@ $.extend(erpnext.item, {
 
 		function make_fields_from_attribute_values(attr_dict) {
 			let fields = [];
-			let att_key = frm.doc.attributes.map((idx) => idx.attribute);
-			att_key.forEach((name, i) => {
+			let attributes = frm.doc.attributes.filter((row) => !row.disabled);
+			attributes.forEach((row, i) => {
+				let name = row.attribute;
 				if (i % 3 === 0) {
 					fields.push({ fieldtype: "Section Break" });
 				}
-				fields.push({ fieldtype: "Column Break", label: name });
+				fields.push({ fieldtype: "Column Break" });
 				fields.push({
-					fieldtype: "Data",
-					placeholder: "Search",
-					fieldname: `search_${frappe.scrub(name)}`,
-					onchange: function (e) {
-						let value = e.target.value;
-						let result = attr_dict[name].filter((attr_value) =>
-							attr_value.toString().toLowerCase().includes(value.toLowerCase())
-						);
-						attr_dict[name].forEach((attr_value) => {
-							if (result.includes(attr_value)) {
-								me.multiple_variant_dialog.set_df_property(attr_value, "hidden", 0);
-							} else {
-								me.multiple_variant_dialog.set_df_property(attr_value, "hidden", 1);
-							}
-						});
-					},
-				});
-				attr_dict[name].forEach((value) => {
-					fields.push({
-						fieldtype: "Check",
-						label: value,
-						fieldname: value,
-						default: 0,
-						onchange: function () {
-							let selected_attributes = get_selected_attributes();
-							let lengths = [];
-							Object.keys(selected_attributes).map((key) => {
-								lengths.push(selected_attributes[key].length);
-							});
-							if (lengths.includes(0)) {
-								me.multiple_variant_dialog.get_primary_btn().html(__("Create Variants"));
-								me.multiple_variant_dialog.disable_primary_action();
-							} else {
-								let no_of_combinations = lengths.reduce((a, b) => a * b, 1);
-								let msg;
-								if (no_of_combinations === 1) {
-									msg = __("Make {0} Variant", [no_of_combinations]);
-								} else {
-									msg = __("Make {0} Variants", [no_of_combinations]);
-								}
-								me.multiple_variant_dialog.get_primary_btn().html(msg);
-								me.multiple_variant_dialog.enable_primary_action();
-							}
-						},
-					});
+					fieldtype: "MultiSelectPills",
+					label: name,
+					fieldname: frappe.scrub(name),
+					placeholder: __("Search values..."),
+					get_data: (txt) => get_attribute_suggestions(attr_dict[name], txt),
+					onchange: update_primary_action,
 				});
 			});
 			return fields;
+		}
+
+		function get_attribute_suggestions(spec, txt) {
+			if (!spec) return [];
+			return Array.isArray(spec) ? filter_list(spec, txt) : numeric_suggestions(spec, txt);
+		}
+
+		// Cap matches so a long value list never hands everything to Awesomplete,
+		// which would freeze the browser.
+		function filter_list(values, txt) {
+			txt = (txt || "").toLowerCase();
+			let matches = [];
+			for (let value of values) {
+				if (!txt || value.toLowerCase().includes(txt)) {
+					matches.push(value);
+					if (matches.length >= 50) break;
+				}
+			}
+			return matches;
+		}
+
+		// Numeric ranges aren't enumerated. With no input, preview the first few
+		// values; once the user types, accept it only if it lies on the increment
+		// within [from, to]. Both paths are cheap even for huge ranges.
+		function numeric_suggestions(range, txt) {
+			let { from_range: from, to_range: to, increment } = range;
+			if (!(increment > 0) || from > to) return [];
+
+			txt = (txt || "").trim();
+			if (!txt) {
+				let preview = [];
+				for (
+					let value = from;
+					value <= to && preview.length < 50;
+					value = flt(value + increment, 6)
+				) {
+					preview.push(String(value));
+				}
+				return preview;
+			}
+
+			return is_valid_attribute_value(range, txt) ? [String(flt(txt, 6))] : [];
+		}
+
+		function is_valid_attribute_value(spec, value) {
+			if (!spec || !value) return false;
+			if (Array.isArray(spec)) return spec.includes(value);
+
+			let { from_range: from, to_range: to, increment } = spec;
+			if (!(increment > 0)) return false;
+
+			// Reject anything that isn't cleanly a number ("abc", "5000xyz", "");
+			// flt would coerce these to 0 and wrongly accept them.
+			let text = String(value).trim();
+			let num = Number(text);
+			if (text === "" || !Number.isFinite(num)) return false;
+
+			if (num < from || num > to) return false;
+			let steps = (num - from) / increment;
+			return Math.abs(Math.round(steps) - steps) <= 1e-6;
+		}
+
+		// Block variant creation if anything is wrong: an invalid committed pill, or
+		// text typed but not added as a pill (which get_selected_attributes would
+		// otherwise drop silently). The user must fix each before creation proceeds.
+		function validate_selected_attributes() {
+			let errors = [];
+			frm.doc.attributes.forEach((row) => {
+				if (row.disabled) return;
+				let field = me.multiple_variant_dialog.get_field(frappe.scrub(row.attribute));
+				if (!field) return;
+
+				let attribute = frappe.utils.escape_html(row.attribute);
+				let spec = attr_val_fields[row.attribute];
+
+				let invalid = [
+					...new Set((field.get_value() || []).filter((v) => !is_valid_attribute_value(spec, v))),
+				];
+				if (invalid.length) {
+					let values = invalid.map(frappe.utils.escape_html).join(", ");
+					errors.push(__("{0}: remove invalid value(s) {1}", [attribute, values]));
+				}
+
+				let pending = (field.$input?.val() || "").trim();
+				if (pending) {
+					let value = frappe.utils.escape_html(pending);
+					errors.push(
+						__("{0}: select the typed value {1} from the list or clear it", [attribute, value])
+					);
+				}
+			});
+
+			if (errors.length) {
+				frappe.throw({
+					title: __("Invalid Attribute Values"),
+					message: errors.join("<br>"),
+					indicator: "red",
+				});
+			}
+		}
+
+		function update_primary_action() {
+			let selected_attributes = get_selected_attributes();
+			let counts = Object.keys(selected_attributes).map((key) => selected_attributes[key].length);
+			if (!counts.length) {
+				me.multiple_variant_dialog.get_primary_btn().html(__("Create Variants"));
+				me.multiple_variant_dialog.disable_primary_action();
+			} else {
+				let no_of_combinations = counts.reduce((a, b) => a * b, 1);
+				let msg =
+					no_of_combinations === 1
+						? __("Make {0} Variant", [no_of_combinations])
+						: __("Make {0} Variants", [no_of_combinations]);
+				me.multiple_variant_dialog.get_primary_btn().html(msg);
+				me.multiple_variant_dialog.enable_primary_action();
+			}
 		}
 
 		function make_and_show_dialog(fields) {
@@ -726,7 +950,7 @@ $.extend(erpnext.item, {
 						fieldtype: "HTML",
 						fieldname: "help",
 						options: `<label class="control-label">
-							${__("Select at least one value from each of the attributes.")}
+							${__("Select at least one attribute value.")}
 						</label>`,
 					},
 				]
@@ -735,6 +959,8 @@ $.extend(erpnext.item, {
 			});
 
 			me.multiple_variant_dialog.set_primary_action(__("Create Variants"), () => {
+				validate_selected_attributes();
+
 				let selected_attributes = get_selected_attributes();
 				let use_template_image = me.multiple_variant_dialog.get_value("use_template_image");
 
@@ -762,69 +988,70 @@ $.extend(erpnext.item, {
 				});
 			});
 
-			$($(me.multiple_variant_dialog.$wrapper.find(".form-column")).find(".frappe-control")).css(
-				"margin-bottom",
-				"0px"
-			);
-
 			me.multiple_variant_dialog.disable_primary_action();
 			me.multiple_variant_dialog.clear();
 			me.multiple_variant_dialog.show();
-			me.multiple_variant_dialog.$wrapper
-				.find("div[data-fieldname^='search_']")
-				.find(".clearfix")
-				.hide();
 		}
 
 		function get_selected_attributes() {
 			let selected_attributes = {};
-			me.multiple_variant_dialog.$wrapper.find(".form-column").each((i, col) => {
-				if (i === 0) return;
-				let attribute_name = $(col).find(".column-label").html().trim();
-				selected_attributes[attribute_name] = [];
-				let checked_opts = $(col).find(".checkbox input");
-				checked_opts.each((i, opt) => {
-					if ($(opt).is(":checked")) {
-						selected_attributes[attribute_name].push($(opt).attr("data-fieldname"));
-					}
-				});
+			frm.doc.attributes.forEach((row) => {
+				if (row.disabled) return;
+				let values = me.multiple_variant_dialog.get_value(frappe.scrub(row.attribute));
+				if (values && values.length) {
+					selected_attributes[row.attribute] = values;
+				}
 			});
-
 			return selected_attributes;
 		}
 
 		frm.doc.attributes.forEach(function (d) {
 			if (!d.disabled) {
 				let p = new Promise((resolve) => {
-					if (!d.numeric_values) {
-						frappe
-							.call({
-								method: "frappe.client.get_list",
-								args: {
-									doctype: "Item Attribute Value",
-									filters: [["parent", "=", d.attribute]],
-									fields: ["attribute_value"],
-									limit_page_length: 0,
-									parent: "Item Attribute",
-									order_by: "idx",
-								},
-							})
-							.then((r) => {
-								if (r.message) {
-									attr_val_fields[d.attribute] = r.message.map(function (d) {
-										return d.attribute_value;
+					// Read the numeric configuration from the Item Attribute master
+					// instead of the variant attribute row, which may be stale or
+					// blank if the attribute was made numeric after it was added here.
+					frappe.db
+						.get_value("Item Attribute", d.attribute, [
+							"numeric_values",
+							"from_range",
+							"to_range",
+							"increment",
+						])
+						.then((res) => {
+							let attr = res.message || {};
+
+							if (!attr.numeric_values) {
+								frappe
+									.call({
+										method: "frappe.client.get_list",
+										args: {
+											doctype: "Item Attribute Value",
+											filters: [["parent", "=", d.attribute]],
+											fields: ["attribute_value"],
+											limit_page_length: 0,
+											parent: "Item Attribute",
+											order_by: "idx",
+										},
+									})
+									.then((r) => {
+										attr_val_fields[d.attribute] = (r.message || []).map(
+											(row) => row.attribute_value
+										);
+										resolve();
 									});
-									resolve();
-								}
-							});
-					} else {
-						let values = [];
-						for (var i = d.from_range; i <= d.to_range; i = flt(i + d.increment, 6)) {
-							values.push(i);
-						}
-						attr_val_fields[d.attribute] = values;
-						resolve();
-					}
+							} else {
+								// Store the range instead of enumerating it; a large range
+								// (e.g. 1-100000) is slow to build and to search. Values are
+								// validated against the range on demand while typing.
+								attr_val_fields[d.attribute] = {
+									from_range: flt(attr.from_range),
+									to_range: flt(attr.to_range),
+									increment: flt(attr.increment),
+								};
+								resolve();
+							}
+						});
 				});
 
 				promises.push(p);
@@ -846,11 +1073,17 @@ $.extend(erpnext.item, {
 
 			if (!row.disabled) {
 				if (row.numeric_values) {
-					fieldtype = "Float";
+					const all_are_int =
+						flt(row.from_range) === cint(row.from_range) &&
+						flt(row.to_range) === cint(row.to_range) &&
+						flt(row.increment) === cint(row.increment);
+					fieldtype = all_are_int ? "Int" : "Float";
+					const df = { fieldtype };
+					const options = all_are_int ? { inline: 1 } : { always_show_decimals: true, inline: 1 };
 					desc = __("Min Value: {0}, Max Value: {1}, in Increments of: {2}", [
-						frappe.format(row.from_range, { fieldtype: "Float" }, { always_show_decimals: true }),
-						frappe.format(row.to_range, { fieldtype: "Float" }, { always_show_decimals: true }),
-						frappe.format(row.increment, { fieldtype: "Float" }, { always_show_decimals: true }),
+						frappe.format(row.from_range, df, options),
+						frappe.format(row.to_range, df, options),
+						frappe.format(row.increment, df, options),
 					]);
 				} else {
 					fieldtype = "Data";

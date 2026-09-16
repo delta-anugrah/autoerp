@@ -21,7 +21,7 @@ jobs:
           cache: pip
 
       - name: Install and Run Pre-commit
-        uses: pre-commit/action@v3.0.0
+        uses: pre-commit/action@v3.0.1
 
   semgrep:
     name: semgrep
@@ -43,3 +43,6 @@ jobs:
 
       - name: Run Semgrep rules
         run: semgrep ci --config ./frappe-semgrep-rules/rules --config r/python.lang.correctness
+
+      - name: Semgrep for Test Correctness
+        run: semgrep ci --include=**/test_*.py --config ./semgrep/test-correctness.yml

@@ -4,9 +4,10 @@
 
 import frappe
 from frappe import _
-from frappe.utils import add_to_date, cint, flt, get_datetime, getdate
+from frappe.utils import add_to_date, cint, flt, get_datetime, get_table_name, getdate
 from pypika import functions as fn
 
+from erpnext.accounts.report.utils import validate_mandatory_date_range
 from erpnext.deprecation_dumpster import deprecated
 from erpnext.stock.doctype.stock_closing_entry.stock_closing_entry import StockClosing
 from erpnext.stock.doctype.warehouse.warehouse import apply_warehouse_filter
@@ -30,8 +31,7 @@ def execute(filters=None):
 			_("Please select either the Item or Warehouse or Warehouse Type filter to generate the report.")
 		)
 
-	if filters.from_date > filters.to_date:
-		frappe.throw(_("From Date must be before To Date"))
+	validate_mandatory_date_range(filters)
 
 	float_precision = cint(frappe.db.get_default("float_precision")) or 3
 
@@ -250,7 +250,7 @@ def get_item_warehouse_batch_map(filters, float_precision):
 				)
 
 		qty_dict.bal_qty = flt(qty_dict.bal_qty, float_precision) + flt(d.actual_qty, float_precision)
-		qty_dict.bal_value += flt(d.stock_value_difference, float_precision)
+		qty_dict.bal_value += flt(d.stock_value_difference)
 
 	return iwb_map
 

@@ -228,6 +228,14 @@ frappe.ui.form.on("Production Plan", {
 
 		let has_items =
 			items.filter((item) => {
+				const reference_field =
+					item.doctype === "Production Plan Item"
+						? "production_plan_item"
+						: "production_plan_sub_assembly_item";
+				const pending_qty = frm.doc.__onload?.pending_work_order_qty?.[reference_field]?.[item.name];
+				if (pending_qty !== undefined) {
+					return pending_qty > 0;
+				}
 				if (item.planned_qty) {
 					return item.planned_qty > item.ordered_qty;
 				} else {
@@ -442,8 +450,6 @@ frappe.ui.form.on("Production Plan", {
 			frm.trigger("toggle_for_warehouse");
 			frappe.throw(__("Select the Warehouse"));
 		}
-
-		frm.set_value("consider_minimum_order_qty", 0);
 
 		if (!frm.doc.ignore_existing_ordered_qty) {
 			frm.events.get_items_for_material_requests(frm);
@@ -691,6 +697,7 @@ frappe.ui.form.on("Production Plan Sub Assembly Item", {
 				callback: function (r) {
 					if (r.message && r.message.length) {
 						frappe.model.set_value(cdt, cdn, "actual_qty", r.message[0].actual_qty);
+						frappe.model.set_value(cdt, cdn, "projected_qty", r.message[0].projected_qty);
 					}
 				},
 			});

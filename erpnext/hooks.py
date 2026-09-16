@@ -20,7 +20,7 @@ add_to_apps_screen = [
 	}
 ]
 
-develop_version = "17.x.x-develop"
+develop_version = "15.x.x-develop"
 
 app_include_js = "erpnext.bundle.js"
 app_include_css = "erpnext.bundle.css"
@@ -62,10 +62,11 @@ welcome_email = "erpnext.setup.utils.welcome_email"
 # setup wizard
 setup_wizard_requires = "assets/erpnext/js/setup_wizard.js"
 setup_wizard_stages = "erpnext.setup.setup_wizard.setup_wizard.get_setup_stages"
-setup_wizard_complete = "erpnext.setup.setup_wizard.setup_wizard.setup_demo"
-setup_wizard_test = "erpnext.setup.setup_wizard.test_setup_wizard.run_setup_wizard_test"
 
 after_install = ["erpnext.setup.install.after_install", "erpnext.palm_mill.setup.after_install"]
+
+after_app_install = "erpnext.setup.install.after_app_install"
+after_app_uninstall = "erpnext.setup.install.after_app_uninstall"
 
 boot_session = "erpnext.startup.boot.boot_session"
 notification_config = "erpnext.startup.notifications.get_notification_config"
@@ -217,6 +218,18 @@ website_route_rules = [
 	},
 	{"from_route": "/project", "to_route": "Project"},
 	{"from_route": "/tasks", "to_route": "Task"},
+	{"from_route": "/banking/<path:app_path>", "to_route": "banking"},
+]
+
+standard_navbar_items = [
+	{
+		"item_label": "Delete Demo Data",
+		"item_type": "Action",
+		"action": "erpnext.demo.clear_demo();",
+		"is_standard": 1,
+		"condition": "eval: frappe.boot.sysdefaults.demo_company && frappe.boot.sysdefaults.demo_company.length > 0",
+		"icon": "trash",
+	},
 ]
 
 standard_portal_menu_items = [
@@ -270,7 +283,7 @@ standard_portal_menu_items = [
 		"role": "Customer",
 	},
 	{"title": "Issues", "route": "/issues", "reference_doctype": "Issue", "role": "Customer"},
-	{"title": "Addresses", "route": "/addresses", "reference_doctype": "Address"},
+	{"title": "Addresses", "route": "/addresses", "reference_doctype": "Address", "role": "Customer"},
 	{
 		"title": "Timesheets",
 		"route": "/timesheets",
@@ -308,8 +321,6 @@ has_website_permission = {
 	"Timesheet": "erpnext.controllers.website_list_for_contact.has_website_permission",
 	"Project": "erpnext.controllers.website_list_for_contact.has_website_permission",
 }
-
-before_tests = "erpnext.setup.utils.before_tests"
 
 
 period_closing_doctypes = [
@@ -371,6 +382,9 @@ doc_events = {
 	"Event": {
 		"after_insert": "erpnext.crm.utils.link_events_with_prospect",
 	},
+	"Contact Us Settings": {
+		"on_update": "erpnext.crm.utils.disable_opportunity_creation_on_contact_us_disabled",
+	},
 	"Sales Invoice": {
 		"on_submit": [
 			"erpnext.regional.italy.utils.sales_invoice_on_submit",
@@ -384,7 +398,7 @@ doc_events = {
 		"validate": [
 			"erpnext.regional.united_arab_emirates.utils.update_grand_total_for_rcm",
 			"erpnext.regional.united_arab_emirates.utils.validate_returns",
-		]
+		],
 	},
 	"Payment Entry": {
 		"on_trash": "erpnext.regional.check_deletion_permission",
@@ -426,8 +440,6 @@ scheduler_events = {
 		"0/15 * * * *": [
 			"erpnext.manufacturing.doctype.bom_update_log.bom_update_log.resume_bom_cost_update_jobs",
 			"erpnext.palm_mill.doctype.weighbridge_ticket.weighbridge_ticket.finalize_due_tickets",
-		],
-		"0/30 * * * *": [
 			"erpnext.stock.doctype.repost_item_valuation.repost_item_valuation.run_parallel_reposting",
 		],
 		# Hourly but offset by 30 minutes
@@ -442,12 +454,14 @@ scheduler_events = {
 	],
 	"hourly_long": [],
 	"hourly_maintenance": [
+		"erpnext.crm.doctype.appointment.appointment.handle_expired_unverified_appointments",
 		"erpnext.stock.doctype.repost_item_valuation.repost_item_valuation.repost_entries",
 		"erpnext.utilities.bulk_transaction.retry",
 		"erpnext.projects.doctype.project.project.collect_project_status",
 		"erpnext.projects.doctype.project.project.project_status_update_reminder",
 		"erpnext.erpnext_integrations.doctype.plaid_settings.plaid_settings.automatic_synchronization",
 		"erpnext.utilities.doctype.video.video.update_youtube_data",
+		"erpnext.accounts.doctype.bank_transaction_rule.bank_transaction_rule.scheduler_run_rule_evaluation",
 	],
 	"daily": [],
 	"daily_long": [],
@@ -484,6 +498,7 @@ scheduler_events = {
 	],
 	"weekly": [
 		"erpnext.accounts.utils.auto_create_exchange_rate_revaluation_weekly",
+		"erpnext.stock.doctype.stock_reposting_settings.stock_reposting_settings.repost_incorrect_valuation_entries",
 	],
 	"monthly_long": [
 		"erpnext.accounts.deferred_revenue.process_deferred_accounting",
@@ -548,6 +563,7 @@ accounting_dimension_doctypes = [
 	"Purchase Taxes and Charges",
 	"Shipping Rule",
 	"Landed Cost Item",
+	"Landed Cost Taxes and Charges",
 	"Asset Value Adjustment",
 	"Asset Repair",
 	"Asset Capitalization",
@@ -578,6 +594,8 @@ accounting_dimension_doctypes = [
 	"Advance Taxes and Charges",
 ]
 
+subscription_doctypes = ["Sales Invoice", "Purchase Invoice", "Payment Request", "POS Invoice"]
+
 get_matching_queries = (
 	"erpnext.accounts.doctype.bank_reconciliation_tool.bank_reconciliation_tool.get_matching_queries"
 )
@@ -606,16 +624,16 @@ regional_overrides = {
 		"erpnext.controllers.accounts_controller.validate_regional": "erpnext.regional.italy.utils.sales_invoice_validate",
 	},
 }
-user_privacy_documents = [
+user_data_fields = [
 	{
 		"doctype": "Lead",
-		"match_field": "email_id",
-		"personal_fields": ["phone", "mobile_no", "fax", "website", "lead_name"],
+		"filter_by": "email_id",
+		"redact_fields": ["phone", "mobile_no", "fax", "website", "lead_name"],
 	},
 	{
 		"doctype": "Opportunity",
-		"match_field": "contact_email",
-		"personal_fields": ["contact_mobile", "contact_display", "customer_name"],
+		"filter_by": "contact_email",
+		"redact_fields": ["contact_mobile", "contact_display", "customer_name"],
 	},
 ]
 
@@ -689,6 +707,13 @@ fields_for_group_similar_items = ["qty", "amount"]
 # ------------
 # List of apps whose translatable strings should be excluded from this app's translations.
 ignore_translatable_strings_from = ["frappe"]
+repost_allowed_doctypes = [
+	"Sales Invoice",
+	"Purchase Invoice",
+	"Journal Entry",
+	"Payment Entry",
+	"Purchase Receipt",
+]
 
 # Translations Frappe's own catalog gets wrong or leaves empty on the mill's screens.
 # ERPNext's .po cannot override a Frappe msgid (see ignore_translatable_strings_from), and

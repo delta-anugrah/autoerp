@@ -2,13 +2,6 @@
 # See license.txt
 
 import frappe
-from frappe.tests import IntegrationTestCase
-
-# On IntegrationTestCase, the doctype test records and all
-# link-field test record dependencies are recursively loaded
-# Use these module variables to add/remove to/from that list
-EXTRA_TEST_RECORD_DEPENDENCIES = []  # eg. ["User"]
-IGNORE_TEST_RECORD_DEPENDENCIES = []  # eg. ["User"]
 
 from erpnext.manufacturing.doctype.work_order.work_order import make_stock_entry as make_stock_entry_from_wo
 from erpnext.selling.doctype.sales_order.sales_order import make_subcontracting_inward_order
@@ -16,9 +9,10 @@ from erpnext.selling.doctype.sales_order.test_sales_order import make_sales_orde
 from erpnext.stock.doctype.item.test_item import make_item
 from erpnext.stock.doctype.stock_entry.stock_entry_utils import make_stock_entry
 from erpnext.stock.doctype.warehouse.test_warehouse import create_warehouse
+from erpnext.tests.utils import ERPNextTestSuite
 
 
-class IntegrationTestSubcontractingInwardOrder(IntegrationTestCase):
+class IntegrationTestSubcontractingInwardOrder(ERPNextTestSuite):
 	"""
 	Integration tests for SubcontractingInwardOrder.
 	Use this class for testing interactions between multiple components.
@@ -93,6 +87,46 @@ class IntegrationTestSubcontractingInwardOrder(IntegrationTestCase):
 		received_item = next(item for item in scio.received_items if item.rm_item_code == rm_item)
 		self.assertEqual(received_item.received_qty, 5)
 		self.assertEqual(received_item.rate, 10)
+
+	def test_customer_provided_item_rate_with_return_between_receipts(self):
+		"""Weight the average rate on the on-hand balance, not gross received_qty.
+
+		Receive 10 @ 100, return 5, receive 6 @ 130:
+		    balance-weighted (correct) = (5 * 100 + 6 * 130) / 11 = 116.36
+		    gross-weighted   (wrong)   = (10 * 100 + 6 * 130) / 16 = 111.25
+		"""
+		so, scio = create_so_scio()
+		rm_item = "Basic RM"
+
+		def receive(qty, rate):
+			rm_in = frappe.new_doc("Stock Entry").update(scio.make_rm_stock_entry_inward())
+			rm_in.items = [item for item in rm_in.items if item.item_code == rm_item]
+			rm_in.items[0].qty = qty
+			rm_in.items[0].transfer_qty = qty
+			rm_in.items[0].basic_rate = rate
+			rm_in.submit()
+			scio.reload()
+
+		# Receipt 1: 10 @ 100
+		receive(10, 100)
+		received_item = next(item for item in scio.received_items if item.rm_item_code == rm_item)
+		self.assertEqual(received_item.rate, 100)
+
+		# Return 5 to the customer
+		rm_return = frappe.new_doc("Stock Entry").update(scio.make_rm_return())
+		rm_return.items = [item for item in rm_return.items if item.item_code == rm_item]
+		rm_return.items[0].qty = 5
+		rm_return.items[0].transfer_qty = 5
+		rm_return.submit()
+		scio.reload()
+
+		received_item = next(item for item in scio.received_items if item.rm_item_code == rm_item)
+		self.assertEqual(received_item.returned_qty, 5)
+
+		# Receipt 2: 6 @ 130 — must weight against the balance of 5, not gross 10
+		receive(6, 130)
+		received_item = next(item for item in scio.received_items if item.rm_item_code == rm_item)
+		self.assertAlmostEqual(received_item.rate, (5 * 100 + 6 * 130) / 11, places=2)
 
 	def test_add_extra_customer_provided_item(self):
 		so, scio = create_so_scio()
@@ -295,8 +329,8 @@ class IntegrationTestSubcontractingInwardOrder(IntegrationTestCase):
 		self.assertEqual(scio.items[0].delivered_qty, 2)
 		self.assertEqual(scio.items[0].returned_qty, 1)
 
-	@IntegrationTestCase.change_settings("Selling Settings", {"allow_delivery_of_overproduced_qty": 1})
-	@IntegrationTestCase.change_settings(
+	@ERPNextTestSuite.change_settings("Selling Settings", {"allow_delivery_of_overproduced_qty": 1})
+	@ERPNextTestSuite.change_settings(
 		"Manufacturing Settings", {"overproduction_percentage_for_work_order": 20}
 	)
 	def test_over_production_delivery(self):
@@ -329,10 +363,12 @@ class IntegrationTestSubcontractingInwardOrder(IntegrationTestCase):
 		delivery.items[0].qty = 6
 		self.assertRaises(frappe.ValidationError, delivery.submit)
 
-	@IntegrationTestCase.change_settings("Selling Settings", {"deliver_scrap_items": 1})
-	def test_scrap_delivery(self):
+	@ERPNextTestSuite.change_settings("Selling Settings", {"deliver_secondary_items": 1})
+	def test_secondary_items_delivery(self):
 		new_bom = frappe.copy_doc(frappe.get_doc("BOM", "BOM-Basic FG Item-001"))
-		new_bom.scrap_items.append(frappe.new_doc("BOM Scrap Item", item_code="Basic RM 2", qty=1))
+		new_bom.secondary_items.append(
+			frappe.new_doc("BOM Secondary Item", item_code="Basic RM 2", qty=1, secondary_item_type="Scrap")
+		)
 		new_bom.submit()
 		sc_bom = frappe.get_doc("Subcontracting BOM", "SB-0001")
 		sc_bom.finished_good_bom = new_bom.name
@@ -349,12 +385,12 @@ class IntegrationTestSubcontractingInwardOrder(IntegrationTestCase):
 		frappe.new_doc("Stock Entry").update(make_stock_entry_from_wo(wo.name, "Manufacture")).submit()
 
 		scio.reload()
-		self.assertEqual(scio.scrap_items[0].item_code, "Basic RM 2")
+		self.assertEqual(scio.secondary_items[0].item_code, "Basic RM 2")
 
 		delivery = frappe.new_doc("Stock Entry").update(scio.make_subcontracting_delivery())
 		self.assertEqual(delivery.items[-1].item_code, "Basic RM 2")
 
-		frappe.db.set_single_value("Selling Settings", "deliver_scrap_items", 0)
+		frappe.db.set_single_value("Selling Settings", "deliver_secondary_items", 0)
 		delivery = frappe.new_doc("Stock Entry").update(scio.make_subcontracting_delivery())
 		self.assertNotEqual(delivery.items[-1].item_code, "Basic RM 2")
 
@@ -389,7 +425,7 @@ class IntegrationTestSubcontractingInwardOrder(IntegrationTestCase):
 
 		scio.reload()
 		si = make_sales_invoice(so.name)
-		self.assertEqual(len(si.items), 1)
+		self.assertEqual(len(si.items), 0)
 
 	def test_extra_items_reservation_transfer(self):
 		so, scio = create_so_scio()

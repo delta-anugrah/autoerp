@@ -1,11 +1,13 @@
 # Copyright (c) 2019, Frappe Technologies Pvt. Ltd. and Contributors
 # See license.txt
+import unittest
 
 import frappe
-from frappe.tests import IntegrationTestCase
+
+from erpnext.tests.utils import ERPNextTestSuite
 
 
-class TestQualityFeedback(IntegrationTestCase):
+class TestQualityFeedback(ERPNextTestSuite):
 	def test_quality_feedback(self):
 		template = frappe.get_doc(
 			doctype="Quality Feedback Template",

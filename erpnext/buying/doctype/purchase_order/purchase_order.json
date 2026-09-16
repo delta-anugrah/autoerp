@@ -9,8 +9,6 @@
  "engine": "InnoDB",
  "field_order": [
   "supplier_section",
-  "company",
-  "title",
   "naming_series",
   "supplier",
   "supplier_name",
@@ -18,8 +16,10 @@
   "order_confirmation_date",
   "column_break_7",
   "transaction_date",
+  "transaction_time",
   "schedule_date",
   "column_break1",
+  "company",
   "is_subcontracted",
   "has_unit_price_items",
   "supplier_warehouse",
@@ -54,9 +54,7 @@
   "net_total",
   "section_break_48",
   "pricing_rules",
-  "raw_material_details",
   "set_reserve_warehouse",
-  "supplied_items",
   "taxes_section",
   "tax_category",
   "taxes_and_charges",
@@ -77,16 +75,16 @@
   "total_taxes_and_charges",
   "totals_section",
   "grand_total",
+  "in_words",
+  "column_break4",
   "disable_rounded_total",
   "rounding_adjustment",
-  "column_break4",
-  "in_words",
   "rounded_total",
   "base_totals_section",
   "base_grand_total",
-  "base_rounding_adjustment",
-  "column_break_jkoz",
   "base_in_words",
+  "column_break_jkoz",
+  "base_rounding_adjustment",
   "base_rounded_total",
   "section_break_tnkm",
   "advance_paid",
@@ -147,13 +145,14 @@
   "column_break_86",
   "select_print_heading",
   "language",
-  "subscription_section",
+  "auto_repeat_section",
   "from_date",
   "to_date",
   "column_break_97",
   "auto_repeat",
   "update_auto_repeat_reference",
   "additional_info_section",
+  "title",
   "party_account_currency",
   "represents_company",
   "ref_sq",
@@ -170,17 +169,6 @@
    "fieldname": "supplier_section",
    "fieldtype": "Section Break",
    "options": "fa fa-user"
-  },
-  {
-   "allow_on_submit": 1,
-   "default": "{supplier_name}",
-   "fieldname": "title",
-   "fieldtype": "Data",
-   "hidden": 1,
-   "label": "Title",
-   "no_copy": 1,
-   "print_hide": 1,
-   "reqd": 1
   },
   {
    "fieldname": "naming_series",
@@ -251,6 +239,7 @@
    "allow_on_submit": 1,
    "fieldname": "schedule_date",
    "fieldtype": "Date",
+   "in_list_view": 1,
    "label": "Required By"
   },
   {
@@ -399,6 +388,7 @@
   },
   {
    "collapsible": 1,
+   "collapsible_depends_on": "eval:doc.currency && doc.currency != erpnext.get_currency(doc.company)",
    "fieldname": "currency_and_price_list",
    "fieldtype": "Section Break",
    "label": "Currency and Price List",
@@ -1024,12 +1014,6 @@
    "print_hide": 1
   },
   {
-   "collapsible": 1,
-   "fieldname": "subscription_section",
-   "fieldtype": "Section Break",
-   "label": "Auto Repeat"
-  },
-  {
    "allow_on_submit": 1,
    "fieldname": "from_date",
    "fieldtype": "Date",
@@ -1311,6 +1295,28 @@
   {
    "fieldname": "section_break_tnkm",
    "fieldtype": "Section Break"
+  },
+  {
+   "default": "Now",
+   "depends_on": "is_internal_supplier",
+   "fieldname": "transaction_time",
+   "fieldtype": "Time",
+   "label": "Time",
+   "mandatory_depends_on": "is_internal_supplier"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "auto_repeat_section",
+   "fieldtype": "Section Break",
+   "label": "Auto Repeat"
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "title",
+   "fieldtype": "Data",
+   "label": "Title",
+   "no_copy": 1,
+   "print_hide": 1
   }
  ],
  "grid_page_length": 50,
@@ -1318,7 +1324,7 @@
  "idx": 105,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-02-06 17:07:24.249692",
+ "modified": "2026-08-12 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Buying",
  "name": "Purchase Order",

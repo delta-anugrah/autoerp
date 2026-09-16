@@ -1,30 +1,41 @@
 {
  "actions": [],
+ "allow_bulk_edit": 1,
  "autoname": "naming_series:",
- "creation": "2018-07-09 17:23:29.518745",
+ "creation": "2026-03-31 21:06:16.282931",
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
+  "section_break_smqo",
+  "job_card_dashboard",
+  "section_break_fsba",
+  "work_order",
+  "column_break_uqjq",
+  "production_item",
+  "bom_no",
+  "column_break_qrpg",
+  "for_quantity",
+  "column_break_yecz",
+  "stock_uom",
+  "section_break_oisd",
   "company",
   "naming_series",
-  "work_order",
-  "employee",
   "column_break_4",
   "posting_date",
-  "project",
-  "bom_no",
-  "is_subcontracted",
   "semi_finished_good__finished_good_section",
   "finished_good",
-  "production_item",
-  "semi_fg_bom",
-  "total_completed_qty",
   "column_break_mcnb",
-  "for_quantity",
-  "transferred_qty",
-  "manufactured_qty",
+  "semi_fg_bom",
+  "section_break_folk",
+  "pending_qty",
+  "column_break_cyjw",
   "process_loss_qty",
+  "total_completed_qty",
+  "section_break_wpjf",
+  "transferred_qty",
+  "column_break_lgte",
+  "manufactured_qty",
   "production_section",
   "operation",
   "source_warehouse",
@@ -35,6 +46,7 @@
   "workstation_type",
   "workstation",
   "target_warehouse",
+  "employee",
   "section_break_8",
   "items",
   "quality_inspection_section",
@@ -59,8 +71,8 @@
   "time_logs",
   "section_break_21",
   "sub_operations",
-  "scrap_items_section",
-  "scrap_items",
+  "secondary_items_section",
+  "secondary_items",
   "corrective_operation_section",
   "for_job_card",
   "is_corrective_job_card",
@@ -71,8 +83,10 @@
   "item_name",
   "requested_qty",
   "is_paused",
+  "is_subcontracted",
   "track_semi_finished_goods",
   "column_break_20",
+  "project",
   "remarks",
   "section_break_dfoc",
   "status",
@@ -152,9 +166,17 @@
    "label": "Qty To Manufacture"
   },
   {
+   "fieldname": "stock_uom",
+   "fieldtype": "Link",
+   "label": "Stock UOM",
+   "options": "UOM",
+   "read_only": 1
+  },
+  {
    "fieldname": "wip_warehouse",
    "fieldtype": "Link",
    "label": "WIP Warehouse",
+   "link_filters": "[[\"Warehouse\",\"disabled\",\"=\",0],[\"Warehouse\",\"is_group\",\"=\",0]]",
    "mandatory_depends_on": "eval:!doc.finished_good || doc.skip_material_transfer === 0 || (doc.skip_material_transfer && doc.backflush_from_wip_warehouse)",
    "options": "Warehouse"
   },
@@ -258,7 +280,7 @@
    "fieldtype": "Select",
    "label": "Status",
    "no_copy": 1,
-   "options": "Open\nWork In Progress\nMaterial Transferred\nOn Hold\nSubmitted\nCancelled\nCompleted",
+   "options": "Open\nWork In Progress\nPartially Transferred\nMaterial Transferred\nOn Hold\nSubmitted\nCancelled\nCompleted",
    "read_only": 1
   },
   {
@@ -407,20 +429,6 @@
    "read_only": 1
   },
   {
-   "collapsible": 1,
-   "fieldname": "scrap_items_section",
-   "fieldtype": "Tab Break",
-   "label": "Scrap Items"
-  },
-  {
-   "fieldname": "scrap_items",
-   "fieldtype": "Table",
-   "label": "Scrap Items",
-   "no_copy": 1,
-   "options": "Job Card Scrap Item",
-   "print_hide": 1
-  },
-  {
    "fetch_from": "operation.quality_inspection_template",
    "fieldname": "quality_inspection_template",
    "fieldtype": "Link",
@@ -466,7 +474,6 @@
    "show_dashboard": 1
   },
   {
-   "depends_on": "expected_start_date",
    "fieldname": "scheduled_time_section",
    "fieldtype": "Section Break",
    "label": "Scheduled Time"
@@ -521,6 +528,7 @@
    "fieldname": "target_warehouse",
    "fieldtype": "Link",
    "label": "Target Warehouse",
+   "link_filters": "[[\"Warehouse\",\"disabled\",\"=\",0],[\"Warehouse\",\"is_group\",\"=\",0]]",
    "mandatory_depends_on": "eval:doc.track_semi_finished_goods",
    "options": "Warehouse"
   },
@@ -533,6 +541,7 @@
    "fieldname": "source_warehouse",
    "fieldtype": "Link",
    "label": "Source Warehouse",
+   "link_filters": "[[\"Warehouse\",\"disabled\",\"=\",0],[\"Warehouse\",\"is_group\",\"=\",0]]",
    "options": "Warehouse"
   },
   {
@@ -623,12 +632,78 @@
   {
    "fieldname": "column_break_xhzg",
    "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "secondary_items",
+   "fieldtype": "Table",
+   "label": "Secondary Items",
+   "no_copy": 1,
+   "options": "Job Card Secondary Item",
+   "print_hide": 1
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "secondary_items_section",
+   "fieldtype": "Tab Break",
+   "label": "Secondary Items"
+  },
+  {
+   "fieldname": "section_break_folk",
+   "fieldtype": "Section Break",
+   "hide_border": 1
+  },
+  {
+   "fieldname": "column_break_cyjw",
+   "fieldtype": "Column Break"
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "pending_qty",
+   "fieldtype": "Float",
+   "label": "Pending Qty"
+  },
+  {
+   "fieldname": "section_break_wpjf",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_lgte",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "job_card_dashboard",
+   "fieldtype": "HTML"
+  },
+  {
+   "fieldname": "section_break_oisd",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_uqjq",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_qrpg",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_yecz",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_smqo",
+   "fieldtype": "Section Break",
+   "hide_border": 1
+  },
+  {
+   "fieldname": "section_break_fsba",
+   "fieldtype": "Section Break"
   }
  ],
  "grid_page_length": 50,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-02-06 18:27:03.178783",
+ "modified": "2026-08-01 14:22:19.926911",
  "modified_by": "Administrator",
  "module": "Manufacturing",
  "name": "Job Card",

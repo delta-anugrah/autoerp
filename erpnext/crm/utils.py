@@ -5,6 +5,11 @@ from frappe.utils import cstr, now, today
 from pypika import functions
 
 
+def disable_opportunity_creation_on_contact_us_disabled(doc, method):
+	if doc.is_disabled:
+		frappe.db.set_single_value("CRM Settings", "enable_opportunity_creation_from_contact_us", 0)
+
+
 def update_lead_phone_numbers(contact, method):
 	if contact.phone_nos:
 		contact_lead = contact.get_link_for("Lead")
@@ -184,6 +189,7 @@ def get_filtered_todos(ref_doctype, ref_docname, status: str | tuple[str, str]):
 			"allocated_to",
 			"date",
 		],
+		order_by="date asc",
 	)
 
 
@@ -213,6 +219,7 @@ def get_filtered_events(ref_doctype, ref_docname, open: bool):
 			& (event_link.reference_docname == ref_docname)
 			& (event_status_filter)
 		)
+		.orderby(event.starts_on)
 	)
 	data = query.run(as_dict=True)
 
@@ -248,7 +255,10 @@ class CRMNote(Document):
 		notify_mentions(self.doctype, self.name, note)
 
 	@frappe.whitelist()
-	def edit_note(self, note, row_id):
+	def edit_note(self, note: str, row_id: str):
+		# db_update() skips the write check that save() does in add_note/delete_note
+		self.check_permission("write")
+
 		for d in self.notes:
 			if cstr(d.name) == row_id:
 				d.note = note

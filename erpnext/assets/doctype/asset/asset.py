@@ -132,6 +132,10 @@ class Asset(AccountsController):
 		self.validate_gross_and_purchase_amount()
 		self.validate_finance_books()
 
+		if self.calculate_depreciation:
+			# Is Fully Depreciated is only applicable to manually entered existing assets
+			self.is_fully_depreciated = 0
+
 	def before_save(self):
 		self.total_asset_cost = self.net_purchase_amount + self.additional_asset_cost
 		self.status = self.get_status()
@@ -426,15 +430,12 @@ class Asset(AccountsController):
 		non_depreciable_category = frappe.db.get_value(
 			"Asset Category", self.asset_category, "non_depreciable_category"
 		)
-		if self.calculate_depreciation:
-			if non_depreciable_category:
-				frappe.throw(
-					_(
-						"This asset category is marked as non-depreciable. Please disable depreciation calculation or choose a different category."
-					)
+		if self.calculate_depreciation and non_depreciable_category:
+			frappe.throw(
+				_(
+					"This asset category is marked as non-depreciable. Please disable depreciation calculation or choose a different category."
 				)
-			# validate accounts required for asset depreciation
-			get_depreciation_accounts(self.asset_category, self.company)
+			)
 
 	def validate_precision(self):
 		if self.net_purchase_amount:
@@ -795,12 +796,13 @@ class Asset(AccountsController):
 					].expected_value_after_useful_life
 					value_after_depreciation = self.finance_books[idx].value_after_depreciation
 
-					if flt(value_after_depreciation) <= expected_value_after_useful_life:
+					if (
+						flt(value_after_depreciation) <= expected_value_after_useful_life
+						or self.is_fully_depreciated
+					):
 						status = "Fully Depreciated"
 					elif flt(value_after_depreciation) < flt(self.net_purchase_amount):
 						status = "Partially Depreciated"
-				elif self.is_fully_depreciated:
-					status = "Fully Depreciated"
 		elif self.docstatus == 2:
 			status = "Cancelled"
 		return status
@@ -1330,7 +1332,7 @@ def has_active_capitalization(asset):
 
 
 @frappe.whitelist()
-def get_values_from_purchase_doc(purchase_doc_name, item_code, doctype):
+def get_values_from_purchase_doc(purchase_doc_name: str, item_code: str, doctype: str):
 	purchase_doc = frappe.get_doc(doctype, purchase_doc_name)
 	matching_items = [item for item in purchase_doc.items if item.item_code == item_code]
 
@@ -1342,7 +1344,7 @@ def get_values_from_purchase_doc(purchase_doc_name, item_code, doctype):
 	return {
 		"company": purchase_doc.company,
 		"purchase_date": purchase_doc.get("posting_date"),
-		"net_purchase_amount": flt(first_item.base_net_amount),
+		"net_purchase_amount": flt(first_item.valuation_rate) * flt(first_item.qty),
 		"asset_quantity": first_item.qty,
 		"cost_center": first_item.cost_center or purchase_doc.get("cost_center"),
 		"asset_location": first_item.get("asset_location"),
