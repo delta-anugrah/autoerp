@@ -521,3 +521,4 @@ erpnext.patches.v17_0.palm_mill_precision
 erpnext.patches.v17_0.palm_mill_autograde_operator
 erpnext.patches.v17_0.palm_mill_favicon
 erpnext.patches.v17_0.palm_mill_operator_role
+erpnext.patches.v17_0.palm_mill_serial_batch
