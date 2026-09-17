@@ -25,8 +25,6 @@ frappe.ui.form.on("Truck", {
 	refresh(frm) {
 		label_blank_vehicle_class(frm);
 		if (frm.is_new()) return;
-		frm.add_custom_button(__("Print QR Card"), () =>
-			erpnext.palm_mill.show_qr_cards([frm.doc.name])
-		);
+		frm.add_custom_button(__("Print QR Card"), () => erpnext.palm_mill.show_qr_cards([frm.doc.name]));
 	},
 });

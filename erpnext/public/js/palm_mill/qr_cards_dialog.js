@@ -48,8 +48,8 @@ erpnext.palm_mill._render_qr_dialog = function (cards) {
 				<img src="${c.qr}" alt="${frappe.utils.escape_html(c.plate_normalized)}">
 				<div class="qr-plate">${frappe.utils.escape_html(c.plate_number)}</div>
 				<div class="qr-meta">${frappe.utils.escape_html(c.supplier || __("Internal"))}${
-					c.vehicle_class ? " &middot; " + frappe.utils.escape_html(c.vehicle_class) : ""
-				}</div>
+				c.vehicle_class ? " &middot; " + frappe.utils.escape_html(c.vehicle_class) : ""
+			}</div>
 			</div>`
 		)
 		.join("");
@@ -62,9 +62,7 @@ erpnext.palm_mill._render_qr_dialog = function (cards) {
 				${__(
 					"Their plates are not shaped like a plate, so the gate scanner could not read the card. Weigh these trucks without scanning."
 				)}
-				<ul>${unscannable
-					.map((c) => `<li>${frappe.utils.escape_html(c.plate_number)}</li>`)
-					.join("")}</ul>
+				<ul>${unscannable.map((c) => `<li>${frappe.utils.escape_html(c.plate_number)}</li>`).join("")}</ul>
 			</div>`
 		: "";
 
@@ -104,8 +102,8 @@ erpnext.palm_mill._print_cards = function (cards) {
 				<img src="${c.qr}" alt="${frappe.utils.escape_html(c.plate_normalized)}">
 				<div class="qr-plate">${frappe.utils.escape_html(c.plate_number)}</div>
 				<div class="qr-meta">${frappe.utils.escape_html(c.supplier || __("Internal"))}${
-					c.vehicle_class ? " &middot; " + frappe.utils.escape_html(c.vehicle_class) : ""
-				}</div>
+				c.vehicle_class ? " &middot; " + frappe.utils.escape_html(c.vehicle_class) : ""
+			}</div>
 			</div>`
 		)
 		.join("");
@@ -116,9 +114,7 @@ erpnext.palm_mill._print_cards = function (cards) {
 
 	const doc = frame.contentWindow.document;
 	doc.open();
-	doc.write(`<!doctype html><html><head><meta charset="utf-8"><title>${__(
-		"Truck QR Cards"
-	)}</title><style>
+	doc.write(`<!doctype html><html><head><meta charset="utf-8"><title>${__("Truck QR Cards")}</title><style>
 		@page { margin:10mm; }
 		body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
 		.qr-sheet { display:flex; flex-wrap:wrap; gap:6mm; }
