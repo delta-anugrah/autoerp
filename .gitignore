@@ -29,3 +29,6 @@ erpnext/www/banking.html
 
 # Playwright MCP session output
 .playwright-mcp/
+
+# Per-machine Makefile settings (bench path, site name)
+Makefile.local

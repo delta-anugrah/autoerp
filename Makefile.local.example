@@ -1,0 +1,5 @@
+# Per-machine settings for the Makefile. Copy to Makefile.local and edit.
+# Makefile.local is gitignored: each machine keeps its own.
+#
+# BENCH = $(HOME)/autoerp-bench
+# SITE  = autoerp.localhost

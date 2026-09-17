@@ -5,7 +5,19 @@ Site sudah jalan. Ini yang dipakai sehari-hari.
 ## Makefile
 
 `Makefile` di akar repo menggerakkan bench yang **ada di luar repo ini**
-(bawaan `~/frappe-bench`). Override per mesin:
+(bawaan `~/frappe-bench`).
+
+Kalau bench-mu bukan yang bawaan, tulis sekali di `Makefile.local` — berkas ini
+tidak ikut git, jadi tiap mesin punya versinya sendiri:
+
+```make
+# Makefile.local
+BENCH = $(HOME)/autoerp-bench
+SITE  = autoerp.localhost
+```
+
+Sesudah itu semua target jalan tanpa argumen: `make up`, `make stop`,
+`make status`. Tanpa berkas itu, override per perintah juga boleh:
 
 ```bash
 make up BENCH=/srv/frappe-bench SITE=pks.localhost

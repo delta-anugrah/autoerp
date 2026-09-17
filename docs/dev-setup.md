@@ -141,7 +141,9 @@ bench start          # http://pks.localhost:8000 — Administrator / admin
 
 The repo root has a `Makefile` wrapping this and the other day-to-day commands
 (`make up`, `make stop`, `make status`, `make key-show`); `make help` lists them. It drives
-the bench at `~/frappe-bench` — override with `make up BENCH=... SITE=...`. `make up` refuses
+the bench at `~/frappe-bench` — point it elsewhere either per command
+(`make up BENCH=... SITE=...`) or once, in a gitignored `Makefile.local` holding
+`BENCH = ...` and `SITE = ...`, after which plain `make up` is enough. `make up` refuses
 to start a second bench: the redis ports are already bound, one child dies, and honcho then
 stops the whole group, which on screen looks like the first bench crashed when it is in fact
 still serving.

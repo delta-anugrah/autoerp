@@ -7,8 +7,22 @@
 #
 #     make up BENCH=/srv/frappe-bench SITE=pks.localhost
 #
+# ...or write them once into Makefile.local (gitignored) and just `make up`.
+#
 # Setting a bench up from scratch is docs/dev-setup.md; this file only drives
 # one that already exists.
+
+# Per-machine settings live in Makefile.local, which is gitignored. Write the
+# bench and site once and every target below picks them up, so `make up` alone
+# is enough:
+#
+#     $ cat Makefile.local
+#     BENCH = $(HOME)/autoerp-bench
+#     SITE  = autoerp.localhost
+#
+# `-include` is silent when the file is absent, and because it is read before
+# the `?=` defaults, whatever it sets wins.
+-include Makefile.local
 
 BENCH ?= $(HOME)/frappe-bench
 SITE  ?= pks.localhost
