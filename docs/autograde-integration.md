@@ -1,8 +1,15 @@
 # AutoGrade → AutoERP integration design
 
-_Status: AutoERP side shipped 2026-09-10 in `erpnext/palm_mill` (branch `feat/palm-mill-module`), with AutoGrade as
-the single caller: the scale program feeds AutoGrade, and AutoGrade sends each visit (weights + grading) to AutoERP.
-AutoGrade side: not started._
+> ⚠️ **This is the original design document (2026-09-10), kept for the reasoning behind each
+> decision. Parts of it have been overtaken by the code. Where they disagree, the code wins** —
+> the differences are listed in [`api-autograde.md`](api-autograde.md) §"Beda dengan rancangan".
+> For how things work today, start at [`README.md`](README.md).
+
+_Status: both sides shipped. AutoERP side landed 2026-09-10 in `erpnext/palm_mill` (then on branch
+`feat/palm-mill-module`, now merged; work continues on `staging`). AutoGrade side shipped over
+2026-09-13 → 2026-09-17: master-data pull, `upsert_truck`, `upsert_visit` at three stages with a
+daily resend, and per-visit grading detail behind `detail_url`. The scale program feeds AutoGrade,
+and AutoGrade sends each visit (weights + grading) to AutoERP._
 
 ## 0. The question this answers
 
@@ -211,7 +218,8 @@ ticket through `scale_ticket_no`. The scale program itself is an AutoGrade edge 
 Where the logic lives: the **Palm Mill** module of the fork (`erpnext/palm_mill`): all sawit DocTypes are
 code DocTypes there (promoted 2026-09-10, tables and data kept), with `weighbridge_ticket.py` holding
 `try_finalize`, `create_stock_documents`, the 15-minute `finalize_due_tickets` scheduler and the cancel hook,
-and `api.py` holding the three endpoints. The stock documents are created with the caller's permissions:
+and `api.py` holding the two inbound endpoints (`upsert_truck`, `upsert_visit`; `set_language` there
+serves the desk, not AutoGrade). The stock documents are created with the caller's permissions:
 whoever finalises a ticket (integration user, scheduler as Administrator, or an operator using the
 "Penerimaan Stok" button) needs Purchase User + Stock User.
 
@@ -257,12 +265,12 @@ source typing the ticket needs (any supplier → External, none → Internal; pl
 | ------------------ | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `plate_normalized` | Data, read-only, unique                          | Set in `validate`: `re.sub(r"[^A-Za-z0-9]", "", plate_number).upper()`. Same rule as AutoGrade `plateNormalizer.ts`. Unique index so two spellings of one plate cannot coexist. Backfill once for the 58 existing trucks.                                                        |
 | `autograde_id`     | Data, read-only, unique when set                 | UUID of the AutoGrade `trucks.id` that first reported this plate. Set by interface B; blank for trucks created in ERP until the next pull round-trips it.                                                                                                                        |
-| `source`           | Select `Manual` / `AutoGrade`, read-only         | Audit only: where the record came from.                                                                                                                                                                                                                                          |
+| `source`           | Select `Manual` / `AutoGrade` / `Scale`, read-only | Audit only: where the record came from. (`Scale` was added after this was written.)                                                                                                                                                                                                                                          |
 
 Interface A exposes `plate_normalized`, `supplier`, `vehicle_class`, `modified`. A truck the backoffice
 still has to complete is simply one whose `supplier` is empty — the Truck list filter for that is the to-do.
 
-**Weighbridge Ticket** (custom DocType on `pks.localhost`)
+**Weighbridge Ticket** (a code DocType in the module since 2026-09-10; it was a custom DocType on `pks.localhost` when this was written)
 
 | Field                                         | Type                                                                           | Rules                                                                        |
 | --------------------------------------------- | ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
@@ -274,14 +282,17 @@ still has to complete is simply one whose `supplier` is empty — the Truck list
 | `grading_missing`                             | Check                                                                          | Set by E when finalised on timeout without grading.                          |
 | `grading_revised`                             | Check                                                                          | Set when C arrives after submit; ticket needs review.                        |
 | `scale_ticket_no`                             | Data, unique when set                                                          | Secondary key: the scale's slip number; lets a hand-typed ticket be adopted. |
-| `weight_received_at`                          | Datetime                                                                       | Last time D wrote to this ticket.                                            |
-| `status`                                      | Select `Waiting Weight` / `Waiting Grading` / `Ready` / `Finalised`, read-only | Maintained by `try_finalize`; drives the list filters in §5.                 |
+| `weight_received_at`                          | Datetime                                                                       | Last time the weighing section of C wrote to this ticket. (Interface D was folded into C; see the note under §4.) |
+| `status`                                      | Select `Waiting Weight` / `Waiting Grading` / `Ready` / `Finalised` / `Cancelled`, read-only | Maintained by `try_finalize`; drives the list filters in §5. (`Cancelled` was added after this was written.) |
 
 **TBS Grading Rule** (new single DocType)
 
+> ⚠️ **Shipped under different names.** What exists is the single **`Palm Mill Settings`** holding a
+> child table **`Palm Mill Grading Rule`**. The fields below match; the DocType names do not.
+
 | Field                   | Type                                                | Rules                                                                                                            |
 | ----------------------- | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `rules`                 | Table of (`kriteria` Data, `deduction_pct` Percent) | One row per criterion: Mentah, Tangkai Panjang, Sampah. Deduction is applied to the criterion's share of net kg. |
+| `rules`                 | Table of (`kriteria` Data, `deduction_pct` Percent) | One row per criterion. **Shipped defaults are Mentah 60, Lewat Matang 15, Tangkai Panjang 100** — not Sampah, which is weighed rather than seen by a camera and reduces kilograms instead of price. Deduction is applied to the criterion's share of net kg. |
 | `max_potongan_pct`      | Percent                                             | Cap on total deduction (today `MAX_POTONGAN_PCT` in the demo generator).                                         |
 | `default_potongan_pct`  | Percent                                             | Applied when grading is missing at timeout.                                                                      |
 | `grading_timeout_hours` | Int, default 6                                      | See E.                                                                                                           |

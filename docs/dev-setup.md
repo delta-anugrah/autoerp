@@ -1,8 +1,16 @@
 # Developer setup — reproduce the mill demo end to end
 
+> ⚠️ **Written 2026-09-11, partly overtaken since.** It still describes the fork on Frappe
+> `develop` and the branch `feat/palm-mill-module` (merged), the repo under `samueljw/`
+> (moved to `delta-anugrah/`), and seven patches (there are now eleven).
+>
+> **For a normal install use [`instalasi.md`](instalasi.md)** — it targets `version-16`
+> and does not need the private database dump. Keep reading here only if you specifically
+> need that dump, which is what this page is really about.
+
 This is the exact path from an empty machine to the same site Jesse works on: the sawit demo
-data, the Palm Mill module on `feat/palm-mill-module`, Indonesian/English switching, the OER
-report, and the environment fixes. Follow it top to bottom; every step has a check.
+data, the Palm Mill module, Indonesian/English switching, the OER report, and the environment
+fixes. Follow it top to bottom; every step has a check.
 
 ## 0. Versions (what this was built and tested against)
 
@@ -62,7 +70,7 @@ branch **before** creating or migrating any site: Frappe drops DocTypes it canno
 tables included, and `main` does not contain `erpnext/palm_mill`.
 
 ```bash
-bench get-app https://github.com/samueljw/autoerp.git
+bench get-app https://github.com/delta-anugrah/autoerp.git
 git -C apps/erpnext checkout feat/palm-mill-module
 bench setup requirements
 bench build --app erpnext        # also compiles erpnext/locale/*.po → .mo (migrate does NOT)
@@ -76,7 +84,7 @@ The data is a database dump on a private release; you need collaborator access t
 Jesse). It also contains the site encryption key and user hashes — never commit or reshare it.
 
 ```bash
-gh release download sawit-data-2026-09-09-truck --repo samueljw/autoerp -D /tmp/sawit
+gh release download sawit-data-2026-09-09-truck --repo delta-anugrah/autoerp -D /tmp/sawit
 
 bench new-site pks.localhost --db-root-password <mariadb root pw> --admin-password admin
 bench --site pks.localhost restore /tmp/sawit/*-pks_localhost-database.sql.gz --db-root-password <mariadb root pw>
@@ -212,6 +220,12 @@ bench build --app erpnext                              # after JS or .po changes
 ruff check erpnext/palm_mill && ruff format erpnext/palm_mill
 apps/frappe/node_modules/.bin/prettier --check 'erpnext/public/js/palm_mill/**/*.js'
 ```
+
+A note the rest of this page predates: **`erpnext/palm_mill/demo.py` builds the same shape of
+data from code** (`bench --site <site> execute erpnext.palm_mill.demo.seed`), so the private dump
+is no longer the only way to get a populated site — and unlike the dump it can be handed to a
+client, because it carries no encryption key and no real password hashes. See
+[`instalasi.md`](instalasi.md) §4a.
 
 Tests are written (`erpnext/palm_mill/test_*.py`, `doctype/*/test_*.py`) but need a test site:
 `bench new-site test_site --admin-password admin && bench --site test_site install-app erpnext`,
