@@ -37,6 +37,9 @@ make up BENCH=/srv/frappe-bench SITE=pks.localhost
 | `make migrate` | `bench migrate` |
 | `make backup` | backup database + files |
 | `make shell` | `bench console` (REPL Python di site) |
+| `make demo` | isi data demo untuk showcase ke klien — menyalakan `demo_mode 1` dulu (site menolak seed tanpanya), lalu `erpnext.palm_mill.demo.seed`. AutoGrade punya target nama sama |
+| `make demo-reset` | hapus data demo lalu isi ulang bersih (`erpnext.palm_mill.demo.reset`) |
+| `make demo-off` | hapus data demo dan **berhenti** di situ, tidak isi ulang — jalankan sesudah showcase dan **sebelum** uji coba sungguhan di site itu: baris demo duduk di tabel yang sama dengan yang asli, jadi daftar tiket yang masih membawanya terbaca seolah pabrik membukukan muatan yang tidak pernah diterima (`erpnext.palm_mill.demo.off`) |
 
 ⚠️ **Tidak ada target test.** Test butuh site khusus; lihat
 [`contributing.md`](contributing.md).

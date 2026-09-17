@@ -125,6 +125,10 @@ bench --site pks.localhost set-config demo_mode 1
 bench --site pks.localhost execute erpnext.palm_mill.demo.seed
 ```
 
+Lewat `Makefile` di akar repo (`BENCH`/`SITE` bawaannya `~/frappe-bench` dan
+`pks.localhost`, override seperti `make demo SITE=demo.localhost`), perintah di
+atas sama dengan `make demo` — dan AutoGrade punya `make demo` dengan nama sama.
+
 Isinya: **PT Sawit Rambang Lestari**, 2 kebun, 4 divisi, 4 KUD plasma + 3 agen,
 10 truk (BE Lampung / BG Sumsel), TBS Rp 2.850/kg, ±6–11 kunjungan per hari
 selama 7 hari.
@@ -139,19 +143,27 @@ Akun yang dibuat (sandi semua `sawit2026`):
 | `operator@demo.autoerp.test` | AutoGrade Operator (`operator`) |
 | `support@demo.autoerp.test` | AutoGrade Operator (`support`) |
 
-Perintah lain:
+Perintah lain (`make demo-reset` / `make demo-off` lewat Makefile — nama yang
+sama dipakai AutoGrade):
 
 ```bash
 bench --site pks.localhost execute erpnext.palm_mill.demo.reset      # hapus tiket, seed ulang
+bench --site pks.localhost execute erpnext.palm_mill.demo.off        # hapus tiket, BERHENTI (tidak seed ulang)
 bench --site pks.localhost execute erpnext.palm_mill.demo.summary    # apa yang ada sekarang
 ```
 
-`reset` cuma menghapus tiket bertanda `DEMO-` beserta dokumen stoknya; master,
-pemasok, truk, dan akun dibiarkan.
+`reset` dan `off` sama-sama cuma menghapus tiket bertanda `DEMO-`
+(`autograde_visit_id LIKE 'DEMO-%'`) beserta dokumen stoknya; master, pemasok,
+truk, dan akun dibiarkan — bedanya `reset` langsung mengisi ulang, `off` tidak.
+
+Jalankan `off` sesudah showcase dan **sebelum** ada yang menguji data sungguhan
+di site itu: baris demo duduk di tabel yang sama dengan yang asli, jadi daftar
+tiket yang masih membawanya terbaca seolah pabrik membukukan muatan yang tidak
+pernah diterima.
 
 ⚠️ Seeder **menolak jalan** di site yang tidak bertanda `demo_mode 1`, kecuali
-dipaksa `force=1`. Ini penjaga supaya data demo tidak pernah mendarat di site
-produksi.
+dipaksa `force=1`. Ini bukan sekadar label: penolakan itu penjaga supaya satu
+salah ketik `--site` tidak menanam (atau menghapus) data demo di site produksi.
 
 ⚠️ Sandi demo sama untuk semua akun dan tertulis di kode. **Jangan pakai seeder
 di site yang dipakai sungguhan.**

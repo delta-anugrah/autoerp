@@ -72,8 +72,12 @@ and seven days of truck visits pushed through the real controller.
 bench --site <site> set-config demo_mode 1
 bench --site <site> execute erpnext.palm_mill.demo.seed
 bench --site <site> execute erpnext.palm_mill.demo.reset     # wipe its tickets, seed again
+bench --site <site> execute erpnext.palm_mill.demo.off       # wipe its tickets, stop there (no reseed)
 bench --site <site> execute erpnext.palm_mill.demo.summary   # what is there now
 ```
+
+Same three via the `Makefile` (`BENCH`/`SITE` default to `~/frappe-bench` / `pks.localhost`):
+`make demo`, `make demo-reset`, `make demo-off` — AutoGrade has the identical three names.
 
 Unlike the dump this can be handed to a client or installed on their laptop: it carries no site
 encryption key and no real password hashes. It refuses to run on a site that has not declared
