@@ -84,8 +84,33 @@ DOCKER_BUILDKIT=1 docker build \
 	--secret "id=apps_json,src=$APPS_JSON" \
 	--build-arg "FRAPPE_BRANCH=$FRAPPE_BRANCH" \
 	--build-arg "CACHE_BUST=$(date +%s)" \
-	--tag "$IMAGE" \
+	--tag "$IMAGE-unscrubbed" \
 	"$WORK/frappe_docker"
+
+# `bench init` menulis perintah git yang dijalankannya -- lengkap dengan URL
+# ber-token -- ke logs/bench.log, dan berkas itu ikut ke dalam image. Tanpa
+# langkah ini siapa pun yang menarik image bisa membaca tokennya. Lapisan
+# terpisah, karena menghapus berkas tidak menghapusnya dari lapisan sebelumnya.
+echo "==> bersihkan jejak token"
+DOCKER_BUILDKIT=1 docker build \
+	--file "$HERE/Containerfile.scrub" \
+	--build-arg "BASE_IMAGE=$IMAGE-unscrubbed" \
+	--tag "$IMAGE" \
+	"$WORK"
+
+# Penjaga, bukan basa-basi: kalau suatu saat Frappe menulis log ke tempat lain,
+# ini yang menahan image bocor supaya tidak sempat ter-push. Polanya menuntut
+# token yang benar-benar menempel (`x-access-token:<sesuatu>@`), bukan kata
+# "x-access-token" begitu saja -- kata itu muncul sah di .github/helper/install.sh
+# dan mencocokkannya akan menggagalkan setiap build tanpa ada yang bocor.
+if docker run --rm --entrypoint bash "$IMAGE" \
+		-c "grep -rqE 'x-access-token:[^@[:space:]]+@' /home/frappe/frappe-bench 2>/dev/null"; then
+	echo "GAGAL: token masih terbaca di dalam image; image tidak dipakai." >&2
+	docker rmi -f "$IMAGE" "$IMAGE-unscrubbed" >/dev/null 2>&1 || true
+	exit 1
+fi
+
+docker rmi -f "$IMAGE-unscrubbed" >/dev/null 2>&1 || true
 
 if [ "${PUSH:-0}" = "1" ]; then
 	echo "==> push $IMAGE"

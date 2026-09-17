@@ -1,0 +1,23 @@
+# Lapisan terakhir: buang jejak token dari image dasar.
+#
+# `bench init` mencatat perintah git yang dijalankannya -- LENGKAP dengan URL
+# ber-token -- ke logs/bench.log, dan berkas itu ikut ke dalam image. Siapa pun
+# yang menarik image bisa membacanya:
+#
+#   $ docker run --rm --entrypoint bash <image> -c "grep -o 'x-access-token:[^@]*@' logs/bench.log"
+#   x-access-token:gho_...@
+#
+# Log build bukan artefak produksi, jadi seluruh isinya dikosongkan, bukan
+# disensor sebagian: menyensor berarti menebak semua bentuk yang mungkin muncul,
+# dan satu bentuk yang terlewat tetap membocorkan token.
+#
+# HARUS lapisan sendiri di atas base: menghapus berkas di lapisan berikutnya
+# tidak menghapusnya dari lapisan sebelumnya, tapi `docker build` di sini
+# menghasilkan image satu-lapisan-baru yang isinya sudah bersih -- dan lapisan
+# lama tidak ikut dipublikasikan karena yang di-push adalah image hasil ini.
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+
+USER frappe
+
+RUN find /home/frappe/frappe-bench/logs -type f -exec truncate -s 0 {} + 2>/dev/null || true
