@@ -13,8 +13,8 @@ AutoERP — nol perubahan kontrak.
 
 Dua hal yang gampang salah dan karena itu dipatok:
 
-* **Matang tidak diukur kamera.** Persennya diturunkan (`100 − mentah − tangkai −
-  lainnya`), jadi jumlahnya juga harus diturunkan: `acc − tangkai_panjang`. Kalau
+* **Matang tidak diukur kamera.** Persennya diturunkan (`100 - mentah - tangkai -
+  lainnya`), jadi jumlahnya juga harus diturunkan: `acc - tangkai_panjang`. Kalau
   diambil dari `counts["matang"]` yang tidak pernah dikirim, angkanya selalu 0 dan
   terbaca seolah tidak ada buah matang sama sekali.
 * **Tangkai Panjang adalah bagian dari ACC**, bukan kategori keempat. `acc` sudah
@@ -71,7 +71,7 @@ class TestKolomJanjang(unittest.TestCase):
 		self.assertIn("tangkai_panjang", sumber)
 
 	def test_janjang_tidak_pernah_negatif(self):
-		"""`acc − tangkai_panjang` bisa negatif kalau angkanya tidak sinkron, dan
+		"""`acc - tangkai_panjang` bisa negatif kalau angkanya tidak sinkron, dan
 		jumlah buah negatif di layar krani terbaca seperti kerusakan."""
 		sumber = ast.unparse(_fungsi("_apply_grading"))
 
