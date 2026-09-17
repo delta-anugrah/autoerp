@@ -76,6 +76,21 @@ class IntegrationTestRoleVisibility(IntegrationTestCase):
 		self.assertIn("Script Manager", offered)
 		self.assertIn("Workspace Manager", offered)
 
+	def test_frappes_own_automatic_roles_are_left_untouched(self):
+		"""`All`, `Guest` and friends never reach the dropdown anyway.
+
+		`get_all_roles` drops them before the domain clause is evaluated, so marking them
+		buys nothing and leaves four system roles carrying a domain they do not belong to.
+		"""
+		setup.hide_unused_roles()
+
+		for role in frappe.permissions.AUTOMATIC_ROLES:
+			if frappe.db.exists("Role", role):
+				self.assertFalse(
+					frappe.db.get_value("Role", role, "restrict_to_domain"),
+					f"{role} tidak boleh diberi domain",
+				)
+
 	def test_a_role_already_restricted_by_erpnext_is_left_alone(self):
 		frappe.db.set_value("Role", "Sales User", "restrict_to_domain", "Manufacturing")
 

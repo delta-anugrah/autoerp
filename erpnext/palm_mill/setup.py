@@ -243,6 +243,12 @@ def hide_unused_roles() -> dict:
 
 	hidden, skipped = [], {}
 	for role in frappe.get_all("Role", fields=["name", "restrict_to_domain"]):
+		if role.name in frappe.permissions.AUTOMATIC_ROLES:
+			# `get_all_roles` filters these out before the domain is even considered, so
+			# marking them changes nothing -- except leaving four system roles carrying a
+			# domain they have no business in, for whoever reads the table next.
+			skipped[role.name] = "automatic"
+			continue
 		if role.name in MILL_ROLES:
 			skipped[role.name] = "whitelist"
 			continue
