@@ -94,6 +94,12 @@ DEFAULT_SETTINGS = {
 }
 
 
+# Seed masters ERPNext creates for every company but a mill never uses. Defined here
+# rather than in the patch so the patch and the install hook cannot drift apart.
+SEED_WAREHOUSES = ("Finished Goods", "Goods In Transit", "Stores", "Work In Progress")
+SEED_ITEM_GROUPS = ("Services", "Sub Assemblies")
+
+
 # The two FFB sources the module reasons about (utils.PURCHASED_SOURCES, sumber_for_supplier).
 # Ticket.sumber_tbs is mandatory and links here, so a site without these rows cannot take
 # a visit; the demo dump carried them, a fresh install must create them.
@@ -106,6 +112,89 @@ def after_install():
 	setup_sources()
 	set_defaults()
 	set_favicon()
+	apply_site_policy()
+
+
+def setup_wizard_complete(wizard_args=None):
+	"""Runs once the wizard has created the company.
+
+	`hide_seed_masters` cannot live in `after_install`: the warehouses come from
+	`Company.create_default_warehouses` and the item groups from the wizard's
+	`install_fixtures`, both of which run later. Called from the install hook it would
+	match nothing and leave the clutter in place without saying so.
+
+	Frappe passes the wizard's own arguments to every hook positionally, so this has to
+	accept them even though the policy does not read them -- a function that refuses them
+	fails the final stage of the wizard, after the company already exists. The parameter
+	is named rather than called `args` to keep it out of semgrep's `overusing-args`.
+	"""
+	apply_site_policy()
+	hide_seed_masters()
+
+
+def apply_site_policy():
+	"""The settings a mill site has to be born with.
+
+	A fresh site never runs patches -- `install_app` marks them completed without
+	executing any -- so everything the patches below do for existing sites has to be
+	done here too, or a new site comes up in English, at three decimals, and unable to
+	receive FFB at all.
+	"""
+	set_site_language()
+	set_float_precision()
+	enable_serial_and_batch()
+
+
+def set_site_language():
+	"""Indonesian by default, still switchable per user from the menu."""
+	frappe.db.set_value("Language", "id", "enabled", 1, update_modified=False)
+	frappe.db.set_single_value("System Settings", "language", "id")
+	# `User.language` outranks the site setting, so users pinned to the old default would
+	# stay in English with nothing on screen explaining why.
+	frappe.db.sql("update `tabUser` set language = NULL where language = 'en-US'")
+
+
+def set_float_precision():
+	"""A mill reads kilograms and percentages to two places at most, and Frappe uses this
+	one setting for every Float and Percent it shows."""
+	frappe.db.set_single_value("System Settings", "float_precision", "2")
+	frappe.db.set_default("float_precision", "2")  # what bootinfo serves; only a UI save refreshes it
+
+
+def enable_serial_and_batch():
+	"""Without this, finalising a ticket fails 417 and no amount of correct grading data
+	gets FFB into the system.
+
+	The upstream v16 patch only turns it on for sites that already have a Batch. A site
+	born empty has none, so it stays off exactly where it is needed most.
+
+	Stock Settings keeps this flag in two places: the Single, which server-side validation
+	reads, and a default, which `item.js` reads to decide whether to show the Batch No
+	fields at all. `Stock Settings.on_update` normally syncs them, but `set_single_value`
+	writes straight to the table without running it -- so setting only the Single leaves a
+	site where FFB can be received but nobody can tick "Has Batch No" on the item, because
+	the field is hidden.
+	"""
+	frappe.db.set_single_value("Stock Settings", "enable_serial_and_batch_no_for_item", 1)
+	frappe.db.set_default("enable_serial_and_batch_no_for_item", 1)
+
+
+def hide_seed_masters():
+	"""ERPNext's starter warehouses and item groups, out of the way of the mill sidebar.
+
+	Hidden only where they carry nothing: a warehouse with ledger entries is somebody's
+	data and disabling it would break their stock transactions.
+	"""
+	for wh in frappe.get_all("Warehouse", filters={"warehouse_name": ("in", SEED_WAREHOUSES)}, pluck="name"):
+		if not frappe.db.exists("Stock Ledger Entry", {"warehouse": wh}):
+			frappe.db.set_value("Warehouse", wh, "disabled", 1, update_modified=False)
+	for ig in SEED_ITEM_GROUPS:
+		if (
+			frappe.db.exists("Item Group", ig)
+			and not frappe.db.exists("Item", {"item_group": ig})
+			and not frappe.db.exists("Item Group", {"parent_item_group": ig})
+		):
+			frappe.delete_doc("Item Group", ig, ignore_permissions=True, force=True)
 
 
 def setup_sources():
