@@ -74,18 +74,34 @@ class IntegrationTestCIConfig(IntegrationTestCase):
 		self.assertNotIn("repos/frappe/erpnext/pulls", source)
 		self.assertIn("GITHUB_REPOSITORY", source)
 
-	def test_no_job_waits_on_a_runner_this_fork_does_not_have(self):
-		"""`erpnext-arc` is ERPNext's own self-hosted scale set. A job asking for it
-		does not fail - it sits queued forever, which reads on the PR page as "still
-		running" and never resolves."""
+	def test_no_job_can_queue_forever_on_a_runner_we_do_not_have(self):
+		"""`erpnext-arc` is ERPNext's own self-hosted scale set. A job asking for a
+		runner that does not exist does NOT fail - it sits queued indefinitely, which
+		reads on the pull request page as "still running" and never resolves. Worse
+		than absent: a check nobody can act on.
+
+		Rewriting those jobs to run on hosted runners was tried and abandoned: the
+		workflow is welded to that estate (a `ci` user, a MariaDB datadir at
+		/home/ci/db-data that setup packages and each shard unpacks), and forcing it
+		onto a hosted runner failed at `mv: cannot move '/home/ci/db-data'`. So each
+		such job must instead be *gated* — skipped cleanly where the runner is absent.
+		"""
+		import yaml
+
 		for workflow in WORKFLOWS.glob("*.yml"):
-			for line in workflow.read_text().splitlines():
-				if not line.strip().startswith("runs-on:"):
+			spec = yaml.safe_load(workflow.read_text())
+			for name, job in (spec.get("jobs") or {}).items():
+				if "erpnext-arc" not in str(job.get("runs-on", "")):
 					continue
-				self.assertNotRegex(
-					line,
-					r"runs-on:\s*erpnext-arc",
-					f"{workflow.name} waits on a runner this fork does not have",
+				gated = job.get("if") or any(
+					(spec["jobs"].get(dep) or {}).get("if")
+					for dep in (
+						[job["needs"]] if isinstance(job.get("needs"), str) else job.get("needs") or []
+					)
+				)
+				self.assertTrue(
+					gated,
+					f"{workflow.name}:{name} asks for a runner we lack and would queue forever",
 				)
 
 	def test_every_failing_check_has_a_skipped_twin(self):

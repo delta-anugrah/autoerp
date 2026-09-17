@@ -57,16 +57,22 @@ jobs:
   # GitHub-hosted runner, then publish the whole bench (with a DB dump baked in) as an artifact.
   # The expensive, non-parallelisable work happens here exactly once instead of on every shard.
   setup:
+    # Only where ERPNext's own runners exist. This workflow is welded to their CI
+    # estate: self-hosted scale sets, a `ci` user, and a MariaDB datadir at
+    # /home/ci/db-data that this job packages and every shard unpacks. A fork has none
+    # of that — and asking for a runner that does not exist does not fail, it sits
+    # queued forever, which reads on the pull request page as "still running" and never
+    # resolves. That is worse than absent: a check nobody can act on.
+    #
+    # Set CI_RUNNER_SETUP / CI_RUNNER to switch it on; unset, it skips cleanly and says
+    # so. Our own tests run in `linters` and the palm_mill suites, on hosted runners.
+    if: vars.CI_RUNNER_SETUP != '' || github.repository == 'frappe/erpnext'
     name: Build & reinstall (setup)
     # Dedicated scale set (fat cpu request) so the build+reinstall runs at full speed, uncontended
     # by the many thin test shards. Same CI image + /home/ci path + 127.0.0.1 DB as the shards,
     # so the packaged bench (and its venv) transplants cleanly.
     #
-    # `erpnext-arc-setup` is ERPNext's OWN self-hosted scale set. This fork has no such
-    # runner, so the job sat queued forever - not failing, just never starting, which
-    # reads on the PR page as "still running" for hours. Configurable so the day we do
-    # run our own runners it is one repository variable, not a patch.
-    runs-on: ${{ vars.CI_RUNNER_SETUP || 'ubuntu-latest' }}
+    runs-on: ${{ vars.CI_RUNNER_SETUP || 'erpnext-arc-setup' }}
     timeout-minutes: 40
     container:
       image: ghcr.io/frappe/erpnext-ci-mariadb:py3.14-node24
@@ -155,8 +161,7 @@ jobs:
   test:
     name: Python Unit Tests
     needs: setup
-    # See the note on the setup job: ERPNext's own scale set, which this fork lacks.
-    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
+    runs-on: ${{ vars.CI_RUNNER || 'erpnext-arc' }}
     timeout-minutes: 60
     container:
       image: ghcr.io/frappe/erpnext-ci-mariadb:py3.14-node24
