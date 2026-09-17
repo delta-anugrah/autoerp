@@ -61,7 +61,12 @@ jobs:
     # Dedicated scale set (fat cpu request) so the build+reinstall runs at full speed, uncontended
     # by the many thin test shards. Same CI image + /home/ci path + 127.0.0.1 DB as the shards,
     # so the packaged bench (and its venv) transplants cleanly.
-    runs-on: erpnext-arc-setup
+    #
+    # `erpnext-arc-setup` is ERPNext's OWN self-hosted scale set. This fork has no such
+    # runner, so the job sat queued forever - not failing, just never starting, which
+    # reads on the PR page as "still running" for hours. Configurable so the day we do
+    # run our own runners it is one repository variable, not a patch.
+    runs-on: ${{ vars.CI_RUNNER_SETUP || 'ubuntu-latest' }}
     timeout-minutes: 40
     container:
       image: ghcr.io/frappe/erpnext-ci-mariadb:py3.14-node24
@@ -150,7 +155,8 @@ jobs:
   test:
     name: Python Unit Tests
     needs: setup
-    runs-on: erpnext-arc
+    # See the note on the setup job: ERPNext's own scale set, which this fork lacks.
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 60
     container:
       image: ghcr.io/frappe/erpnext-ci-mariadb:py3.14-node24

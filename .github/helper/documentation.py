@@ -1,3 +1,4 @@
+import os
 import sys
 from urllib.parse import urlparse
 
@@ -41,9 +42,22 @@ def contains_documentation_link(body: str) -> bool:
 
 
 def check_pull_request(number: str) -> "tuple[int, str]":
-	response = requests.get(f"https://api.github.com/repos/frappe/erpnext/pulls/{number}")
+	# This repository, not `frappe/erpnext`. Upstream hardcodes its own path, so every
+	# pull request opened on a fork is looked up in a repository it does not exist in
+	# and the check fails with "Pull Request Not Found" - on every PR, forever, without
+	# ever having read a line of the change. `GITHUB_REPOSITORY` is set by Actions.
+	repo = os.environ.get("GITHUB_REPOSITORY", "frappe/erpnext")
+	url = f"https://api.github.com/repos/{repo}/pulls/{number}"
+
+	# A private fork needs the token to read even its own pull requests.
+	headers = {"Accept": "application/vnd.github+json"}
+	token = os.environ.get("GITHUB_TOKEN")
+	if token:
+		headers["Authorization"] = f"Bearer {token}"
+
+	response = requests.get(url, headers=headers)
 	if not response.ok:
-		return 1, "Pull Request Not Found! ⚠️"
+		return 1, f"Pull Request Not Found in {repo}! ⚠️"
 
 	payload = response.json()
 	title = (payload.get("title") or "").lower().strip()
@@ -56,7 +70,11 @@ def check_pull_request(number: str) -> "tuple[int, str]":
 	if contains_documentation_link(body):
 		return 0, "Documentation Link Found. You're Awesome! 🎉"
 
-	return 1, "Documentation Link Not Found! ⚠️"
+	# Upstream fails here: every `feat:` must link to docs.erpnext.com. This fork has no
+	# public documentation site to link to - its docs live in `docs/` inside the repo -
+	# so demanding one would block every feature we ever write. Said out loud rather
+	# than deleted, so the day a public site exists this is one line to change back.
+	return 0, "No public documentation site for this fork; skipping the link check. 🏗️"
 
 
 if __name__ == "__main__":
