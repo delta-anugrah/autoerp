@@ -51,6 +51,9 @@ help:
 	@echo "  make status     what is running, and whether the site answers"
 	@echo "  make key-show   print the AutoGrade API key:secret WITHOUT rotating it"
 	@echo "  make key-new    create/rotate the AutoGrade integration user (kills the old secret)"
+	@echo "  make demo       isi data demo untuk showcase ke klien"
+	@echo "  make demo-reset hapus data demo lalu isi ulang bersih"
+	@echo "  make demo-off   hapus data demo, berhenti di situ (sesudah showcase)"
 	@echo "  make migrate    bench migrate"
 	@echo "  make backup     database + files backup"
 	@echo "  make shell      bench console (python REPL on the site)"
@@ -148,6 +151,28 @@ key-new:
 	@printf "Type yes to continue: "; read ans; [ "$$ans" = "yes" ] || { echo "Aborted."; exit 1; }
 	@cd "$(BENCH)" && bench --site $(SITE) execute erpnext.palm_mill.setup.create_integration_user \
 		--kwargs '{"email": "$(AG_USER)", "full_name": "AutoGrade"}'
+
+# Data demo untuk showcase ke klien. Platnya sama persis dengan seeder AutoGrade
+# (`autograde/scripts/seed-console-demo.py`), jadi satu truk adalah truk yang sama
+# di dua layar — ganti plat di satu sisi berarti ganti di sisi lain, PR yang sama.
+#
+# `demo_mode` di site_config adalah SAKLARNYA: seeder menolak jalan tanpa itu, dan
+# penolakan itu yang menghalangi satu salah ketik `--site` menanam data demo ke
+# situs produksi. `make demo` menyalakannya untuk site ini.
+demo:
+	cd "$(BENCH)" && bench --site $(SITE) set-config demo_mode 1 \
+		&& bench --site $(SITE) execute erpnext.palm_mill.demo.seed
+
+demo-reset:
+	cd "$(BENCH)" && bench --site $(SITE) execute erpnext.palm_mill.demo.reset
+
+# Hapus tiket demo dan BERHENTI — beda dari demo-reset yang langsung mengisi ulang.
+# Jalankan sesudah showcase, dan sebelum ada yang menguji data sungguhan di site ini:
+# baris demo duduk di tabel yang sama dengan yang asli, jadi daftar tiket yang masih
+# membawanya terbaca seolah pabrik membukukan muatan yang tidak pernah diterima.
+# Master (supplier, truk, blok, user) sengaja dibiarkan — sama seperti demo-reset.
+demo-off:
+	cd "$(BENCH)" && bench --site $(SITE) execute erpnext.palm_mill.demo.off
 
 migrate:
 	cd "$(BENCH)" && bench --site $(SITE) migrate
