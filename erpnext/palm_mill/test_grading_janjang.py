@@ -115,6 +115,26 @@ class TestBagianHasilSortasi(unittest.TestCase):
 		"""Supaya terbaca satu alur: 4 janjang -> 1 ACC/3 REJ -> Mentah 75%."""
 		self.assertLess(self.urut.index("grading_total"), self.urut.index("grading"))
 
+	def test_urutan_kolom_hasil_sortasi(self):
+		"""Kiri: Total Janjang lalu Diterima. Kanan: Sortasi Diterima lalu Ditolak.
+
+		Dipatok karena urutan dua kolom itu gampang tertukar waktu menambah field
+		baru, dan tertukar berarti Diterima berdampingan dengan Ditolak — dua angka
+		yang mirip bentuknya, dibaca sekilas oleh krani.
+		"""
+		i = self.urut.index("sb_hasil_sortasi")
+		self.assertEqual(
+			self.urut[i : i + 6],
+			[
+				"sb_hasil_sortasi",
+				"grading_total",
+				"grading_acc",
+				"col_hasil_sortasi",
+				"grading_received_at",
+				"grading_rej",
+			],
+		)
+
 	def test_bagian_baru_tidak_terlipat(self):
 		"""Kalau `collapsible`, angkanya tersembunyi lagi — persis masalah semula."""
 		bagian = self._bagian_dari("grading_total")
