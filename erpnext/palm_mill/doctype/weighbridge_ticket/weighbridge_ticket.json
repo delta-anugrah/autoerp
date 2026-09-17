@@ -21,6 +21,12 @@
   "gross_weight_kg",
   "tare_weight_kg",
   "net_weight_kg",
+  "sb_hasil_sortasi",
+  "grading_total",
+  "grading_acc",
+  "col_hasil_sortasi",
+  "grading_rej",
+  "grading_received_at",
   "grading",
   "sampah_kg",
   "potongan_pct",
@@ -39,10 +45,6 @@
   "autograde_visit_id",
   "autograde_assignment_id",
   "autograde_url",
-  "grading_received_at",
-  "grading_total",
-  "grading_acc",
-  "grading_rej",
   "amended_from"
  ],
  "fields": [
@@ -306,13 +308,22 @@
    "options": "Weighbridge Ticket",
    "print_hide": 1,
    "read_only": 1
+  },
+  {
+   "fieldname": "sb_hasil_sortasi",
+   "fieldtype": "Section Break",
+   "label": "AutoGrade Result"
+  },
+  {
+   "fieldname": "col_hasil_sortasi",
+   "fieldtype": "Column Break"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-09-11 16:32:38.295150",
+ "modified": "2026-09-17 15:26:00.000000",
  "modified_by": "Administrator",
  "module": "Palm Mill",
  "name": "Weighbridge Ticket",

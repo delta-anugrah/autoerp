@@ -8,6 +8,7 @@
  "field_order": [
   "kriteria",
   "persen",
+  "janjang",
   "berat_kg"
  ],
  "fields": [
@@ -26,6 +27,14 @@
    "precision": "2"
   },
   {
+   "description": "Jumlah janjang yang dihitung kamera untuk kriteria ini",
+   "fieldname": "janjang",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Janjang",
+   "non_negative": 1
+  },
+  {
    "fieldname": "berat_kg",
    "fieldtype": "Float",
    "in_list_view": 1,
@@ -37,7 +46,7 @@
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-09-11 14:29:51.404891",
+ "modified": "2026-09-17 15:25:00.000000",
  "modified_by": "Administrator",
  "module": "Palm Mill",
  "name": "Weighbridge Grading",
