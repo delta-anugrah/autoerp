@@ -77,7 +77,7 @@ bench --site test_site run-tests --module erpnext.palm_mill.doctype.truck.test_t
 | `test_api.py` | 11 | kunjungan tiga kiriman, kiriman ulang setelah final, adopsi tiket ketikan tangan, jendela pencocokan, wajib punya peran integrasi |
 | `test_qr_card.py` | 6 | isi QR, plat menyimpang, **regex kembar dengan AutoGrade** |
 | `doctype/weighbridge_ticket/` | 8 | status, rumus potongan, batas + sampah, Purchase Receipt, Internal → Stock Entry, finalisasi timeout, cancel mengosongkan tautan |
-| `doctype/autograde_operator/` | 17 | hashing, penghapusan sandi mentah, normalisasi email, izin peran |
+| `doctype/autograde_operator/` | 18 | hashing, penghapusan sandi mentah, normalisasi email, izin peran |
 | `doctype/truck/` | 5 | plat unik, plat aneh diperingatkan tapi tetap tersimpan |
 
 `test_fixtures.py` menyediakan fixture bersama dan **mengunci contoh hitungan**:

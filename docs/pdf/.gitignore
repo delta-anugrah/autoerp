@@ -1,0 +1,7 @@
+# Built PDFs live here, next to the Markdown they come from, and are not committed:
+# they are generated output, they are large, and they conflict on every rebuild.
+# Build one with the workspace helper:
+#
+#     python ../autograde/scripts/md_to_pdf.py docs/<berkas>.md docs/pdf/<berkas>.pdf
+#
+*.pdf

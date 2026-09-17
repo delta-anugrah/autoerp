@@ -31,7 +31,7 @@ Everything sawit-specific lives in one module. It is why this fork exists, and i
 - After changing `modules.txt`, `clear-cache` before `migrate` on every site.
 - A new site never runs patches (`install_app` marks them done), so site policy set only in a patch will not reach it.
 
-The full list is `docs/jebakan.md`.
+The full list is `docs/gotchas.md`.
 
 ## Common Commands
 
@@ -140,4 +140,4 @@ bench --site test_site install-app erpnext
 bench --site test_site run-tests --module erpnext.palm_mill.test_api
 ```
 
-48 tests across `test_api.py` (11), `test_qr_card.py` (6), `weighbridge_ticket` (8), `autograde_operator` (17), `truck` (5). `test_fixtures.py` pins the worked example: net 9,160 kg → 11.55 % potongan → 8,102 kg payable.
+48 tests across `test_api.py` (11), `test_qr_card.py` (6), `weighbridge_ticket` (8), `autograde_operator` (18), `truck` (5). `test_fixtures.py` pins the worked example: net 9,160 kg → 11.55 % potongan → 8,102 kg payable.
