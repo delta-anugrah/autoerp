@@ -166,10 +166,14 @@ def seed(force=0, days=DAYS, quiet=0):
 	)
 	for label, fn in steps:
 		fn()
+		# Per step, not one transaction at the end: a seeder that dies half way should
+		# leave what it already built, and the next run picks up from there (it is
+		# idempotent). nosemgrep: frappe-semgrep-rules.rules.frappe-manual-commit
 		frappe.db.commit()
 		_say(quiet, f"  {label}")
 
 	made = make_visits(days=frappe.utils.cint(days) or DAYS)
+	# nosemgrep: frappe-semgrep-rules.rules.frappe-manual-commit
 	frappe.db.commit()
 	_say(quiet, f"  visits: {made} tickets")
 	_say(quiet, "")
@@ -412,9 +416,7 @@ def configure_settings():
 			"buying_price_list": PRICE_LIST,
 			"tbs_warehouse": warehouse,
 			"purchase_cost_center": frappe.db.get_value("Company", DEMO_COMPANY, "cost_center"),
-			"inti_expense_account": frappe.db.get_value(
-				"Company", DEMO_COMPANY, "stock_adjustment_account"
-			),
+			"inti_expense_account": frappe.db.get_value("Company", DEMO_COMPANY, "stock_adjustment_account"),
 			# Rejected bunches leave with the truck, so the weighing has already excluded
 			# them; charging Mentah again would penalise the supplier twice
 			# (docs/autograde-integration.md §8). Demo shows the go-live setting.
@@ -527,6 +529,9 @@ def make_visits(days=DAYS):
 			stage = _stage(back, i, count)
 			if _make_visit(rng, date, i, trucks[rng.randrange(len(trucks))], visit_id, blocks, stage):
 				made += 1
+			# Per visit: a week of tickets is thousands of documents, and holding them all
+			# in one transaction is what makes a seeder look hung.
+			# nosemgrep: frappe-semgrep-rules.rules.frappe-manual-commit
 			frappe.db.commit()
 	return made
 
@@ -665,6 +670,8 @@ def wipe_visits(quiet=0):
 			if name and frappe.db.exists(doctype, name):
 				_force_delete(doctype, name)
 		_force_delete("Weighbridge Ticket", t.name)
+		# Per ticket: cancelling and deleting submitted documents is slow, and a partial
+		# wipe must stay wiped. nosemgrep: frappe-semgrep-rules.rules.frappe-manual-commit
 		frappe.db.commit()
 	return len(tickets)
 
