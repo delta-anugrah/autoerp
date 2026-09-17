@@ -36,6 +36,9 @@ web_include_icons = [
 ]
 
 doctype_js = {
+	# Loaded alongside the DocType's own truck.js, and again for the list view below,
+	# so the form and the list open the same dialog from one file.
+	"Truck": ["public/js/palm_mill/qr_cards_dialog.js"],
 	"Address": "public/js/address.js",
 	"Communication": "public/js/communication.js",
 	"Event": "public/js/event.js",
@@ -43,6 +46,7 @@ doctype_js = {
 	"Contact": "public/js/contact.js",
 }
 doctype_list_js = {
+	"Truck": ["public/js/palm_mill/qr_cards_dialog.js"],
 	"Code List": [
 		"edi/doctype/code_list/code_list_import.js",
 	],
