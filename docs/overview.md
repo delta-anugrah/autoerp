@@ -101,7 +101,7 @@ dibayar  = 9.160 × (1 − 0,1155) = 8.102 kg  ×  Rp 2.850
 | Patch migrasi | 11 | `setup_palm_mill`, `palm_mill_language`, … |
 | Test | 48 | `bench --site test_site run-tests --module erpnext.palm_mill.test_api` |
 
-Rinciannya di [`model-data.md`](model-data.md).
+Rinciannya di [`data-model.md`](data-model.md).
 
 ## 7. Yang AutoERP **tidak** kerjakan
 
@@ -116,6 +116,6 @@ Supaya tidak salah cari:
 
 ## 8. Lanjut ke mana
 
-- Mau langsung pasang → [`instalasi.md`](instalasi.md)
-- Mau paham datanya → [`model-data.md`](model-data.md)
-- Mau paham aturan finalisasi → [`alur-tiket.md`](alur-tiket.md)
+- Mau langsung pasang → [`installation.md`](installation.md)
+- Mau paham datanya → [`data-model.md`](data-model.md)
+- Mau paham aturan finalisasi → [`ticket-flow.md`](ticket-flow.md)

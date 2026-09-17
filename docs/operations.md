@@ -39,7 +39,7 @@ make up BENCH=/srv/frappe-bench SITE=pks.localhost
 | `make shell` | `bench console` (REPL Python di site) |
 
 ⚠️ **Tidak ada target test.** Test butuh site khusus; lihat
-[`kontribusi.md`](kontribusi.md).
+[`contributing.md`](contributing.md).
 
 `make where` ada karena gampang sekali mengedit checkout kedua repo ini lalu
 bingung kenapa tidak ada yang berubah.

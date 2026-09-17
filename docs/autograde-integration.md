@@ -2,7 +2,7 @@
 
 > ⚠️ **This is the original design document (2026-09-10), kept for the reasoning behind each
 > decision. Parts of it have been overtaken by the code. Where they disagree, the code wins** —
-> the differences are listed in [`api-autograde.md`](api-autograde.md) §"Beda dengan rancangan".
+> the differences are listed in [`autograde-api.md`](autograde-api.md) §"Beda dengan rancangan".
 > For how things work today, start at [`README.md`](README.md).
 
 _Status: both sides shipped. AutoERP side landed 2026-09-10 in `erpnext/palm_mill` (then on branch

@@ -38,7 +38,7 @@ baru tidak pernah mendapat: bahasa `id`, presisi 2 desimal, dan Stock Settings
 `enable_serial_and_batch_no_for_item`.
 
 Akibatnya site lahir berbahasa Inggris, 3 desimal, dan **TBS ber-batch gagal
-417** saat finalisasi. Langkahnya di [`instalasi.md`](instalasi.md) §3.
+417** saat finalisasi. Langkahnya di [`installation.md`](installation.md) §3.
 (Utang yang tercatat sebagai E5 — belum dipindah ke `after_install`.)
 
 ## 5. "Deadlock Occurred" padahal tidak ada deadlock

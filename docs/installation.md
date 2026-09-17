@@ -65,11 +65,27 @@ Cek: `ls apps/erpnext/erpnext/palm_mill/doctype` → 11 folder.
 
 ## 3. Site
 
+Nama site bebas — `pks.localhost` di bawah cuma contoh, dan kebetulan juga
+bawaan `Makefile` (`SITE ?=`). Kalau kamu memakai nama lain (mis.
+`autoerp.localhost`), tulis sekali di `Makefile.local` supaya semua perintah
+`make` mengikutinya; lihat `operations.md`.
+
+⚠️ **Nyalakan Redis dulu.** `after_install` ERPNext memanggil `frappe.enqueue`,
+jadi tanpa Redis hidup `new-site` mati di `Error 61 connecting to
+127.0.0.1:11000` — sesudah semua DocType telanjur terpasang. Kalau kamu memakai
+`bench start`, dia sudah menyalakannya; kalau belum, nyalakan tangan dan
+**matikan lagi sebelum `bench start`**.
+
 ```bash
-bench new-site pks.localhost --db-root-password <pw> --admin-password admin
-bench --site pks.localhost install-app erpnext
+bench new-site pks.localhost --db-name pks --admin-password admin \
+  --db-root-username "$USER" --db-socket /tmp/mysql.sock --install-app erpnext
+bench --site pks.localhost set-config developer_mode 1
 bench use pks.localhost
 ```
+
+Di macOS tidak ada sandi root MariaDB yang perlu disimpan: user OS adalah
+superuser lewat socket. Linux: socket biasanya `/run/mysqld/mysqld.sock`, dan
+tambahkan `127.0.0.1 pks.localhost` ke `/etc/hosts`.
 
 `install_app` menjalankan `after_install`, yang membuat: field tambahan, peran
 `Weighbridge Operator` + `Palm Mill Integration`, **Sumber TBS `Internal` dan
@@ -81,15 +97,17 @@ selesai tanpa menjalankannya, jadi kebijakan situs ini masih harus dijalankan
 tangan (utang yang tercatat sebagai E5):
 
 ```bash
-bench --site pks.localhost set-config developer_mode 1
-bench --site pks.localhost execute frappe.client.set_value --kwargs \
-  '{"doctype":"System Settings","name":"System Settings","fieldname":"language","value":"id"}'
-bench --site pks.localhost execute frappe.client.set_value --kwargs \
-  '{"doctype":"System Settings","name":"System Settings","fieldname":"float_precision","value":"2"}'
-bench --site pks.localhost execute frappe.client.set_value --kwargs \
-  '{"doctype":"Stock Settings","name":"Stock Settings","fieldname":"enable_serial_and_batch_no_for_item","value":"1"}'
+bench --site pks.localhost execute erpnext.patches.v17_0.palm_mill_language.execute
+bench --site pks.localhost execute erpnext.patches.v17_0.palm_mill_precision.execute
+bench --site pks.localhost execute frappe.db.set_single_value --kwargs \
+  '{"doctype":"Stock Settings","fieldname":"enable_serial_and_batch_no_for_item","value":1}'
 bench --site pks.localhost clear-cache
 ```
+
+Jalankan **patch-nya**, jangan menyetel field satu per satu: `palm_mill_language`
+mengerjakan lima hal, bukan cuma bahasa — dia juga menyalakan Language `id`,
+melepas pengguna yang terpaku ke `en-US`, menyembunyikan empat gudang seed yang
+kosong, dan menghapus dua Item Group bawaan yang tidak terpakai.
 
 Yang terakhir wajib: tanpa itu TBS ber-batch gagal **417 "Activate Serial and
 Batch No"** saat finalisasi.
@@ -141,12 +159,52 @@ di site yang dipakai sungguhan.**
 ### 4b. Dump database privat
 
 Kalau kamu memang butuh site yang persis sama dengan punya Mas Samuel (3.848
-tiket, laporan OER berisi). Butuh akses kolaborator. Caranya di
-[`dev-setup.md`](dev-setup.md) §4.
+tiket, laporan OER berisi). Butuh akses kolaborator ke repo.
 
 ⚠️ Dump berisi kunci enkripsi site dan hash sandi pengguna. **Tidak boleh
 diberikan ke klien atau dipasang di mesin mereka** — itu alasan seeder di §4a
-dibuat.
+dibuat. Untuk hampir semua keperluan, pakai seeder.
+
+```bash
+gh release download sawit-data-2026-09-09-truck --repo delta-anugrah/autoerp -D /tmp/sawit
+
+bench new-site pks.localhost --db-name pksdemo --admin-password admin \
+  --db-root-username "$USER" --db-socket /tmp/mysql.sock
+bench --site pks.localhost restore /tmp/sawit/*-database.sql.gz \
+  --db-root-username "$USER" --db-socket /tmp/mysql.sock
+bench --site pks.localhost set-config developer_mode 1
+bench --site pks.localhost migrate
+bench --site pks.localhost set-admin-password admin
+bench --site pks.localhost clear-cache
+```
+
+`migrate` yang mengangkat dump ke keadaan sekarang: DocType JSON yang dikirim
+app menimpa rekaman `custom: 1` milik dump, lalu **11 patch `palm_mill_*`**
+berjalan. Di site hasil restore patch **jalan sendiri** — jadi step patch manual
+(§3) tidak perlu di sini.
+
+Dump ini berskema `develop`; `migrate` menaikkannya ke `version-16` — terbukti
+2026-09-16.
+
+**Satu hal yang tidak dikerjakan patch:** dump berisi 146 Quality Inspection
+(semuanya salah bertanda Rejected) dan dua template. Lab sudah dikeluarkan dari
+lapisan pabrik, dan ini data demo, jadi dihapus tangan:
+
+```bash
+bench --site pks.localhost console
+```
+
+```python
+for n in frappe.get_all("Quality Inspection", pluck="name"):
+    doc = frappe.get_doc("Quality Inspection", n)
+    if doc.docstatus == 1:
+        doc.flags.ignore_permissions = True
+        doc.cancel()                       # on_cancel melepas tautan di baris stock entry
+    frappe.delete_doc("Quality Inspection", n, force=True, ignore_permissions=True)
+for t in frappe.get_all("Quality Inspection Template", pluck="name"):
+    frappe.delete_doc("Quality Inspection Template", t, force=True, ignore_permissions=True)
+frappe.db.commit()
+```
 
 ### 4c. Kosong
 
@@ -198,7 +256,7 @@ Di Desk: workspace **Pabrik Kelapa Sawit** dengan 7 kartu angka dan 5 grafik.
 
 ## 8. Kalau gagal
 
-Semua jebakan yang pernah memakan waktu ada di [`jebakan.md`](jebakan.md).
+Semua jebakan yang pernah memakan waktu ada di [`gotchas.md`](gotchas.md).
 Yang paling sering:
 
 | Gejala | Sebab | Obat |

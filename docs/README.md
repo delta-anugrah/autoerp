@@ -11,21 +11,20 @@ upstream dan setiap `frappe.get_app("erpnext")` tetap jalan.
 
 | Kamu | Mulai dari |
 |---|---|
-| Baru pertama kali dengar AutoERP | [`pengenalan.md`](pengenalan.md) — 10 menit, tanpa perlu install |
-| Mau memasang di laptop | [`instalasi.md`](instalasi.md) |
-| Mau tahu isi datanya apa saja | [`model-data.md`](model-data.md) |
-| Mau tahu jalan TBS dari truk sampai jadi uang | [`alur-tiket.md`](alur-tiket.md) |
-| Menyambungkan AutoGrade / sistem lain | [`api-autograde.md`](api-autograde.md) |
-| Sudah terpasang, mau kerja harian | [`operasional.md`](operasional.md) |
-| Mau ubah kode dan kirim PR | [`kontribusi.md`](kontribusi.md) |
-| Error dan tidak tahu kenapa | [`jebakan.md`](jebakan.md) — semua jebakan yang pernah memakan waktu |
+| Baru pertama kali dengar AutoERP | [`overview.md`](overview.md) — 10 menit, tanpa perlu install |
+| Mau memasang di laptop | [`installation.md`](installation.md) |
+| Mau tahu isi datanya apa saja | [`data-model.md`](data-model.md) |
+| Mau tahu jalan TBS dari truk sampai jadi uang | [`ticket-flow.md`](ticket-flow.md) |
+| Menyambungkan AutoGrade / sistem lain | [`autograde-api.md`](autograde-api.md) |
+| Sudah terpasang, mau kerja harian | [`operations.md`](operations.md) |
+| Mau ubah kode dan kirim PR | [`contributing.md`](contributing.md) |
+| Error dan tidak tahu kenapa | [`gotchas.md`](gotchas.md) — semua jebakan yang pernah memakan waktu |
 
 ## Dokumen rancangan (bukan panduan)
 
 | Berkas | Isi |
 |---|---|
-| [`autograde-integration.md`](autograde-integration.md) | Rancangan asli kontrak AutoGrade ↔ AutoERP dari Mas Samuel. Panjang (578 baris) dan sebagian sudah berbeda dari kode. **Kalau bertentangan, kode yang menang** — bedanya dicatat di `api-autograde.md` §Beda dengan rancangan. |
-| [`dev-setup.md`](dev-setup.md) | Panduan lama membangun site dari dump database privat. Masih berguna kalau kamu memang butuh dump itu; untuk instalasi biasa pakai `instalasi.md`. |
+| [`autograde-integration.md`](autograde-integration.md) | Rancangan asli kontrak AutoGrade ↔ AutoERP dari Mas Samuel. Panjang (589 baris) dan sebagian sudah berbeda dari kode. **Kalau bertentangan, kode yang menang** — bedanya dicatat di `autograde-api.md` §Beda dengan rancangan. |
 
 ## Peta singkat
 
