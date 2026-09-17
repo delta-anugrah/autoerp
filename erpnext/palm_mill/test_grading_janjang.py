@@ -123,3 +123,44 @@ class TestBagianHasilSortasi(unittest.TestCase):
 		)
 
 		self.assertNotEqual(sb.get("collapsible"), 1)
+
+
+class TestTataLetakSortasi(unittest.TestCase):
+	"""Tabel Sortasi selebar halaman, angkanya dua kolom di bawahnya.
+
+	Column Break yang tidak ditutup Section Break membuat SEMUA field sesudahnya
+	ikut terjepit di kolom kanan — tabel Sortasi jadi setengah lebar dan kolom
+	Berat terpotong jadi "Berat (...". Itu yang terlihat di layar 2026-09-17.
+	"""
+
+	def setUp(self):
+		self.d = json.loads(TIKET.read_text(encoding="utf-8"))
+		self.by = {f["fieldname"]: f for f in self.d["fields"]}
+		self.urut = self.d["field_order"]
+
+	def _tipe(self, n):
+		return self.by.get(n, {}).get("fieldtype")
+
+	def test_tabel_sortasi_mulai_di_bagian_sendiri(self):
+		"""Section Break sebelum `grading` mengakhiri dua kolom di atasnya, jadi
+		tabelnya dapat lebar penuh."""
+		i = self.urut.index("grading")
+		sebelum = [n for n in self.urut[:i] if self._tipe(n) in ("Section Break", "Column Break")]
+
+		self.assertEqual(self._tipe(sebelum[-1]), "Section Break")
+
+	def test_angka_uang_dibagi_dua_kolom(self):
+		"""Kiri: sampah, potongan, netto. Kanan: harga, nilai, entri."""
+		i = self.urut.index("sampah_kg")
+		j = self.urut.index("harga_per_kg")
+		antara = [n for n in self.urut[i:j] if self._tipe(n) == "Column Break"]
+
+		self.assertEqual(len(antara), 1, "harus tepat satu Column Break antara netto dan harga")
+
+	def test_urutan_kiri_dan_kanan_sesuai_permintaan(self):
+		i = self.urut.index("sampah_kg")
+		ekor = [n for n in self.urut[i:] if self._tipe(n) not in ("Section Break", "Tab Break")]
+		kolom = ekor.index(next(n for n in ekor if self._tipe(n) == "Column Break"))
+
+		self.assertEqual(ekor[:kolom], ["sampah_kg", "potongan_pct", "net_after_deduction_kg"])
+		self.assertEqual(ekor[kolom + 1 : kolom + 4], ["harga_per_kg", "nilai", "purchase_receipt"])
