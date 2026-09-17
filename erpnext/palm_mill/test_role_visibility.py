@@ -91,6 +91,14 @@ class IntegrationTestRoleVisibility(IntegrationTestCase):
 					f"{role} tidak boleh diberi domain",
 				)
 
+	def test_an_automatic_role_marked_by_an_earlier_build_is_cleared(self):
+		"""Sites installed before the exclusion existed still carry the domain."""
+		frappe.db.set_value("Role", "All", "restrict_to_domain", setup.ADVANCED_DOMAIN)
+
+		setup.hide_unused_roles()
+
+		self.assertFalse(frappe.db.get_value("Role", "All", "restrict_to_domain"))
+
 	def test_a_role_already_restricted_by_erpnext_is_left_alone(self):
 		frappe.db.set_value("Role", "Sales User", "restrict_to_domain", "Manufacturing")
 

@@ -241,6 +241,13 @@ def hide_unused_roles() -> dict:
 	if not frappe.db.exists("Domain", ADVANCED_DOMAIN):
 		frappe.get_doc({"doctype": "Domain", "domain": ADVANCED_DOMAIN}).insert(ignore_permissions=True)
 
+	# An earlier build of this function marked the automatic roles too. Harmless -- they
+	# never reach the dropdown either way -- but a site that ran it would carry the domain
+	# on `All` and `Guest` forever, so clear it rather than leave a puzzle in the table.
+	for role in frappe.permissions.AUTOMATIC_ROLES:
+		if frappe.db.get_value("Role", role, "restrict_to_domain") == ADVANCED_DOMAIN:
+			frappe.db.set_value("Role", role, "restrict_to_domain", "", update_modified=False)
+
 	hidden, skipped = [], {}
 	for role in frappe.get_all("Role", fields=["name", "restrict_to_domain"]):
 		if role.name in frappe.permissions.AUTOMATIC_ROLES:
