@@ -1,9 +1,5 @@
 [
   {
-    "url": "https://github.com/delta-anugrah/autoerp",
-    "branch": "main"
-  },
-  {
     "url": "https://github.com/frappe/payments",
     "branch": "version-16"
   }

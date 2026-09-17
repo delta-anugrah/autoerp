@@ -80,6 +80,16 @@ jobs:
           REGISTRY: ${{ env.REGISTRY }}
           IMAGE_NAME: ${{ env.IMAGE_NAME }}
           PUSH: "1"
+          # Repo ini privat; `bench init` meng-clone-nya dari dalam container,
+          # yang tidak membawa kredensial checkout Actions. Token bawaan sudah
+          # cukup — `contents: read` di atas yang memberinya akses.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Tag rilisnya, bukan `main` dan bukan SHA. `main` bergerak, jadi
+          # image bisa memuat commit yang bukan yang di-tag. SHA mentah tidak
+          # bisa dipakai: `bench init` meng-clone dengan `--depth 1 --branch`,
+          # dan git menolak SHA di situ ("Remote branch ... not found").
+          # Tag sudah dipastikan turunan main oleh langkah validasi di atas.
+          AUTOERP_BRANCH: ${{ github.ref_name }}
         run: ./deploy/build.sh "${GITHUB_REF_NAME}"
 
   deploy:

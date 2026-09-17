@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
 # Build the AutoERP production image from frappe_docker's `images/custom`.
 #
-#   ./deploy/build.sh v1.0.0              # build ghcr.io/delta-anugrah/autoerp:v1.0.0
-#   PUSH=1 ./deploy/build.sh v1.0.0       # and push it
+#   GITHUB_TOKEN=ghp_... ./deploy/build.sh v1.0.0        # build
+#   GITHUB_TOKEN=ghp_... PUSH=1 ./deploy/build.sh v1.0.0  # and push it
+#
+# GITHUB_TOKEN wajib: repo autoerp privat, dan `bench init` meng-clone-nya dari
+# dalam container, yang tidak ikut membawa kredensial git di laptop. Di CI pakai
+# secrets.GITHUB_TOKEN bawaan; lokal butuh PAT dengan akses baca repo saja.
 #
 # CI runs this same script on a `vX.Y.Z` tag, so a local build and a released one
 # come from one recipe. Nothing here is specific to a droplet.
@@ -23,10 +27,31 @@ IMAGE="$REGISTRY/$IMAGE_NAME:$VERSION"
 FRAPPE_DOCKER_REF="${FRAPPE_DOCKER_REF:-main}"
 FRAPPE_BRANCH="${FRAPPE_BRANCH:-version-16}"
 
+AUTOERP_REPO="${AUTOERP_REPO:-delta-anugrah/autoerp}"
+AUTOERP_BRANCH="${AUTOERP_BRANCH:-main}"
+
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-APPS_JSON="$HERE/apps.json"
+APPS_JSON_SRC="$HERE/apps.json"
 WORK="$(mktemp -d)"
+# 700: apps.json yang dibangkitkan memuat token. Umurnya sependek build, tapi
+# tetap tidak perlu bisa dibaca akun lain di mesin yang sama.
+chmod 700 "$WORK"
 trap 'rm -rf "$WORK"' EXIT
+
+if [ -z "${GITHUB_TOKEN:-}" ]; then
+	cat >&2 <<'MSG'
+GITHUB_TOKEN belum diisi.
+
+Repo autoerp privat dan `bench init` meng-clone-nya DARI DALAM container, yang
+tidak ikut membawa kredensial git laptop. Tanpa token, build berjalan ~1 jam
+(frappe + erpnext + assets berhasil) lalu gagal di langkah terakhir dengan
+"could not read Username for https://github.com".
+
+  lokal : GITHUB_TOKEN=<PAT, cukup akses baca repo> ./deploy/build.sh dev
+  CI    : sudah diisi otomatis dari secrets.GITHUB_TOKEN
+MSG
+	exit 1
+fi
 
 echo "==> frappe_docker ($FRAPPE_DOCKER_REF)"
 git clone -q --depth 1 --branch "$FRAPPE_DOCKER_REF" \
@@ -37,18 +62,18 @@ git clone -q --depth 1 --branch "$FRAPPE_DOCKER_REF" \
 # so it is passed with --secret. A missing or empty file is not an error there --
 # bench init just builds a bench with no apps -- which would produce an image
 # without palm_mill and fail only much later, at the first truck. Check it here.
-if [ ! -s "$APPS_JSON" ]; then
-	echo "apps.json kosong atau tidak ada: $APPS_JSON" >&2
+if [ ! -s "$APPS_JSON_SRC" ]; then
+	echo "apps.json kosong atau tidak ada: $APPS_JSON_SRC" >&2
 	exit 1
 fi
-python3 -c "
-import json,sys
-apps = json.load(open('$APPS_JSON'))
-names = [a['url'].rstrip('/').rsplit('/',1)[-1] for a in apps]
-if 'autoerp' not in names:
-    sys.exit('apps.json harus memuat repo autoerp; ada: %s' % names)
-print('    apps:', ', '.join(names))
-"
+
+# autoerp TIDAK ditulis di apps.json: URL-nya harus membawa token, dan berkas
+# yang di-commit bukan tempat kredensial. Disuntik di sini ke berkas sementara
+# yang hanya hidup selama build.
+APPS_JSON="$WORK/apps.json"
+AUTOERP_REPO="$AUTOERP_REPO" AUTOERP_BRANCH="$AUTOERP_BRANCH" \
+	python3 "$HERE/render_apps_json.py" "$APPS_JSON_SRC" "$APPS_JSON"
+chmod 600 "$APPS_JSON"
 
 echo "==> build $IMAGE"
 # CACHE_BUST keeps `bench init` from reusing a cached layer when the branch has
