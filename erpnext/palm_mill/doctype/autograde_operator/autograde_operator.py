@@ -20,6 +20,7 @@ from frappe.utils import validate_email_address
 from frappe.utils.password import passlibctx
 
 PASSWORD_MIN_LENGTH = 8
+SUPPORT_ROLE = "support"
 
 
 class AutoGradeOperator(Document):
@@ -55,6 +56,7 @@ class AutoGradeOperator(Document):
 		# Also here, not only in `before_naming`: an edit to an existing document does not
 		# run naming again, and the field must not drift away from the name.
 		self._normalise_email()
+		self._guard_support_role()
 		self._take_new_password()
 
 	def _take_new_password(self):
@@ -75,6 +77,31 @@ class AutoGradeOperator(Document):
 			return
 		self._check_password_length(password)
 		self.password_hash = passlibctx.hash(password)
+
+	def _guard_support_role(self):
+		"""Only Administrator hands out `support`.
+
+		Checked on the server, not only in the form: the same DocType is reachable over
+		REST with any System Manager's API key, and the form's own filtering is a
+		convenience, not a control.
+
+		Only a *change into* `support` is refused. An account that already holds it can
+		still be saved by anyone who may write the doctype -- otherwise backoffice could
+		not correct a name or switch the account off, and would be told they lack
+		permission for an edit that has nothing to do with the role.
+		"""
+		if self.role != SUPPORT_ROLE:
+			return
+		if frappe.session.user == "Administrator":
+			return
+		sebelumnya = self.get_doc_before_save() if not self.is_new() else None
+		if sebelumnya and sebelumnya.role == SUPPORT_ROLE:
+			return
+		frappe.throw(
+			_("Only Administrator can give the {0} role.").format(frappe.bold(SUPPORT_ROLE)),
+			frappe.PermissionError,
+			title=_("Not permitted"),
+		)
 
 	def _normalise_email(self):
 		self.email = (self.email or "").strip().lower()
