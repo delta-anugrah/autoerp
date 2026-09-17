@@ -39,6 +39,29 @@ READ_ONLY_MASTERS = (
 	"Sertifikasi",
 )
 
+# Roles a palm mill actually uses. Everything else ERPNext ships is pushed behind a
+# domain that is never switched on, so the User form offers seven choices instead of 49.
+#
+# `Script Manager` and `Workspace Manager` are on this list for a different reason than
+# the other five: Frappe names both in its own code. `Script Manager` is in `role.py`'s
+# STANDARD_ROLES and gates `frappe.only_for` in Server Script and Report;
+# `Workspace Manager` gates editing any public workspace, the mill's own included.
+# Hiding either leaves a site nobody can repair from the UI.
+ADVANCED_DOMAIN = "Palm Mill Advanced"
+MILL_ROLES = (
+	"System Manager",
+	OPERATOR_ROLE,
+	INTEGRATION_ROLE,
+	"Purchase User",
+	"Stock User",
+	"Script Manager",
+	"Workspace Manager",
+)
+
+# The customer's administrator. One role, and the one ERPNext already means by it:
+# create users, edit settings, reach every mill DocType.
+ADMIN_USER_ROLES = ("System Manager",)
+
 # Same names and properties the demo generator used, so existing sites see no change.
 CUSTOM_FIELDS = {
 	"Batch": [
@@ -109,6 +132,7 @@ SOURCES = ("Internal", "External")
 def after_install():
 	create_custom_fields(CUSTOM_FIELDS, ignore_validate=frappe.flags.in_patch, update=True)
 	setup_roles()
+	hide_unused_roles()
 	setup_sources()
 	set_defaults()
 	set_favicon()
@@ -195,6 +219,43 @@ def hide_seed_masters():
 			and not frappe.db.exists("Item Group", {"parent_item_group": ig})
 		):
 			frappe.delete_doc("Item Group", ig, ignore_permissions=True, force=True)
+
+
+def hide_unused_roles() -> dict:
+	"""Keep the roles a mill never uses out of the User form's role picker.
+
+	Uses `restrict_to_domain` against a domain that is deliberately never activated, NOT
+	`disabled`. The difference is not cosmetic: `Role.validate` calls `remove_roles()`
+	whenever `disabled` is set, which deletes every `Has Role` row for that role -- and
+	switching the role back on does not restore a single one. Measured on a live site:
+	disabling `Sales User` took it from 51 holders to 0, and re-enabling left it at 0.
+	`restrict_to_domain` is read only by the dropdown query in `get_all_roles`;
+	`frappe.get_roles` never looks at it, so permissions are untouched.
+
+	Reversible from the desk, which is the point: Administrator either clears
+	`Restrict To Domain` on one role, or switches the domain on to get all of them back.
+
+	Returns what it did, so the caller can print it -- a step that changes 42 rows and
+	says nothing is one nobody can audit afterwards.
+	"""
+	if not frappe.db.exists("Domain", ADVANCED_DOMAIN):
+		frappe.get_doc({"doctype": "Domain", "domain": ADVANCED_DOMAIN}).insert(ignore_permissions=True)
+
+	hidden, skipped = [], {}
+	for role in frappe.get_all("Role", fields=["name", "restrict_to_domain"]):
+		if role.name in MILL_ROLES:
+			skipped[role.name] = "whitelist"
+			continue
+		if role.restrict_to_domain:
+			# Somebody else's decision -- ERPNext's own, or a person's. Not ours to take.
+			skipped[role.name] = f"domain:{role.restrict_to_domain}"
+			continue
+		frappe.db.set_value("Role", role.name, "restrict_to_domain", ADVANCED_DOMAIN, update_modified=False)
+		hidden.append(role.name)
+
+	if hidden:
+		frappe.clear_cache()
+	return {"hidden": sorted(hidden), "skipped": skipped}
 
 
 def setup_sources():
