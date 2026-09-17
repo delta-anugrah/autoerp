@@ -1,0 +1,208 @@
+# Rilis AutoERP ke droplet. Menyalin pola palmgrade-api yang sudah terbukti:
+# tag immutable, wajib turunan main, rollback otomatis kalau yang baru tidak sehat.
+#
+# Bedanya dengan api, dan alasannya: ERP punya SKEMA DATABASE. `bench migrate`
+# mengubah data dan tidak bisa dibatalkan dengan menukar image, jadi ada
+# `bench backup` tepat sebelumnya dan rollback ikut mengembalikan dump itu.
+name: Build and Deploy AutoERP Production Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout release commit
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate release tag and main ancestry
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          VERSION="${GITHUB_REF_NAME}"
+
+          if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Invalid release tag: $VERSION"
+            exit 1
+          fi
+
+          git fetch origin main
+
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "Release tag must reference a commit contained in main"
+            exit 1
+          fi
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Reject existing immutable release tag
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${GITHUB_REF_NAME}"
+
+          if docker buildx imagetools inspect "$IMAGE" >/dev/null 2>&1; then
+            echo "Release image already exists and must not be overwritten: $IMAGE"
+            exit 1
+          fi
+
+      # Lewat build.sh yang sama dengan yang dipakai orang di laptop, supaya
+      # image rilis dan image uji lokal lahir dari satu resep.
+      # Tidak ada tag `latest`: droplet selalu di-pin ke versi persis, dan tidak
+      # ada PC pabrik yang menarik image ERP (konsol tetap di edge).
+      - name: Build and push versioned image
+        shell: bash
+        env:
+          REGISTRY: ${{ env.REGISTRY }}
+          IMAGE_NAME: ${{ env.IMAGE_NAME }}
+          PUSH: "1"
+        run: ./deploy/build.sh "${GITHUB_REF_NAME}"
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout release files
+        uses: actions/checkout@v4
+
+      - name: Sync production compose file
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.DROPLET_HOST }}
+          username: ${{ secrets.DROPLET_USER }}
+          key: ${{ secrets.DROPLET_SSH_KEY }}
+          source: "deploy/droplet/docker-compose.prod.yml"
+          target: "/opt/autoerp"
+          strip_components: 2
+          overwrite: true
+
+      - name: Deploy exact production image
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DROPLET_HOST }}
+          username: ${{ secrets.DROPLET_USER }}
+          key: ${{ secrets.DROPLET_SSH_KEY }}
+          script: |
+            set -euo pipefail
+
+            cd /opt/autoerp
+
+            NEW_IMAGE="ghcr.io/${{ github.repository }}:${{ github.ref_name }}"
+            PREVIOUS_IMAGE="$(grep '^AUTOERP_IMAGE=' .env | cut -d= -f2- || true)"
+            SITE_NAME="$(grep '^SITE_NAME=' .env | cut -d= -f2- || true)"
+            BACKUP_FILE=".env.pre-release"
+            COMPOSE="docker compose -f docker-compose.prod.yml"
+
+            if [ -z "$PREVIOUS_IMAGE" ]; then
+              echo "AUTOERP_IMAGE is missing from .env"
+              exit 1
+            fi
+            if [ -z "$SITE_NAME" ]; then
+              echo "SITE_NAME is missing from .env"
+              exit 1
+            fi
+
+            wait_for_health() {
+              # /api/method/ping menjawab tanpa login dan hanya kalau situsnya
+              # benar-benar hidup: nginx, gunicorn, MariaDB, Redis, semuanya.
+              for attempt in $(seq 1 60); do
+                if curl -fsS -H "Host: ${SITE_NAME}" \
+                    http://127.0.0.1:8080/api/method/ping >/dev/null 2>&1; then
+                  return 0
+                fi
+                sleep 3
+              done
+              return 1
+            }
+
+            echo "Pulling target image before changing runtime configuration: ${NEW_IMAGE}"
+            docker pull "$NEW_IMAGE"
+
+            # Dump SEBELUM migrate. Menukar image tidak membatalkan perubahan
+            # skema, jadi ini satu-satunya jalan pulang kalau migrate merusak data.
+            echo "Backing up ${SITE_NAME} before migrate"
+            $COMPOSE exec -T backend bench --site "$SITE_NAME" backup --with-files
+            BACKUP_PATH="$($COMPOSE exec -T backend bash -c \
+              "ls -1t sites/${SITE_NAME}/private/backups/*-database.sql.gz | head -1" | tr -d '\r')"
+            if [ -z "$BACKUP_PATH" ]; then
+              echo "Backup did not produce a dump — refusing to migrate"
+              exit 1
+            fi
+            echo "Backup: ${BACKUP_PATH}"
+
+            cp .env "$BACKUP_FILE"
+            sed -i "s|^AUTOERP_IMAGE=.*|AUTOERP_IMAGE=${NEW_IMAGE}|" .env
+
+            restore_previous() {
+              echo "Restoring previous image: ${PREVIOUS_IMAGE}"
+              mv "$BACKUP_FILE" .env
+
+              if ! docker image inspect "$PREVIOUS_IMAGE" >/dev/null 2>&1; then
+                docker pull "$PREVIOUS_IMAGE"
+              fi
+
+              if ! $COMPOSE up -d --force-recreate; then
+                echo "CRITICAL: failed to start previous image — manual intervention required"
+                return 1
+              fi
+
+              # Skema sudah terlanjur dimigrasi oleh image baru; image lama belum
+              # tentu bisa membacanya. Dump di atas yang mengembalikannya.
+              echo "CRITICAL: database may have been migrated. Restore with:"
+              echo "  $COMPOSE exec backend bench --site ${SITE_NAME} restore ${BACKUP_PATH}"
+              return 1
+            }
+
+            if ! $COMPOSE config >/dev/null; then
+              restore_previous
+              exit 1
+            fi
+
+            if ! $COMPOSE up -d --force-recreate; then
+              restore_previous
+              exit 1
+            fi
+
+            if ! $COMPOSE exec -T backend bench --site "$SITE_NAME" migrate; then
+              echo "migrate failed on ${NEW_IMAGE}"
+              restore_previous
+              exit 1
+            fi
+
+            if ! wait_for_health; then
+              echo "Target image failed health validation: ${NEW_IMAGE}"
+              restore_previous
+              exit 1
+            fi
+
+            rm -f "$BACKUP_FILE"
+
+            $COMPOSE ps
+            curl -fsS -H "Host: ${SITE_NAME}" http://127.0.0.1:8080/api/method/ping
+
+            echo "Production deployed: ${NEW_IMAGE}"
