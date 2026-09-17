@@ -168,7 +168,8 @@ def seed(force=0, days=DAYS, quiet=0):
 		fn()
 		# Per step, not one transaction at the end: a seeder that dies half way should
 		# leave what it already built, and the next run picks up from there (it is
-		# idempotent). nosemgrep: frappe-semgrep-rules.rules.frappe-manual-commit
+		# idempotent).
+		# nosemgrep: frappe-semgrep-rules.rules.frappe-manual-commit
 		frappe.db.commit()
 		_say(quiet, f"  {label}")
 
@@ -671,7 +672,8 @@ def wipe_visits(quiet=0):
 				_force_delete(doctype, name)
 		_force_delete("Weighbridge Ticket", t.name)
 		# Per ticket: cancelling and deleting submitted documents is slow, and a partial
-		# wipe must stay wiped. nosemgrep: frappe-semgrep-rules.rules.frappe-manual-commit
+		# wipe must stay wiped.
+		# nosemgrep: frappe-semgrep-rules.rules.frappe-manual-commit
 		frappe.db.commit()
 	return len(tickets)
 
