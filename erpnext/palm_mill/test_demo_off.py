@@ -36,11 +36,7 @@ def _fungsi(nama):
 
 
 def _dipanggil(simpul):
-	return {
-		n.func.id
-		for n in ast.walk(simpul)
-		if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
-	}
+	return {n.func.id for n in ast.walk(simpul) if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)}
 
 
 class TestDemoOff(unittest.TestCase):
