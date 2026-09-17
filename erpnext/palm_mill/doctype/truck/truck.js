@@ -11,8 +11,22 @@ function open_qr_cards(names) {
 	window.open(`/truck_qr_cards?trucks=${encodeURIComponent(JSON.stringify(names))}`, "_blank");
 }
 
+// The blank first option of Vehicle Class means "not recorded", and a blank line in a
+// dropdown reads like a rendering fault. Relabel it in the browser ONLY: the stored
+// value stays the empty string it has always been, so existing trucks, the AutoGrade
+// contract and every report are untouched. Writing a literal "Lainnya" into the
+// options would create a second way of saying "unknown" and split the data in two.
+function label_blank_vehicle_class(frm) {
+	const field = frm.get_field("vehicle_class");
+	const select = field && field.$input && field.$input.get(0);
+	if (!select) return;
+	const blank = select.querySelector('option[value=""]');
+	if (blank) blank.textContent = __("Lainnya / belum dicatat");
+}
+
 frappe.ui.form.on("Truck", {
 	refresh(frm) {
+		label_blank_vehicle_class(frm);
 		if (frm.is_new()) return;
 		frm.add_custom_button(__("Print QR Card"), () => open_qr_cards([frm.doc.name]));
 	},

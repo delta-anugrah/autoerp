@@ -23,7 +23,10 @@
 
 {% block page_content %}
 <div class="qr-toolbar">
-	<button class="btn btn-primary btn-sm" onclick="window.print()">{{ _("Print") }}</button>
+	{#- Not `_("Print")`: Frappe core translates that to "Mencetak" ("printing"), which
+	    reads like a status, not a button. A string of our own keeps the imperative. -#}
+	<button class="btn btn-primary btn-sm" onclick="window.print()">{{ _("Print cards") }}</button>
+	<span class="text-muted small ml-2">{{ _("Choose a printer, or \"Save as PDF\", in the dialog that opens.") }}</span>
 </div>
 
 {% if unscannable %}
