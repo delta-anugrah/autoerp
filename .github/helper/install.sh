@@ -36,7 +36,23 @@ export GIT_TERMINAL_PROMPT=0
 
 githubbranch=${GITHUB_BASE_REF:-${GITHUB_REF##*/}}
 frappeuser=${FRAPPE_USER:-"frappe"}
-frappecommitish=${FRAPPE_BRANCH:-$githubbranch}
+
+# Which branch of `frappe/frappe` to build against.
+#
+# Upstream simply reuses this repository's branch name, which works there because
+# erpnext and frappe carry the same branch names. This fork does not: our branches are
+# `main` and `staging`, and `frappe/frappe` has no branch by either name - so every CI
+# run died at `fatal: couldn't find remote ref staging` before a single test ran.
+#
+# The fork is based on ERPNext version-16 (pyproject.toml pins frappe >=16.21,<17), so
+# that is what our branches build against. A branch name that DOES exist upstream
+# (version-16, develop, a release branch) is passed through untouched, which keeps
+# upstream-shaped branches working exactly as before.
+case "$githubbranch" in
+	main|staging) frappedefault="version-16" ;;
+	*) frappedefault="$githubbranch" ;;
+esac
+frappecommitish=${FRAPPE_BRANCH:-$frappedefault}
 db_host=${DB_HOST:-"127.0.0.1"}
 db_user_host=${DB_USER_HOST:-"localhost"}
 wkhtmltox_deb=${WKHTMLTOX_DEB:-"/tmp/wkhtmltox.deb"}
