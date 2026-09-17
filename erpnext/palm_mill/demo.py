@@ -654,6 +654,26 @@ def reset(force=0, days=DAYS, quiet=0):
 	return seed(force=1, days=days, quiet=quiet)
 
 
+def off(force=0, quiet=0):
+	"""Delete the demo tickets and stop — the counterpart of `reset`, which re-seeds.
+
+	Run after a showcase, and before anyone tests against real data on that site:
+	demo rows sit in the same tables as real ones, so a ticket list that still carries
+	them reads as if the mill booked loads it never received.
+
+	Masters (suppliers, trucks, blocks, users) are deliberately left alone, for the same
+	reason `reset` leaves them: they are what a client's own data replaces, and dropping
+	them churns the account tree for nothing.
+	"""
+	_check_allowed(force)
+	relax_snapshot_isolation()
+	drain_queue()
+	removed = wipe_visits(quiet=quiet)
+	_say(quiet, f"  removed {removed} tickets")
+	_say(quiet, "  demo data cleared; masters and real data untouched")
+	return removed
+
+
 def wipe_visits(quiet=0):
 	"""Cancel and delete the demo tickets, receipts and stock entries — in dependency order."""
 	tickets = frappe.get_all(
