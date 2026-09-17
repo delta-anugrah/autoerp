@@ -319,6 +319,56 @@ def set_defaults():
 		settings.save(ignore_permissions=True)
 
 
+def create_admin_user(email: str, full_name: str) -> dict:
+	"""The customer's own administrator, so `Administrator` can be put away.
+
+	`System Manager` is the whole grant: it creates users, edits Palm Mill Settings and
+	reaches every mill DocType. Anything beyond that is a role the site does not need yet,
+	and roles are easier to add later than to take back.
+
+	Returns a password reset link rather than a password. A password printed here would
+	live on in a terminal scrollback and in whatever chat window it was pasted into; a
+	link is used once and expires.
+	"""
+	from frappe.utils import get_url, now
+
+	# `_` is already bound to frappe's translation function at module level, so the
+	# throwaway from `partition` gets a real name.
+	depan, _pemisah, belakang = full_name.strip().partition(" ")
+
+	if frappe.db.exists("User", email):
+		user = frappe.get_doc("User", email)
+		sudah = {r.role for r in user.roles}
+		ditambah = [r for r in ADMIN_USER_ROLES if r not in sudah]
+		for role in ditambah:
+			user.append("roles", {"role": role})
+		if ditambah:
+			user.save(ignore_permissions=True)
+	else:
+		ditambah = list(ADMIN_USER_ROLES)
+		user = frappe.get_doc(
+			{
+				"doctype": "User",
+				"email": email,
+				"first_name": depan,
+				"last_name": belakang or None,
+				"user_type": "System User",
+				"send_welcome_email": 0,
+				"roles": [{"role": role} for role in ADMIN_USER_ROLES],
+			}
+		).insert(ignore_permissions=True)
+
+	kunci = frappe.generate_hash()
+	user.db_set("reset_password_key", kunci, update_modified=False)
+	user.db_set("last_reset_password_key_generated_on", now(), update_modified=False)
+
+	return {
+		"user": user.name,
+		"roles_added": ditambah,
+		"reset_link": get_url(f"/update-password?key={kunci}"),
+	}
+
+
 def create_integration_user(email: str, full_name: str) -> dict:
 	"""A System User with the integration role plus the stock roles finalisation needs,
 	and an API key/secret for `Authorization: token key:secret`. Re-running regenerates

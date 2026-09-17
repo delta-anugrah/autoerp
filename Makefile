@@ -39,7 +39,7 @@ SUPERVISOR = honcho start
 BOOT_LOG   = $(BENCH)/logs/bench-start.log
 
 .DEFAULT_GOAL := help
-.PHONY: help up start stop down restart status ping key-show key-new migrate backup shell where
+.PHONY: help up start stop down restart status ping key-show key-new admin-new migrate backup shell where
 
 help:
 	@echo "Bench: $(BENCH)   Site: $(SITE)   $(URL)"
@@ -51,6 +51,7 @@ help:
 	@echo "  make status     what is running, and whether the site answers"
 	@echo "  make key-show   print the AutoGrade API key:secret WITHOUT rotating it"
 	@echo "  make key-new    create/rotate the AutoGrade integration user (kills the old secret)"
+	@echo "  make admin-new  buat admin pelanggan (EMAIL=... NAMA=...)"
 	@echo "  make demo       isi data demo untuk showcase ke klien"
 	@echo "  make demo-reset hapus data demo lalu isi ulang bersih"
 	@echo "  make demo-off   hapus data demo, berhenti di situ (sesudah showcase)"
@@ -151,6 +152,15 @@ key-new:
 	@printf "Type yes to continue: "; read ans; [ "$$ans" = "yes" ] || { echo "Aborted."; exit 1; }
 	@cd "$(BENCH)" && bench --site $(SITE) execute erpnext.palm_mill.setup.create_integration_user \
 		--kwargs '{"email": "$(AG_USER)", "full_name": "AutoGrade"}'
+
+# Akun administrator milik pelanggan, supaya `Administrator` bisa dikunci setelah
+# pemasangan. Yang dicetak adalah tautan reset, bukan kata sandi: kata sandi akan
+# tertinggal di riwayat terminal dan di jendela chat tempat ia ditempelkan.
+admin-new:
+	@[ -n "$(EMAIL)" ] || { echo "Pakai: make admin-new EMAIL=admin@pelanggan.co.id NAMA=\"Admin Pelanggan\""; exit 1; }
+	@[ -n "$(NAMA)" ]  || { echo "Pakai: make admin-new EMAIL=admin@pelanggan.co.id NAMA=\"Admin Pelanggan\""; exit 1; }
+	cd "$(BENCH)" && bench --site $(SITE) execute erpnext.palm_mill.setup.create_admin_user \
+		--kwargs '{"email": "$(EMAIL)", "full_name": "$(NAMA)"}'
 
 # Data demo untuk showcase ke klien. Platnya sama persis dengan seeder AutoGrade
 # (`autograde/scripts/seed-console-demo.py`), jadi satu truk adalah truk yang sama
