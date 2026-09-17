@@ -17,8 +17,19 @@ function label_blank_vehicle_class(frm) {
 	const field = frm.get_field("vehicle_class");
 	const select = field && field.$input && field.$input.get(0);
 	if (!select) return;
-	const blank = select.querySelector('option[value=""]');
-	if (blank) blank.textContent = __("Lainnya / belum dicatat");
+	// Matched by the option's `value` PROPERTY, not by `option[value=""]`: Frappe
+	// renders the blank choice as a bare `<option></option>` with no value attribute
+	// at all, so the attribute selector never matches and the relabel silently does
+	// nothing. Caught in a real browser; no Python test can see this.
+	const blank = Array.from(select.options).find((o) => o.value === "");
+	if (!blank) return;
+
+	// The value attribute must be pinned BEFORE the text is changed. An `<option>`
+	// with no value attribute takes its value from its own text, so relabelling alone
+	// silently turns the stored value into "Lainnya / belum dicatat" - the exact thing
+	// this relabel exists to avoid. Caught in a real browser.
+	blank.setAttribute("value", "");
+	blank.textContent = __("Lainnya / belum dicatat");
 }
 
 frappe.ui.form.on("Truck", {

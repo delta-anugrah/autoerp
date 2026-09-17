@@ -80,6 +80,11 @@ erpnext.palm_mill._render_qr_dialog = function (cards) {
 		</style>
 		${warning}
 		<div class="qr-sheet">${sheet}</div>
+		<p class="text-muted small" style="margin-top:5mm">
+			${__(
+				'If the printout carries a date and a web address, switch off "Headers and footers" under More settings in the print dialog — the browser adds those, not this page.'
+			)}
+		</p>
 	`);
 
 	dialog.show();
@@ -114,7 +119,12 @@ erpnext.palm_mill._print_cards = function (cards) {
 
 	const doc = frame.contentWindow.document;
 	doc.open();
-	doc.write(`<!doctype html><html><head><meta charset="utf-8"><title>${__("Truck QR Cards")}</title><style>
+	// Deliberately no <title>: Chrome prints the document title in the page header, and
+	// these cards get cut out and stuck on a windscreen — a title, a date and a URL
+	// across the top is rubbish on the finished card. The rest of the header and footer
+	// is the browser's own "Headers and footers" setting, which a page cannot switch
+	// off from CSS; the dialog tells the user where it is.
+	doc.write(`<!doctype html><html><head><meta charset="utf-8"><title></title><style>
 		@page { margin:10mm; }
 		body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
 		.qr-sheet { display:flex; flex-wrap:wrap; gap:6mm; }
