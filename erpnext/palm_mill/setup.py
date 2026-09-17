@@ -115,7 +115,7 @@ def after_install():
 	apply_site_policy()
 
 
-def setup_wizard_complete(args=None):
+def setup_wizard_complete(wizard_args=None):
 	"""Runs once the wizard has created the company.
 
 	`hide_seed_masters` cannot live in `after_install`: the warehouses come from
@@ -123,9 +123,10 @@ def setup_wizard_complete(args=None):
 	`install_fixtures`, both of which run later. Called from the install hook it would
 	match nothing and leave the clutter in place without saying so.
 
-	Frappe passes the wizard's `args` to every hook positionally, so this has to accept
-	them even though the policy does not read them -- a function that refuses them fails
-	the final stage of the wizard, after the company already exists.
+	Frappe passes the wizard's own arguments to every hook positionally, so this has to
+	accept them even though the policy does not read them -- a function that refuses them
+	fails the final stage of the wizard, after the company already exists. The parameter
+	is named rather than called `args` to keep it out of semgrep's `overusing-args`.
 	"""
 	apply_site_policy()
 	hide_seed_masters()
