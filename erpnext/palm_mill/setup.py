@@ -167,8 +167,16 @@ def enable_serial_and_batch():
 
 	The upstream v16 patch only turns it on for sites that already have a Batch. A site
 	born empty has none, so it stays off exactly where it is needed most.
+
+	Stock Settings keeps this flag in two places: the Single, which server-side validation
+	reads, and a default, which `item.js` reads to decide whether to show the Batch No
+	fields at all. `Stock Settings.on_update` normally syncs them, but `set_single_value`
+	writes straight to the table without running it -- so setting only the Single leaves a
+	site where FFB can be received but nobody can tick "Has Batch No" on the item, because
+	the field is hidden.
 	"""
 	frappe.db.set_single_value("Stock Settings", "enable_serial_and_batch_no_for_item", 1)
+	frappe.db.set_default("enable_serial_and_batch_no_for_item", 1)
 
 
 def hide_seed_masters():

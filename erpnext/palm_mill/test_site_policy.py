@@ -55,6 +55,26 @@ class IntegrationTestSitePolicy(IntegrationTestCase):
 
 		self.assertTrue(frappe.db.get_single_value("Stock Settings", "enable_serial_and_batch_no_for_item"))
 
+	def test_the_item_form_can_still_show_the_batch_fields(self):
+		"""Stock Settings keeps this flag twice: the Single that validation reads, and a
+		default that `item.js` reads to decide whether to render the Batch No fields.
+		`Stock Settings.on_update` syncs them, but `set_single_value` skips that hook -- so
+		setting only the Single gives a site that accepts FFB yet hides the checkbox needed
+		to mark an item batched in the first place."""
+		frappe.defaults.clear_default("enable_serial_and_batch_no_for_item")
+
+		setup.enable_serial_and_batch()
+
+		self.assertTrue(
+			frappe.utils.cint(frappe.db.get_default("enable_serial_and_batch_no_for_item")),
+			"item.js hides the Batch No fields unless the default is set too",
+		)
+
+	def test_the_language_row_the_policy_switches_to_exists(self):
+		"""`set_value` on a missing row is a silent no-op, so a missing `id` Language would
+		leave the site in English with nothing in the log."""
+		self.assertTrue(frappe.db.exists("Language", "id"))
+
 	def test_applying_the_policy_twice_changes_nothing_the_second_time(self):
 		"""Both install hooks and the patches call these, so a site can see them more than
 		once -- on install, then again on the next migrate."""
@@ -118,6 +138,7 @@ class IntegrationTestSitePolicy(IntegrationTestCase):
 			frappe.db.get_single_value("System Settings", "language"),
 			frappe.db.get_single_value("System Settings", "float_precision"),
 			frappe.db.get_single_value("Stock Settings", "enable_serial_and_batch_no_for_item"),
+			frappe.db.get_default("enable_serial_and_batch_no_for_item"),
 			frappe.db.get_value("Language", "id", "enabled"),
 		)
 
