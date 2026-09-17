@@ -141,3 +141,15 @@ bench --site test_site run-tests --module erpnext.palm_mill.test_api
 ```
 
 48 tests across `test_api.py` (11), `test_qr_card.py` (6), `weighbridge_ticket` (8), `autograde_operator` (18), `truck` (5). `test_fixtures.py` pins the worked example: net 9,160 kg → 11.55 % potongan → 8,102 kg payable.
+
+Two more files need **no site and no bench** — they parse the source and the DocType
+JSON instead of running against a database, so they work on any machine:
+
+```bash
+python3 -m unittest discover -s erpnext/palm_mill -p "test_demo_off.py" -t erpnext/palm_mill
+python3 -m unittest discover -s erpnext/palm_mill -p "test_grading_janjang.py" -t erpnext/palm_mill
+```
+
+`test_demo_off.py` (5) pins that `demo.off()` never re-seeds and always passes the
+`demo_mode` guard. `test_grading_janjang.py` (9) pins the per-criterion bunch count
+and keeps the AutoGrade result out of the collapsed Integration section.
