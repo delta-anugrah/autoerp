@@ -153,7 +153,39 @@ Dua tersangka:
 `force=1`. Sandinya sama untuk semua akun dan tertulis di kode — jangan pakai
 seeder di site yang dipakai sungguhan.
 
-## 19. Setelah ubah `modules.txt`
+## 19. Site `--install-app` lahir tanpa isi wizard — dan satu di antaranya diam
+
+`bench new-site --install-app erpnext` **tidak menjalankan setup wizard**, jadi lima
+hal yang biasanya dibuat wizard tidak ada. Empat di antaranya gagal keras dan mudah
+dikenali; yang kelima tidak melapor apa pun.
+
+| Hilang | Gejala |
+|---|---|
+| `Warehouse Type: Transit` | pembuatan Company gagal (set gudang bawaan memuat Goods In Transit) |
+| Price List `Standard Buying` | Item Price gagal dibuat |
+| Fiscal Year | Purchase Receipt tidak bisa posting ke GL |
+| `Stock Settings.enable_serial_and_batch_no_for_item` | item ber-batch (TBS) ditolak saat submit |
+| **Default currency `INR`** | **tidak ada gejala** — lihat di bawah |
+
+⚠️ **Yang kelima adalah yang berbahaya.** Company dan Price List dua-duanya IDR, tapi
+currency penagihan supplier diambil dari **global default**, dan di site baru itu `INR`.
+Akibatnya tiap Purchase Receipt terbit dalam INR dengan `conversion_rate` 184,07:
+`amount` **benar** (Rp 26 jt untuk 10 ton), tapi `base_amount` dan Stock In Hand dikali
+184× — Rp 180 **miliar** untuk seminggu. Tidak ada error, tidak ada peringatan, dan
+angka yang dilihat di form receipt justru yang benar, jadi ini cuma ketahuan kalau ada
+yang membuka neraca.
+
+Periksa sebelum memasukkan transaksi apa pun:
+
+```python
+frappe.db.get_default("currency")                                  # harus IDR
+frappe.db.get_value("Purchase Receipt", <nama>, "conversion_rate")  # harus 1.0
+```
+
+`demo.set_defaults_currency()` membereskan kelimanya; site yang dibuat dengan cara lain
+harus disetel sendiri.
+
+## 20. Setelah ubah `modules.txt`
 
 Jalankan `bench --site <site> clear-cache` **sebelum** `migrate`, di setiap
 site. Peta modul di-cache per site.
