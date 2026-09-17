@@ -148,7 +148,15 @@ jobs:
           update_to_version 15 3.13
 
           echo "Updating to latest version"
-          git -C "apps/frappe" fetch --depth 1 upstream "${GITHUB_BASE_REF:-${GITHUB_REF##*/}}"
+          # Same mapping as .github/helper/install.sh, and for the same reason: this is
+          # a branch of `frappe/frappe`, and it has neither `main` nor `staging`. Left
+          # inline rather than sourced because this step runs inside ~/frappe-bench,
+          # where the helper is not on the path.
+          case "${GITHUB_BASE_REF:-${GITHUB_REF##*/}}" in
+            main|staging) frappe_branch="version-16" ;;
+            *) frappe_branch="${GITHUB_BASE_REF:-${GITHUB_REF##*/}}" ;;
+          esac
+          git -C "apps/frappe" fetch --depth 1 upstream "$frappe_branch"
           git -C "apps/frappe" checkout -q -f FETCH_HEAD
           git -C "apps/erpnext" checkout -q -f "$GITHUB_SHA"
 
