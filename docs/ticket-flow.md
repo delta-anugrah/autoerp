@@ -69,9 +69,17 @@ potongan = min(potongan, max_potongan_pct / 100)          # batas 18%
 
 berat_kg per baris  = neto × persen / 100
 sampah_kg           = round(neto × persen_sampah / 100)
-kg_dibayar          = round( (neto − sampah_kg) × (1 − potongan) )
+kg_dibayar          = max(0, round( (neto − sampah_kg) × (1 − potongan) ))
 nilai               = round( kg_dibayar × harga_per_kg, 2 )
 ```
+
+⚠️ **Persen divalidasi sebelum dihitung** (`validate_grading_percentages()`): tiap
+baris harus 0–100 dan jumlah semua baris tidak boleh lebih dari 100. Kolomnya berlabel
+*Percent* tapi angka di kepala operator adalah kilogram — mengetik `500` untuk "500 kg
+sampah" alih-alih `5` dulu menghasilkan `kg_dibayar` **−40.000** dan nilai
+**−Rp 114.000.000** pada muatan 10.000 kg, dan tidak ada yang menolaknya: batas
+`max_potongan_pct` hanya membatasi `potongan`, sedangkan `sampah_kg` dipotong terpisah
+di atasnya. `max(0, ...)` pada `kg_dibayar` adalah pertahanan terakhirnya.
 
 Kalau sortasi tidak ada **dan** `grading_missing` menyala → pakai
 `default_potongan_pct`. Kalau tidak ada dua-duanya → potongan 0.
