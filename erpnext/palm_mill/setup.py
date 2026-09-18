@@ -64,10 +64,6 @@ MILL_ROLES = (
 	"Workspace Manager",
 )
 
-# The customer's administrator. One role, and the one ERPNext already means by it:
-# create users, edit settings, reach every mill DocType.
-ADMIN_USER_ROLES = ("System Manager",)
-
 # Job titles for the New User dialog. Frappe's quick entry cannot show the `roles` table
 # -- it is a hidden Table field -- so `role_profiles` is the only role control that fits
 # there, and without these creating a user takes two screens: save first, then hunt for
@@ -93,6 +89,12 @@ ROLE_PROFILES = {
 	PROFILE_KRANI: (OPERATOR_ROLE,),
 	PROFILE_MANAJER: (OPERATOR_ROLE, "Purchase User", "Stock User"),
 }
+
+# `make admin-new` hands roles straight to the user; the New User dialog hands over the
+# profile. Derived rather than repeated because the two drifted once already: the profile
+# gained the module roles and the command did not, so an admin made from the terminal
+# opened the same blank workspace the profile had just been fixed for.
+ADMIN_USER_ROLES = ROLE_PROFILES[PROFILE_ADMIN]
 
 # Same names and properties the demo generator used, so existing sites see no change.
 CUSTOM_FIELDS = {
@@ -414,6 +416,26 @@ def set_defaults():
 		settings.save(ignore_permissions=True)
 
 
+# Marks the accounts this module created as mill admins. Without it a later repair has to
+# guess from `System Manager` alone, which also fits the site's own accounts and every test
+# user -- and handing those the module roles would widen access nobody asked to widen.
+ADMIN_TAG = "palm-mill-admin"
+
+
+def _tandai_admin(nama: str) -> None:
+	if not frappe.db.exists("Tag", ADMIN_TAG):
+		frappe.get_doc({"doctype": "Tag", "name": ADMIN_TAG}).insert(ignore_permissions=True)
+	if not frappe.db.exists("Tag Link", {"document_type": "User", "document_name": nama, "tag": ADMIN_TAG}):
+		frappe.get_doc(
+			{
+				"doctype": "Tag Link",
+				"document_type": "User",
+				"document_name": nama,
+				"tag": ADMIN_TAG,
+			}
+		).insert(ignore_permissions=True)
+
+
 def create_admin_user(email: str, full_name: str) -> dict:
 	"""The customer's own administrator, so `Administrator` can be put away.
 
@@ -433,6 +455,7 @@ def create_admin_user(email: str, full_name: str) -> dict:
 		user = frappe.get_doc("User", email)
 		sudah = {r.role for r in user.roles}
 		ditambah = [r for r in ADMIN_USER_ROLES if r not in sudah]
+		_tandai_admin(user.name)
 		for role in ditambah:
 			user.append("roles", {"role": role})
 		if ditambah:
@@ -450,6 +473,7 @@ def create_admin_user(email: str, full_name: str) -> dict:
 				"roles": [{"role": role} for role in ADMIN_USER_ROLES],
 			}
 		).insert(ignore_permissions=True)
+		_tandai_admin(user.name)
 
 	# Frappe's own method, not a hand-written column: it stores the sha256 of the key and
 	# puts the raw one in the link, and `_get_user_for_update_password` hashes whatever the
