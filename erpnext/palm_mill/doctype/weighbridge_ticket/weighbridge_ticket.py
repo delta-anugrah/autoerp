@@ -90,6 +90,7 @@ class WeighbridgeTicket(Document):
 	# ----------------------------------------------------------------- lifecycle
 	def validate(self):
 		self.set_weights()
+		self.validate_grading_percentages()
 		self.set_supplier_and_source()
 		# Seeded tickets arrive with their numbers; only recompute when asked or when empty.
 		if self.flags.recompute or not self.nilai:
@@ -127,6 +128,36 @@ class WeighbridgeTicket(Document):
 		if not self.sertifikasi and self.blok:
 			self.sertifikasi = frappe.db.get_value("Blok", self.blok, "sertifikasi")
 
+	def validate_grading_percentages(self):
+		"""The column says Percent; the number in an operator's head is kilograms.
+
+		Typing `500` for "500 kg of sampah" instead of `5` produced a payable of
+		-40,000 kg and a value of -Rp 114,000,000 on a 10,000 kg load, and nothing
+		refused it: the deduction cap only limits `potongan_pct`, while `sampah_kg` is
+		taken off the top separately.
+
+		Checked here rather than in `compute_deductions` so a bad row is refused even on
+		a ticket whose numbers are not being recomputed.
+		"""
+		total = 0.0
+		for row in self.grading:
+			persen = flt(row.persen)
+			if persen < 0 or persen > 100:
+				frappe.throw(
+					_(
+						"{0}: {1} % is not a percentage of the load. Enter 5 for 5 %, not the weight in kg."
+					).format(_(row.kriteria or _("Grading row")), persen)
+				)
+			total += persen
+		# Rows describe parts of one load, so together they cannot be more than all of it.
+		# Each row can be under 100 and still be nonsense: three rows at 60 % is 180 %.
+		if total > 100:
+			frappe.throw(
+				_("Grading rows add up to {0} % of the load; they cannot exceed 100 %.").format(
+					round(total, 2)
+				)
+			)
+
 	def grading_percentages(self) -> dict[str, float]:
 		return {row.kriteria: flt(row.persen) for row in self.grading}
 
@@ -150,7 +181,9 @@ class WeighbridgeTicket(Document):
 
 		self.sampah_kg = round(net * pct.get(SAMPAH, 0) / 100)
 		self.potongan_pct = round(pot * 100, 2)
-		payable = round((net - flt(self.sampah_kg)) * (1 - pot))
+		# Never below zero: a Purchase Receipt for a negative quantity is not a document
+		# anyone can act on, and it would reach the ledger as a credit to the mill.
+		payable = max(0, round((net - flt(self.sampah_kg)) * (1 - pot)))
 		self.net_after_deduction_kg = payable
 		if not self.harga_per_kg:
 			self.harga_per_kg = self.get_price()
