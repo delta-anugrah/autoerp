@@ -26,6 +26,10 @@ erpnext/www/banking.html
 # local secrets / site credentials — never commit
 .env
 .env.*
+# ...kecuali templatnya: glob di atas ikut menelan berkas contoh, dan template
+# yang tidak pernah ter-commit tidak menolong siapa pun.
+!.env.example
+!**/.env.example
 
 # Playwright MCP session output
 .playwright-mcp/

@@ -1,0 +1,165 @@
+# Production compose — droplet runtime-only (/opt/autoerp).
+# Image di-pin lewat AUTOERP_IMAGE di .env (di-update otomatis oleh workflow
+# deploy). JANGAN pakai tag mutable: "yang jalan sekarang" tidak boleh jadi tebakan.
+#
+# Turunan compose.yaml resmi frappe_docker + overrides/compose.mariadb.yaml,
+# disetel untuk pola droplet yang sudah dipakai palmgrade-api: nginx milik HOST
+# yang terminasi 443 dan meneruskan ke 127.0.0.1:8080. Tidak ada container yang
+# membuka port ke publik.
+
+# Tidak ada `platform:` di sini, tidak seperti compose resmi frappe_docker yang
+# memaku linux/amd64. Image dibangun untuk arsitektur yang menjalankannya: CI
+# (ubuntu-latest, amd64) untuk droplet yang juga amd64, dan Docker Desktop di
+# MacBook (arm64) untuk uji lokal. Memaku amd64 memaksa emulasi di laptop --
+# lambat sekali, dan yang diuji jadi bukan yang dirilis.
+
+# Rotasi log. Tanpa blok ini driver json-file tumbuh tanpa batas sampai disk
+# droplet penuh — dan yang mati duluan biasanya MariaDB, bukan yang bikin lognya.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "50m"
+    max-file: "3"
+
+x-image: &image
+  image: ${AUTOERP_IMAGE:?AUTOERP_IMAGE must be set to an immutable production tag}
+  logging: *default-logging
+  restart: unless-stopped
+
+x-backend-env: &backend-env
+  DB_HOST: mariadb
+  DB_PORT: "3306"
+  REDIS_CACHE: redis-cache:6379
+  REDIS_QUEUE: redis-queue:6379
+  SOCKETIO_PORT: "9000"
+
+x-backend: &backend
+  <<: *image
+  volumes:
+    - sites:/home/frappe/frappe-bench/sites
+  environment:
+    <<: *backend-env
+  depends_on:
+    configurator:
+      condition: service_completed_successfully
+
+services:
+  # Menulis common_site_config.json lalu keluar. Service lain menunggu dia SELESAI,
+  # bukan sekadar hidup: tanpa itu backend start dengan konfigurasi setengah jadi.
+  configurator:
+    <<: *image
+    restart: "no"
+    entrypoint: ["bash", "-c"]
+    command:
+      - >
+        ls -1 apps > sites/apps.txt;
+        bench set-config -g db_host $$DB_HOST;
+        bench set-config -gp db_port $$DB_PORT;
+        bench set-config -g redis_cache "redis://$$REDIS_CACHE";
+        bench set-config -g redis_queue "redis://$$REDIS_QUEUE";
+        bench set-config -g redis_socketio "redis://$$REDIS_QUEUE";
+        bench set-config -gp socketio_port $$SOCKETIO_PORT;
+    environment:
+      <<: *backend-env
+    volumes:
+      - sites:/home/frappe/frappe-bench/sites
+    depends_on:
+      mariadb:
+        condition: service_healthy
+
+  backend:
+    <<: *backend
+    environment:
+      <<: *backend-env
+      GUNICORN_THREADS: ${GUNICORN_THREADS:-4}
+      GUNICORN_WORKERS: ${GUNICORN_WORKERS:-2}
+      GUNICORN_TIMEOUT: ${GUNICORN_TIMEOUT:-120}
+
+  queue-short:
+    <<: *backend
+    command: bench worker --queue short,default
+
+  queue-long:
+    <<: *backend
+    command: bench worker --queue long,default,short
+
+  # Yang menjalankan finalize_due_tickets (cron 0/15). Tanpa service ini tiket
+  # yang lewat batas waktu tidak pernah difinalisasi dan tidak ada yang bilang.
+  scheduler:
+    <<: *backend
+    command: bench schedule
+
+  websocket:
+    <<: *image
+    command: ["node", "/home/frappe/frappe-bench/apps/frappe/socketio.js"]
+    volumes:
+      - sites:/home/frappe/frappe-bench/sites
+    environment:
+      <<: *backend-env
+    depends_on:
+      configurator:
+        condition: service_completed_successfully
+
+  frontend:
+    <<: *image
+    command: ["nginx-entrypoint.sh"]
+    environment:
+      BACKEND: backend:8000
+      SOCKETIO: websocket:9000
+      # Nama situs diambil dari Host header yang diteruskan nginx host. Situsnya
+      # bernama app.smagri.id supaya header itu cocok apa adanya.
+      FRAPPE_SITE_NAME_HEADER: ${SITE_NAME:?SITE_NAME must be set}
+      UPSTREAM_REAL_IP_ADDRESS: 127.0.0.1
+      UPSTREAM_REAL_IP_HEADER: X-Forwarded-For
+      UPSTREAM_REAL_IP_RECURSIVE: "off"
+      PROXY_READ_TIMEOUT: ${PROXY_READ_TIMEOUT:-120}
+      CLIENT_MAX_BODY_SIZE: ${CLIENT_MAX_BODY_SIZE:-50m}
+    volumes:
+      - sites:/home/frappe/frappe-bench/sites
+    # HANYA ke loopback. nginx host + certbot yang menghadap internet; Cloudflare
+    # tetap Full (strict). Port publik droplet tetap 22, 80, 443 saja.
+    ports:
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      - backend
+      - websocket
+
+  mariadb:
+    image: mariadb:10.6
+    logging: *default-logging
+    restart: unless-stopped
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --skip-character-set-client-handshake
+      - --skip-innodb-read-only-compressed
+    environment:
+      MARIADB_ROOT_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set}
+    volumes:
+      - db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  redis-cache:
+    image: redis:6.2-alpine
+    logging: *default-logging
+    restart: unless-stopped
+    volumes:
+      - redis-cache-data:/data
+
+  redis-queue:
+    image: redis:6.2-alpine
+    logging: *default-logging
+    restart: unless-stopped
+    volumes:
+      - redis-queue-data:/data
+
+volumes:
+  sites:
+  db-data:
+  redis-cache-data:
+  redis-queue-data:
