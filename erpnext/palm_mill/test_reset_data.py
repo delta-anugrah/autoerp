@@ -58,7 +58,8 @@ class IntegrationTestResetData(IntegrationTestCase):
 		self.assertIn('"$(SITE)"', blok, "konfirmasinya tidak mencocokkan nama site")
 		self.assertIn("exit 1", blok, "jawaban salah tidak membatalkan")
 		self.assertLess(
-			blok.index("read jawab"), blok.index("reinstall"),
+			blok.index("read jawab"),
+			blok.index("reinstall"),
 			"site dikosongkan sebelum jawaban dibaca",
 		)
 
