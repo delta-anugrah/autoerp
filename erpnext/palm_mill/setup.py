@@ -62,6 +62,26 @@ MILL_ROLES = (
 # create users, edit settings, reach every mill DocType.
 ADMIN_USER_ROLES = ("System Manager",)
 
+# Job titles for the New User dialog. Frappe's quick entry cannot show the `roles` table
+# -- it is a hidden Table field -- so `role_profiles` is the only role control that fits
+# there, and without these creating a user takes two screens: save first, then hunt for
+# the checkboxes on the saved form.
+#
+# They also change what the person picking has to know. "Krani Timbang" is a job at the
+# mill; `Weighbridge Operator` + `Purchase User` + `Stock User` is a permission puzzle,
+# and getting it wrong stays invisible until somebody cannot open a screen.
+#
+# Every role named here must be in MILL_ROLES -- a profile pointing at a hidden role
+# would put it back on a user by the side door. A test pins that.
+PROFILE_ADMIN = "Admin Pabrik"
+PROFILE_KRANI = "Krani Timbang"
+PROFILE_MANAJER = "Manajer Pabrik"
+ROLE_PROFILES = {
+	PROFILE_ADMIN: ("System Manager",),
+	PROFILE_KRANI: (OPERATOR_ROLE,),
+	PROFILE_MANAJER: (OPERATOR_ROLE, "Purchase User", "Stock User"),
+}
+
 # Same names and properties the demo generator used, so existing sites see no change.
 CUSTOM_FIELDS = {
 	"Batch": [
@@ -133,6 +153,7 @@ def after_install():
 	create_custom_fields(CUSTOM_FIELDS, ignore_validate=frappe.flags.in_patch, update=True)
 	setup_roles()
 	hide_unused_roles()
+	setup_role_profiles()
 	setup_sources()
 	set_defaults()
 	set_favicon()
@@ -269,6 +290,28 @@ def hide_unused_roles() -> dict:
 	if hidden:
 		frappe.clear_cache()
 	return {"hidden": sorted(hidden), "skipped": skipped}
+
+
+def setup_role_profiles() -> dict:
+	"""Create the mill's job titles, once.
+
+	Only ever creates. A profile somebody edited on a live site is theirs -- resetting it
+	on every migrate would silently undo their change, and they would find out when a user
+	created afterwards came out with the wrong access.
+	"""
+	created = []
+	for nama, peran in ROLE_PROFILES.items():
+		if frappe.db.exists("Role Profile", nama):
+			continue
+		frappe.get_doc(
+			{
+				"doctype": "Role Profile",
+				"role_profile": nama,
+				"roles": [{"role": r} for r in peran if frappe.db.exists("Role", r)],
+			}
+		).insert(ignore_permissions=True)
+		created.append(nama)
+	return {"created": created}
 
 
 def setup_sources():
