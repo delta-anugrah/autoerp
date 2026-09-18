@@ -389,8 +389,6 @@ def create_admin_user(email: str, full_name: str) -> dict:
 	live on in a terminal scrollback and in whatever chat window it was pasted into; a
 	link is used once and expires.
 	"""
-	from frappe.utils import get_url, now
-
 	# `_` is already bound to frappe's translation function at module level, so the
 	# throwaway from `partition` gets a real name.
 	depan, _pemisah, belakang = full_name.strip().partition(" ")
@@ -417,14 +415,18 @@ def create_admin_user(email: str, full_name: str) -> dict:
 			}
 		).insert(ignore_permissions=True)
 
-	kunci = frappe.generate_hash()
-	user.db_set("reset_password_key", kunci, update_modified=False)
-	user.db_set("last_reset_password_key_generated_on", now(), update_modified=False)
-
+	# Frappe's own method, not a hand-written column: it stores the sha256 of the key and
+	# puts the raw one in the link, and `_get_user_for_update_password` hashes whatever the
+	# visitor brings before looking it up. Writing the raw key into the column produces a
+	# link that looks right and fails on use, saying it "has either been used before or is
+	# invalid" -- with no hint that the account was never openable to begin with.
+	#
+	# `send_email=False`: a fresh site has no outgoing mail account, and the link is handed
+	# to whoever ran the command instead.
 	return {
 		"user": user.name,
 		"roles_added": ditambah,
-		"reset_link": get_url(f"/update-password?key={kunci}"),
+		"reset_link": user._reset_password(send_email=False),
 	}
 
 
