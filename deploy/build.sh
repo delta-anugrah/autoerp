@@ -1,15 +1,16 @@
 #!/usr/bin/env bash
-# Build the AutoERP production image from frappe_docker's `images/custom`.
+# Build the AutoERP production image.
 #
-#   GITHUB_TOKEN=ghp_... ./deploy/build.sh v1.0.0        # build
-#   GITHUB_TOKEN=ghp_... PUSH=1 ./deploy/build.sh v1.0.0  # and push it
+#   ./deploy/build.sh v1.0.0              # build ghcr.io/delta-anugrah/autoerp:v1.0.0
+#   PUSH=1 ./deploy/build.sh v1.0.0       # and push it
 #
-# GITHUB_TOKEN wajib: repo autoerp privat, dan `bench init` meng-clone-nya dari
-# dalam container, yang tidak ikut membawa kredensial git di laptop. Di CI pakai
-# secrets.GITHUB_TOKEN bawaan; lokal butuh PAT dengan akses baca repo saja.
+# Dasarnya image resmi `frappe/erpnext`, yang sudah memuat frappe, seluruh
+# dependensi Python/Node, wkhtmltopdf dan nginx. erpnext bawaannya ditukar
+# dengan fork kita, yang diambil dari cermin lokal -- bukan dari GitHub.
 #
-# CI runs this same script on a `vX.Y.Z` tag, so a local build and a released one
-# come from one recipe. Nothing here is specific to a droplet.
+# Tidak ada token yang dibutuhkan, dan tidak ada clone besar yang harus
+# berhasil: keduanya adalah sebab kegagalan berulang pada pendekatan
+# sebelumnya (`bench init` lewat frappe_docker images/custom).
 set -euo pipefail
 
 VERSION="${1:-}"
@@ -22,99 +23,78 @@ REGISTRY="${REGISTRY:-ghcr.io}"
 IMAGE_NAME="${IMAGE_NAME:-delta-anugrah/autoerp}"
 IMAGE="$REGISTRY/$IMAGE_NAME:$VERSION"
 
-# Pinned: `main` moves, and an image that silently rebuilds on a different
-# frappe_docker is an image nobody can reproduce. Bump deliberately.
-FRAPPE_DOCKER_REF="${FRAPPE_DOCKER_REF:-main}"
-FRAPPE_BRANCH="${FRAPPE_BRANCH:-version-16}"
-
-AUTOERP_REPO="${AUTOERP_REPO:-delta-anugrah/autoerp}"
-AUTOERP_BRANCH="${AUTOERP_BRANCH:-main}"
+# Versi image dasar dipaku, bukan `v16`: tag bergerak itu berarti dua build
+# dengan commit yang sama bisa menghasilkan isi yang berbeda. Naikkan sengaja.
+BASE_IMAGE="${BASE_IMAGE:-frappe/erpnext:v16.35.0}"
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-APPS_JSON_SRC="$HERE/apps.json"
+AUTOERP_SRC="${AUTOERP_SRC:-$HERE/..}"
+AUTOERP_BRANCH="${AUTOERP_BRANCH:-main}"
+# `origin/<branch>`, BUKAN branch lokal: keduanya bisa berbeda (terbukti di
+# mesin ini, `main` lokal tertinggal satu commit) dan membangun dari yang
+# tertinggal akan mengirim kode lama tanpa ada yang memberi tahu.
+AUTOERP_REF="${AUTOERP_REF:-origin/$AUTOERP_BRANCH}"
+
 WORK="$(mktemp -d)"
-# 700: apps.json yang dibangkitkan memuat token. Umurnya sependek build, tapi
-# tetap tidak perlu bisa dibaca akun lain di mesin yang sama.
-chmod 700 "$WORK"
 trap 'rm -rf "$WORK"' EXIT
 
-if [ -z "${GITHUB_TOKEN:-}" ]; then
-	cat >&2 <<'MSG'
-GITHUB_TOKEN belum diisi.
-
-Repo autoerp privat dan `bench init` meng-clone-nya DARI DALAM container, yang
-tidak ikut membawa kredensial git laptop. Tanpa token, build berjalan ~1 jam
-(frappe + erpnext + assets berhasil) lalu gagal di langkah terakhir dengan
-"could not read Username for https://github.com".
-
-  lokal : GITHUB_TOKEN=<PAT, cukup akses baca repo> ./deploy/build.sh dev
-  CI    : sudah diisi otomatis dari secrets.GITHUB_TOKEN
-MSG
+if ! git -C "$AUTOERP_SRC" rev-parse --verify --quiet "$AUTOERP_REF" >/dev/null; then
+	echo "ref tidak ada di checkout: $AUTOERP_REF (di $AUTOERP_SRC)" >&2
+	echo "coba: git -C $AUTOERP_SRC fetch origin $AUTOERP_BRANCH" >&2
 	exit 1
 fi
 
-echo "==> frappe_docker ($FRAPPE_DOCKER_REF)"
-git clone -q --depth 1 --branch "$FRAPPE_DOCKER_REF" \
-	https://github.com/frappe/frappe_docker.git "$WORK/frappe_docker"
+WANT_SHA="$(git -C "$AUTOERP_SRC" rev-parse "$AUTOERP_REF")"
+echo "==> cermin autoerp dari $AUTOERP_REF (${WANT_SHA:0:10})"
 
-# The Containerfile reads apps.json as a BUILD SECRET, not as a base64 build arg:
-#   RUN --mount=type=secret,id=apps_json,target=/opt/frappe/apps.json
-# so it is passed with --secret. A missing or empty file is not an error there --
-# bench init just builds a bench with no apps -- which would produce an image
-# without palm_mill and fail only much later, at the first truck. Check it here.
-if [ ! -s "$APPS_JSON_SRC" ]; then
-	echo "apps.json kosong atau tidak ada: $APPS_JSON_SRC" >&2
+MIRROR="$WORK/autoerp-mirror.git"
+SRC_URL="file://$(cd "$AUTOERP_SRC" && pwd)"
+git clone -q --bare --depth 1 --branch "$AUTOERP_BRANCH" "$SRC_URL" "$MIRROR"
+# `--branch` mengikuti branch LOKAL; timpa dengan ref yang benar-benar diminta.
+git -C "$MIRROR" fetch -q --depth 1 --force "$SRC_URL" \
+	"$WANT_SHA:refs/heads/$AUTOERP_BRANCH"
+
+MIRROR_SHA="$(git -C "$MIRROR" rev-parse "$AUTOERP_BRANCH")"
+if [ "$MIRROR_SHA" != "$WANT_SHA" ]; then
+	echo "cermin memuat $MIRROR_SHA, seharusnya $WANT_SHA" >&2
 	exit 1
 fi
 
-# autoerp TIDAK ditulis di apps.json: URL-nya harus membawa token, dan berkas
-# yang di-commit bukan tempat kredensial. Disuntik di sini ke berkas sementara
-# yang hanya hidup selama build.
-APPS_JSON="$WORK/apps.json"
-AUTOERP_REPO="$AUTOERP_REPO" AUTOERP_BRANCH="$AUTOERP_BRANCH" \
-	python3 "$HERE/render_apps_json.py" "$APPS_JSON_SRC" "$APPS_JSON"
-chmod 600 "$APPS_JSON"
+# Penjaga: image tanpa palm_mill akan terpasang mulus dan baru ketahuan salah
+# saat truk pertama masuk.
+if ! git -C "$MIRROR" cat-file -e "$AUTOERP_BRANCH:erpnext/palm_mill/api.py" 2>/dev/null; then
+	echo "cermin tidak memuat erpnext/palm_mill — ref salah?" >&2
+	exit 1
+fi
 
-echo "==> build $IMAGE"
-# CACHE_BUST keeps `bench init` from reusing a cached layer when the branch has
-# moved but the Containerfile has not -- without it a rebuild of the same tag can
-# quietly ship yesterday's code.
-DOCKER_BUILDKIT=1 docker build \
-	--file "$WORK/frappe_docker/images/custom/Containerfile" \
-	--secret "id=apps_json,src=$APPS_JSON" \
-	--build-arg "FRAPPE_BRANCH=$FRAPPE_BRANCH" \
-	--build-arg "CACHE_BUST=$(date +%s)" \
-	--tag "$IMAGE-unscrubbed" \
-	"$WORK/frappe_docker"
+cp "$HERE/Containerfile" "$WORK/Containerfile"
 
-# `bench init` menulis perintah git yang dijalankannya -- lengkap dengan URL
-# ber-token -- ke logs/bench.log, dan berkas itu ikut ke dalam image. Tanpa
-# langkah ini siapa pun yang menarik image bisa membaca tokennya. Lapisan
-# terpisah, karena menghapus berkas tidak menghapusnya dari lapisan sebelumnya.
-echo "==> bersihkan jejak token"
+echo "==> build $IMAGE (dasar: $BASE_IMAGE)"
 DOCKER_BUILDKIT=1 docker build \
-	--file "$HERE/Containerfile.scrub" \
-	--build-arg "BASE_IMAGE=$IMAGE-unscrubbed" \
+	--file "$WORK/Containerfile" \
+	--build-arg "BASE_IMAGE=$BASE_IMAGE" \
+	--build-arg "AUTOERP_BRANCH=$AUTOERP_BRANCH" \
 	--tag "$IMAGE" \
 	"$WORK"
 
-# Penjaga, bukan basa-basi: kalau suatu saat Frappe menulis log ke tempat lain,
-# ini yang menahan image bocor supaya tidak sempat ter-push. Polanya menuntut
-# token yang benar-benar menempel (`x-access-token:<sesuatu>@`), bukan kata
-# "x-access-token" begitu saja -- kata itu muncul sah di .github/helper/install.sh
-# dan mencocokkannya akan menggagalkan setiap build tanpa ada yang bocor.
-if docker run --rm --entrypoint bash "$IMAGE" \
-		-c "grep -rqE 'x-access-token:[^@[:space:]]+@' /home/frappe/frappe-bench 2>/dev/null"; then
-	echo "GAGAL: token masih terbaca di dalam image; image tidak dipakai." >&2
-	docker rmi -f "$IMAGE" "$IMAGE-unscrubbed" >/dev/null 2>&1 || true
-	exit 1
-fi
-
-docker rmi -f "$IMAGE-unscrubbed" >/dev/null 2>&1 || true
+# Bukan basa-basi: keduanya pernah salah. palm_mill hilang berarti image
+# terpasang mulus lalu menolak truk pertama; kredensial di dalam image berarti
+# siapa pun yang menariknya bisa membacanya.
+echo "==> periksa hasil"
+docker run --rm --entrypoint bash "$IMAGE" -c '
+	set -e
+	test -f apps/erpnext/erpnext/palm_mill/api.py || { echo "palm_mill TIDAK ADA"; exit 1; }
+	grep -q "^erpnext$" sites/apps.txt || { echo "erpnext tidak terdaftar di apps.txt"; exit 1; }
+	test -d apps/erpnext/erpnext/public/dist || { echo "aset tidak terbangun"; exit 1; }
+	if grep -rqE "x-access-token:[^@[:space:]]+@" /home/frappe/frappe-bench 2>/dev/null; then
+		echo "kredensial terbaca di dalam image"; exit 1
+	fi
+	echo "    palm_mill ada, apps.txt benar, aset terbangun, tidak ada kredensial"
+'
 
 if [ "${PUSH:-0}" = "1" ]; then
 	echo "==> push $IMAGE"
 	docker push "$IMAGE"
 fi
 
-echo "selesai: $IMAGE"
+echo "selesai: $IMAGE (autoerp ${WANT_SHA:0:10})"
