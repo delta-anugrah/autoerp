@@ -79,6 +79,14 @@ bench --site <site> execute erpnext.palm_mill.demo.summary   # what is there now
 Same three via the `Makefile` (`BENCH`/`SITE` default to `~/frappe-bench` / `pks.localhost`):
 `make demo`, `make demo-reset`, `make demo-off` — AutoGrade has the identical three names.
 
+To empty a site completely — not just its demo rows — `make reset-data` shows what is there and
+`make reset-data-fresh` wipes it, asking for the site name to be typed first. It runs `bench
+reinstall` rather than `drop-site`, so `site_config.json` survives and the API key it holds is
+not silently replaced. Everything else goes: tickets, masters, and every user but Administrator.
+Follow it with `make migrate` and `make key-new`, because the AutoGrade integration user is
+deleted along with the rest and the factory PC is refused with a 401 until a new key is issued.
+AutoGrade has the same two target names.
+
 Unlike the dump this can be handed to a client or installed on their laptop: it carries no site
 encryption key and no real password hashes. It refuses to run on a site that has not declared
 itself a demo (`demo_mode 1`) unless forced — the demo passwords are identical across accounts
