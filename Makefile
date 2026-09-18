@@ -187,6 +187,58 @@ demo-off:
 migrate:
 	cd "$(BENCH)" && bench --site $(SITE) migrate
 
+# HAPUS SEMUA DATA di site ini, lalu pasang ulang app dari nol.
+#
+#   make reset-data          lihat dulu: site mana, berapa isinya. Tidak menghapus
+#   make reset-data-fresh    hapus sungguhan (minta konfirmasi ketik)
+#
+# Perintahnya `bench reinstall`, BUKAN `drop-site`: site-nya tetap ada beserta
+# `site_config.json` (kunci API AutoGrade, kata sandi database, setelan surat),
+# yang dibuang isinya. `drop-site` menghapus semuanya termasuk berkas itu, dan
+# memasang ulangnya berarti menerbitkan kunci baru — AutoGrade di PC pabrik akan
+# ditolak 401 sampai `ERP_KEY`-nya ikut diganti.
+#
+# Yang hilang, semuanya PERMANEN dan tanpa backup:
+#   - seluruh tiket, kunjungan truk, Purchase Receipt, dan jurnalnya;
+#   - master: supplier, truk, blok, item, akun;
+#   - semua user KECUALI Administrator, termasuk akun operator dan `make admin-new`;
+#   - berkas unggahan di `sites/$(SITE)/private` dan `/public`.
+#
+# Sandi Administrator kembali ke `admin`. Kunci integrasi AutoGrade ikut hilang
+# bersama user-nya — terbitkan lagi dengan `make key-new` sesudahnya, dan pasang
+# hasilnya di `.env` AutoGrade.
+#
+# ⚠️ JANGAN di site produksi. Ini alat untuk site uji coba, atau site baru
+# sebelum dipakai sungguhan. Sesudahnya: `make migrate` lalu `make key-new`.
+reset-data:
+	@echo "Site   : $(SITE)"
+	@echo "Bench  : $(BENCH)"
+	@echo ""
+	@cd "$(BENCH)" && bench --site $(SITE) execute frappe.client.get_count \
+		--args "['Purchase Receipt']" 2>/dev/null \
+		| sed 's/^/  Purchase Receipt : /' || true
+	@echo ""
+	@echo "Akan menghapus PERMANEN (tanpa backup): seluruh tiket dan jurnalnya,"
+	@echo "master (supplier, truk, blok, item, akun), semua user selain Administrator,"
+	@echo "dan berkas unggahan. Sandi Administrator kembali ke 'admin', dan kunci"
+	@echo "integrasi AutoGrade harus diterbitkan lagi ('make key-new')."
+	@echo ""
+	@echo "Kalau memang itu yang diinginkan: make reset-data-fresh"
+
+# Konfirmasi diketik, bukan ditekan — pola yang sama dengan AutoGrade. Satu huruf
+# bisa terkirim dari riwayat perintah atau sentuhan tak sengaja; satu kata tidak.
+# Nama site ikut diketik, karena `make reset-data-fresh SITE=...` yang salah tunjuk
+# adalah cara paling mudah mengosongkan site yang keliru.
+reset-data-fresh:
+	@echo "SEMUA data di site $(SITE) akan dihapus permanen, tanpa backup."
+	@echo "Jalankan 'make reset-data' dulu kalau ingin melihat rinciannya."
+	@echo ""
+	@printf "Ketik nama site untuk melanjutkan ($(SITE)): "
+	@read jawab; [ "$$jawab" = "$(SITE)" ] || { echo "Dibatalkan."; exit 1; }
+	cd "$(BENCH)" && bench --site $(SITE) reinstall --yes --admin-password admin
+	@echo ""
+	@echo "Site kosong. Lanjutkan: make migrate, lalu make key-new untuk kunci AutoGrade."
+
 backup:
 	cd "$(BENCH)" && bench --site $(SITE) backup --with-files
 
