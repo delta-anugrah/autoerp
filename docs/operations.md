@@ -36,6 +36,8 @@ make up BENCH=/srv/frappe-bench SITE=pks.localhost
 | `make key-new` | buat/rotasi akun integrasi — minta ketik `yes` |
 | `make migrate` | `bench migrate` |
 | `make backup` | backup database + files |
+| `make reset-data` | **lihat dulu**: site mana dan berapa isinya. Tidak mengubah apa pun |
+| `make reset-data-fresh` | **KOSONGKAN SITE**: `bench reinstall` — seluruh tiket, master, dan semua user selain Administrator hilang, **tanpa backup**. Minta **nama site diketik** (bukan `yes`: `SITE=` yang salah tunjuk adalah cara paling mudah mengosongkan site yang keliru). Memakai `reinstall`, **bukan `drop-site`**, supaya `site_config.json` selamat — di situ ada kunci API AutoGrade. ⚠️ Sesudahnya: `make migrate` lalu **`make key-new`**, karena user integrasi ikut terhapus dan PC pabrik ditolak 401 tanpa kunci baru. ⚠️ Jangan di site produksi. AutoGrade punya dua target nama sama |
 | `make shell` | `bench console` (REPL Python di site) |
 | `make demo` | isi data demo untuk showcase ke klien — menyalakan `demo_mode 1` dulu (site menolak seed tanpanya), lalu `erpnext.palm_mill.demo.seed`. AutoGrade punya target nama sama |
 | `make demo-reset` | hapus data demo lalu isi ulang bersih (`erpnext.palm_mill.demo.reset`) |
