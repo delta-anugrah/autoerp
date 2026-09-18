@@ -11,7 +11,7 @@ DocType JSON: fields on native DocTypes, roles, settings defaults.
 import frappe
 from frappe import _
 from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
-from frappe.permissions import add_permission
+from frappe.permissions import add_permission, update_permission_property
 
 from erpnext.palm_mill.hidden_fields import hide_unused_fields
 
@@ -56,6 +56,10 @@ MILL_ROLES = (
 	INTEGRATION_ROLE,
 	"Purchase User",
 	"Stock User",
+	# What the workspace's money cards read -- receivables, payables, sales. Hiding it
+	# while `Admin Pabrik` hands it out would grant by the back door a role the picker
+	# says does not exist; a test in `test_role_profiles` refuses that combination.
+	"Accounts User",
 	"Script Manager",
 	"Workspace Manager",
 )
@@ -78,8 +82,14 @@ ADMIN_USER_ROLES = ("System Manager",)
 PROFILE_ADMIN = "Admin Pabrik"
 PROFILE_KRANI = "Krani Timbang"
 PROFILE_MANAJER = "Manajer Pabrik"
+# `System Manager` administers the system; in ERPNext it does not read transactions.
+# Purchase Receipt, Stock Entry and the invoices come through the module roles, and the
+# mill workspace is built from exactly those -- so an admin holding only `System Manager`
+# opens it to "You don't have permission to get a report on: Stock Entry" and four cards
+# stuck loading. The three module roles are read-level; administering the site is still
+# what `System Manager` is there for.
 ROLE_PROFILES = {
-	PROFILE_ADMIN: ("System Manager",),
+	PROFILE_ADMIN: ("System Manager", "Stock User", "Purchase User", "Accounts User"),
 	PROFILE_KRANI: (OPERATOR_ROLE,),
 	PROFILE_MANAJER: (OPERATOR_ROLE, "Purchase User", "Stock User"),
 }
@@ -156,6 +166,7 @@ def after_install():
 	setup_roles()
 	hide_unused_roles()
 	setup_role_profiles()
+	setup_batch_access()
 	setup_sources()
 	set_defaults()
 	set_favicon()
@@ -272,8 +283,15 @@ def hide_unused_roles() -> dict:
 		if frappe.db.get_value("Role", role, "restrict_to_domain") == ADVANCED_DOMAIN:
 			frappe.db.set_value("Role", role, "restrict_to_domain", "", update_modified=False)
 
-	hidden, skipped = [], {}
+	hidden, freed, skipped = [], [], {}
 	for role in frappe.get_all("Role", fields=["name", "restrict_to_domain"]):
+		if role.name in MILL_ROLES and role.restrict_to_domain == ADVANCED_DOMAIN:
+			# The whitelist grew after this site last ran: a role we now hand out is still
+			# behind the domain, so the profile that needs it would grant a role the picker
+			# says does not exist. Only our own domain is cleared -- someone else's stays.
+			frappe.db.set_value("Role", role.name, "restrict_to_domain", "", update_modified=False)
+			freed.append(role.name)
+			continue
 		if role.name in frappe.permissions.AUTOMATIC_ROLES:
 			# `get_all_roles` filters these out before the domain is even considered, so
 			# marking them changes nothing -- except leaving four system roles carrying a
@@ -290,9 +308,9 @@ def hide_unused_roles() -> dict:
 		frappe.db.set_value("Role", role.name, "restrict_to_domain", ADVANCED_DOMAIN, update_modified=False)
 		hidden.append(role.name)
 
-	if hidden:
+	if hidden or freed:
 		frappe.clear_cache()
-	return {"hidden": sorted(hidden), "skipped": skipped}
+	return {"hidden": sorted(hidden), "freed": sorted(freed), "skipped": skipped}
 
 
 def setup_role_profiles() -> dict:
@@ -315,6 +333,24 @@ def setup_role_profiles() -> dict:
 		).insert(ignore_permissions=True)
 		created.append(nama)
 	return {"created": created}
+
+
+def setup_batch_access():
+	"""Let the mill roles read Batch.
+
+	ERPNext ships Batch as `Item Manager` only, but finalising a ticket creates one and the
+	ticket links to it, and the workspace carries a `CPO / PK Batches` shortcut. Without
+	read here that shortcut opens on a permission error for everyone but Administrator, and
+	the batch a ticket names cannot be opened from the ticket.
+
+	Read and report, not write: batches are produced by finalisation, never typed in by
+	hand. `report` is separate because `add_permission` grants only `read`, and a list view
+	-- which the shortcut opens -- is a report as far as Frappe is concerned.
+	"""
+	for role in (*ROLES, "System Manager"):
+		if not frappe.db.exists("Custom DocPerm", {"parent": "Batch", "role": role, "permlevel": 0}):
+			add_permission("Batch", role)
+		update_permission_property("Batch", role, 0, "report", 1)
 
 
 def setup_sources():
