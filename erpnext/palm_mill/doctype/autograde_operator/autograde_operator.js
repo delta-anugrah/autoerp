@@ -12,6 +12,15 @@ frappe.ui.form.on("AutoGrade Operator", {
 		// and the mill has to be able to pull what it verifies. So the field stays `Data`
 		// (never stored at all; `validate` hashes it and wipes it) and only the input is
 		// masked, so a shoulder at the office screen reads nothing.
+		// `support` unlocks the console's diagnostic screens, so only Administrator hands
+		// it out. The server refuses it either way (`_guard_support_role`); dropping it
+		// from the picker is what stops someone choosing an option that cannot be saved.
+		// An account that already holds the role keeps showing it -- removing the value
+		// from a Select it still stores renders the field blank, which reads as corrupt.
+		if (frappe.session.user !== "Administrator" && frm.doc.role !== "support") {
+			frm.set_df_property("role", "options", ["operator"]);
+		}
+
 		const input = frm.fields_dict.new_password?.$input;
 		input?.attr("type", "password");
 

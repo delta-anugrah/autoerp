@@ -28,6 +28,31 @@ class IntegrationTestTruck(IntegrationTestCase):
 		self.assertEqual(get_truck_by_plate("b1111tt"), "B 1111 TT")
 		self.assertRaises(frappe.DuplicateEntryError, make_truck, "B1111TT")
 
+	def test_odd_plate_warns_but_still_saves(self):
+		"""Backoffice has the last word: government and out-of-area plates are real.
+
+		The warning exists to catch a typo while the record is still open - not to
+		refuse the truck. Blocking here would leave a real truck unweighable.
+		"""
+		frappe.local.message_log = []
+		truck = frappe.get_doc({"doctype": "Truck", "plate_number": "TRK-9100"}).insert()
+
+		self.assertEqual(truck.name, "TRK-9100")
+		self.assertTrue(
+			any("not shaped like an Indonesian plate" in str(m) for m in frappe.local.message_log),
+			f"no warning was shown: {frappe.local.message_log}",
+		)
+
+	def test_ordinary_plate_is_saved_without_a_warning(self):
+		"""A warning on every truck is a warning nobody reads."""
+		frappe.local.message_log = []
+		make_truck("B 9200 OK", PLASMA_SUPPLIER)
+
+		self.assertFalse(
+			any("not shaped like an Indonesian plate" in str(m) for m in frappe.local.message_log),
+			f"unexpected warning: {frappe.local.message_log}",
+		)
+
 	def test_completing_a_truck_stores_the_owner(self):
 		truck = get_or_create_truck("bd 777 xx", source="AutoGrade", autograde_id="ag-1")
 		self.assertEqual((truck.name, truck.source, truck.vehicle_class), ("BD 777 XX", "AutoGrade", ""))

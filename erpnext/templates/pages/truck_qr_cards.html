@@ -1,0 +1,53 @@
+{% extends "templates/web.html" %}
+
+{% block title %}{{ _("Truck QR Cards") }}{% endblock %}
+
+{% block head_include %}
+<style>
+	/* Cards are cut apart with scissors, so the grid is sized in millimetres and
+	   every card must survive a page break whole. */
+	.qr-sheet { display: flex; flex-wrap: wrap; gap: 6mm; }
+	.qr-card {
+		width: 62mm; padding: 4mm; text-align: center;
+		border: 1px dashed #999; border-radius: 2mm;
+		break-inside: avoid; page-break-inside: avoid;
+	}
+	.qr-card img { width: 42mm; height: 42mm; image-rendering: pixelated; }
+	.qr-plate { font-size: 15pt; font-weight: 700; letter-spacing: .5pt; margin-top: 2mm; }
+	.qr-meta { font-size: 8pt; color: #555; margin-top: 1mm; }
+	.qr-warning { border: 1px solid #c1841c; background: #fff7e6; padding: 3mm; margin-bottom: 5mm; }
+	.qr-toolbar { margin-bottom: 5mm; }
+	@media print { .qr-toolbar, .qr-warning { display: none; } .qr-card { border-color: #ccc; } }
+</style>
+{% endblock %}
+
+{% block page_content %}
+<div class="qr-toolbar">
+	{#- Not `_("Print")`: Frappe core translates that to "Mencetak" ("printing"), which
+	    reads like a status, not a button. A string of our own keeps the imperative. -#}
+	<button class="btn btn-primary btn-sm" onclick="window.print()">{{ _("Print cards") }}</button>
+	<span class="text-muted small ml-2">{{ _("Choose a printer, or \"Save as PDF\", in the dialog that opens.") }}</span>
+</div>
+
+{% if unscannable %}
+<div class="qr-warning">
+	<b>{{ _("No card printed for {0} truck(s)").format(unscannable | length) }}</b><br>
+	{{ _("Their plates are not shaped like a plate, so the gate scanner could not read the card. Weigh these trucks without scanning.") }}
+	<ul>
+		{% for card in unscannable %}<li>{{ card.plate_number }}</li>{% endfor %}
+	</ul>
+</div>
+{% endif %}
+
+<div class="qr-sheet">
+	{% for card in cards %}{% if card.qr %}
+	<div class="qr-card">
+		<img src="{{ card.qr }}" alt="{{ card.plate_normalized }}">
+		<div class="qr-plate">{{ card.plate_number }}</div>
+		<div class="qr-meta">
+			{{ card.supplier or _("Internal") }}{% if card.vehicle_class %} &middot; {{ card.vehicle_class }}{% endif %}
+		</div>
+	</div>
+	{% endif %}{% endfor %}
+</div>
+{% endblock %}

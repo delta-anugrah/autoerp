@@ -11,7 +11,9 @@ DocType JSON: fields on native DocTypes, roles, settings defaults.
 import frappe
 from frappe import _
 from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
-from frappe.permissions import add_permission
+from frappe.permissions import add_permission, update_permission_property
+
+from erpnext.palm_mill.hidden_fields import hide_unused_fields
 
 # Namanya membawa "palem" supaya berbeda dari berkas huruf "A" yang pernah ada di
 # URL lama: browser menyimpan favicon per URL dan tidak menengok lagi selama URL-nya
@@ -38,6 +40,59 @@ READ_ONLY_MASTERS = (
 	"Sumber TBS",
 	"Sertifikasi",
 )
+
+# Roles a palm mill actually uses. Everything else ERPNext ships is pushed behind a
+# domain that is never switched on, so the User form offers seven choices instead of 49.
+#
+# `Script Manager` and `Workspace Manager` are on this list for a different reason than
+# the other five: Frappe names both in its own code. `Script Manager` is in `role.py`'s
+# STANDARD_ROLES and gates `frappe.only_for` in Server Script and Report;
+# `Workspace Manager` gates editing any public workspace, the mill's own included.
+# Hiding either leaves a site nobody can repair from the UI.
+ADVANCED_DOMAIN = "Palm Mill Advanced"
+MILL_ROLES = (
+	"System Manager",
+	OPERATOR_ROLE,
+	INTEGRATION_ROLE,
+	"Purchase User",
+	"Stock User",
+	# What the workspace's money cards read -- receivables, payables, sales. Hiding it
+	# while `Admin Pabrik` hands it out would grant by the back door a role the picker
+	# says does not exist; a test in `test_role_profiles` refuses that combination.
+	"Accounts User",
+	"Script Manager",
+	"Workspace Manager",
+)
+
+# The customer's administrator. One role, and the one ERPNext already means by it:
+# create users, edit settings, reach every mill DocType.
+ADMIN_USER_ROLES = ("System Manager",)
+
+# Job titles for the New User dialog. Frappe's quick entry cannot show the `roles` table
+# -- it is a hidden Table field -- so `role_profiles` is the only role control that fits
+# there, and without these creating a user takes two screens: save first, then hunt for
+# the checkboxes on the saved form.
+#
+# They also change what the person picking has to know. "Krani Timbang" is a job at the
+# mill; `Weighbridge Operator` + `Purchase User` + `Stock User` is a permission puzzle,
+# and getting it wrong stays invisible until somebody cannot open a screen.
+#
+# Every role named here must be in MILL_ROLES -- a profile pointing at a hidden role
+# would put it back on a user by the side door. A test pins that.
+PROFILE_ADMIN = "Admin Pabrik"
+PROFILE_KRANI = "Krani Timbang"
+PROFILE_MANAJER = "Manajer Pabrik"
+# `System Manager` administers the system; in ERPNext it does not read transactions.
+# Purchase Receipt, Stock Entry and the invoices come through the module roles, and the
+# mill workspace is built from exactly those -- so an admin holding only `System Manager`
+# opens it to "You don't have permission to get a report on: Stock Entry" and four cards
+# stuck loading. The three module roles are read-level; administering the site is still
+# what `System Manager` is there for.
+ROLE_PROFILES = {
+	PROFILE_ADMIN: ("System Manager", "Stock User", "Purchase User", "Accounts User"),
+	PROFILE_KRANI: (OPERATOR_ROLE,),
+	PROFILE_MANAJER: (OPERATOR_ROLE, "Purchase User", "Stock User"),
+}
 
 # Same names and properties the demo generator used, so existing sites see no change.
 CUSTOM_FIELDS = {
@@ -94,6 +149,12 @@ DEFAULT_SETTINGS = {
 }
 
 
+# Seed masters ERPNext creates for every company but a mill never uses. Defined here
+# rather than in the patch so the patch and the install hook cannot drift apart.
+SEED_WAREHOUSES = ("Finished Goods", "Goods In Transit", "Stores", "Work In Progress")
+SEED_ITEM_GROUPS = ("Services", "Sub Assemblies")
+
+
 # The two FFB sources the module reasons about (utils.PURCHASED_SOURCES, sumber_for_supplier).
 # Ticket.sumber_tbs is mandatory and links here, so a site without these rows cannot take
 # a visit; the demo dump carried them, a fresh install must create them.
@@ -103,9 +164,193 @@ SOURCES = ("Internal", "External")
 def after_install():
 	create_custom_fields(CUSTOM_FIELDS, ignore_validate=frappe.flags.in_patch, update=True)
 	setup_roles()
+	hide_unused_roles()
+	setup_role_profiles()
+	setup_batch_access()
 	setup_sources()
 	set_defaults()
 	set_favicon()
+	hide_unused_fields()
+	apply_site_policy()
+
+
+def setup_wizard_complete(wizard_args=None):
+	"""Runs once the wizard has created the company.
+
+	`hide_seed_masters` cannot live in `after_install`: the warehouses come from
+	`Company.create_default_warehouses` and the item groups from the wizard's
+	`install_fixtures`, both of which run later. Called from the install hook it would
+	match nothing and leave the clutter in place without saying so.
+
+	Frappe passes the wizard's own arguments to every hook positionally, so this has to
+	accept them even though the policy does not read them -- a function that refuses them
+	fails the final stage of the wizard, after the company already exists. The parameter
+	is named rather than called `args` to keep it out of semgrep's `overusing-args`.
+	"""
+	apply_site_policy()
+	hide_seed_masters()
+
+
+def apply_site_policy():
+	"""The settings a mill site has to be born with.
+
+	A fresh site never runs patches -- `install_app` marks them completed without
+	executing any -- so everything the patches below do for existing sites has to be
+	done here too, or a new site comes up in English, at three decimals, and unable to
+	receive FFB at all.
+	"""
+	set_site_language()
+	set_float_precision()
+	enable_serial_and_batch()
+
+
+def set_site_language():
+	"""Indonesian by default, still switchable per user from the menu."""
+	frappe.db.set_value("Language", "id", "enabled", 1, update_modified=False)
+	frappe.db.set_single_value("System Settings", "language", "id")
+	# `User.language` outranks the site setting, so users pinned to the old default would
+	# stay in English with nothing on screen explaining why.
+	frappe.db.sql("update `tabUser` set language = NULL where language = 'en-US'")
+
+
+def set_float_precision():
+	"""A mill reads kilograms and percentages to two places at most, and Frappe uses this
+	one setting for every Float and Percent it shows."""
+	frappe.db.set_single_value("System Settings", "float_precision", "2")
+	frappe.db.set_default("float_precision", "2")  # what bootinfo serves; only a UI save refreshes it
+
+
+def enable_serial_and_batch():
+	"""Without this, finalising a ticket fails 417 and no amount of correct grading data
+	gets FFB into the system.
+
+	The upstream v16 patch only turns it on for sites that already have a Batch. A site
+	born empty has none, so it stays off exactly where it is needed most.
+
+	Stock Settings keeps this flag in two places: the Single, which server-side validation
+	reads, and a default, which `item.js` reads to decide whether to show the Batch No
+	fields at all. `Stock Settings.on_update` normally syncs them, but `set_single_value`
+	writes straight to the table without running it -- so setting only the Single leaves a
+	site where FFB can be received but nobody can tick "Has Batch No" on the item, because
+	the field is hidden.
+	"""
+	frappe.db.set_single_value("Stock Settings", "enable_serial_and_batch_no_for_item", 1)
+	frappe.db.set_default("enable_serial_and_batch_no_for_item", 1)
+
+
+def hide_seed_masters():
+	"""ERPNext's starter warehouses and item groups, out of the way of the mill sidebar.
+
+	Hidden only where they carry nothing: a warehouse with ledger entries is somebody's
+	data and disabling it would break their stock transactions.
+	"""
+	for wh in frappe.get_all("Warehouse", filters={"warehouse_name": ("in", SEED_WAREHOUSES)}, pluck="name"):
+		if not frappe.db.exists("Stock Ledger Entry", {"warehouse": wh}):
+			frappe.db.set_value("Warehouse", wh, "disabled", 1, update_modified=False)
+	for ig in SEED_ITEM_GROUPS:
+		if (
+			frappe.db.exists("Item Group", ig)
+			and not frappe.db.exists("Item", {"item_group": ig})
+			and not frappe.db.exists("Item Group", {"parent_item_group": ig})
+		):
+			frappe.delete_doc("Item Group", ig, ignore_permissions=True, force=True)
+
+
+def hide_unused_roles() -> dict:
+	"""Keep the roles a mill never uses out of the User form's role picker.
+
+	Uses `restrict_to_domain` against a domain that is deliberately never activated, NOT
+	`disabled`. The difference is not cosmetic: `Role.validate` calls `remove_roles()`
+	whenever `disabled` is set, which deletes every `Has Role` row for that role -- and
+	switching the role back on does not restore a single one. Measured on a live site:
+	disabling `Sales User` took it from 51 holders to 0, and re-enabling left it at 0.
+	`restrict_to_domain` is read only by the dropdown query in `get_all_roles`;
+	`frappe.get_roles` never looks at it, so permissions are untouched.
+
+	Reversible from the desk, which is the point: Administrator either clears
+	`Restrict To Domain` on one role, or switches the domain on to get all of them back.
+
+	Returns what it did, so the caller can print it -- a step that changes 42 rows and
+	says nothing is one nobody can audit afterwards.
+	"""
+	if not frappe.db.exists("Domain", ADVANCED_DOMAIN):
+		frappe.get_doc({"doctype": "Domain", "domain": ADVANCED_DOMAIN}).insert(ignore_permissions=True)
+
+	# An earlier build of this function marked the automatic roles too. Harmless -- they
+	# never reach the dropdown either way -- but a site that ran it would carry the domain
+	# on `All` and `Guest` forever, so clear it rather than leave a puzzle in the table.
+	for role in frappe.permissions.AUTOMATIC_ROLES:
+		if frappe.db.get_value("Role", role, "restrict_to_domain") == ADVANCED_DOMAIN:
+			frappe.db.set_value("Role", role, "restrict_to_domain", "", update_modified=False)
+
+	hidden, freed, skipped = [], [], {}
+	for role in frappe.get_all("Role", fields=["name", "restrict_to_domain"]):
+		if role.name in MILL_ROLES and role.restrict_to_domain == ADVANCED_DOMAIN:
+			# The whitelist grew after this site last ran: a role we now hand out is still
+			# behind the domain, so the profile that needs it would grant a role the picker
+			# says does not exist. Only our own domain is cleared -- someone else's stays.
+			frappe.db.set_value("Role", role.name, "restrict_to_domain", "", update_modified=False)
+			freed.append(role.name)
+			continue
+		if role.name in frappe.permissions.AUTOMATIC_ROLES:
+			# `get_all_roles` filters these out before the domain is even considered, so
+			# marking them changes nothing -- except leaving four system roles carrying a
+			# domain they have no business in, for whoever reads the table next.
+			skipped[role.name] = "automatic"
+			continue
+		if role.name in MILL_ROLES:
+			skipped[role.name] = "whitelist"
+			continue
+		if role.restrict_to_domain:
+			# Somebody else's decision -- ERPNext's own, or a person's. Not ours to take.
+			skipped[role.name] = f"domain:{role.restrict_to_domain}"
+			continue
+		frappe.db.set_value("Role", role.name, "restrict_to_domain", ADVANCED_DOMAIN, update_modified=False)
+		hidden.append(role.name)
+
+	if hidden or freed:
+		frappe.clear_cache()
+	return {"hidden": sorted(hidden), "freed": sorted(freed), "skipped": skipped}
+
+
+def setup_role_profiles() -> dict:
+	"""Create the mill's job titles, once.
+
+	Only ever creates. A profile somebody edited on a live site is theirs -- resetting it
+	on every migrate would silently undo their change, and they would find out when a user
+	created afterwards came out with the wrong access.
+	"""
+	created = []
+	for nama, peran in ROLE_PROFILES.items():
+		if frappe.db.exists("Role Profile", nama):
+			continue
+		frappe.get_doc(
+			{
+				"doctype": "Role Profile",
+				"role_profile": nama,
+				"roles": [{"role": r} for r in peran if frappe.db.exists("Role", r)],
+			}
+		).insert(ignore_permissions=True)
+		created.append(nama)
+	return {"created": created}
+
+
+def setup_batch_access():
+	"""Let the mill roles read Batch.
+
+	ERPNext ships Batch as `Item Manager` only, but finalising a ticket creates one and the
+	ticket links to it, and the workspace carries a `CPO / PK Batches` shortcut. Without
+	read here that shortcut opens on a permission error for everyone but Administrator, and
+	the batch a ticket names cannot be opened from the ticket.
+
+	Read and report, not write: batches are produced by finalisation, never typed in by
+	hand. `report` is separate because `add_permission` grants only `read`, and a list view
+	-- which the shortcut opens -- is a report as far as Frappe is concerned.
+	"""
+	for role in (*ROLES, "System Manager"):
+		if not frappe.db.exists("Custom DocPerm", {"parent": "Batch", "role": role, "permlevel": 0}):
+			add_permission("Batch", role)
+		update_permission_property("Batch", role, 0, "report", 1)
 
 
 def setup_sources():
@@ -167,6 +412,58 @@ def set_defaults():
 	if changed:
 		settings.flags.ignore_mandatory = True
 		settings.save(ignore_permissions=True)
+
+
+def create_admin_user(email: str, full_name: str) -> dict:
+	"""The customer's own administrator, so `Administrator` can be put away.
+
+	`System Manager` is the whole grant: it creates users, edits Palm Mill Settings and
+	reaches every mill DocType. Anything beyond that is a role the site does not need yet,
+	and roles are easier to add later than to take back.
+
+	Returns a password reset link rather than a password. A password printed here would
+	live on in a terminal scrollback and in whatever chat window it was pasted into; a
+	link is used once and expires.
+	"""
+	# `_` is already bound to frappe's translation function at module level, so the
+	# throwaway from `partition` gets a real name.
+	depan, _pemisah, belakang = full_name.strip().partition(" ")
+
+	if frappe.db.exists("User", email):
+		user = frappe.get_doc("User", email)
+		sudah = {r.role for r in user.roles}
+		ditambah = [r for r in ADMIN_USER_ROLES if r not in sudah]
+		for role in ditambah:
+			user.append("roles", {"role": role})
+		if ditambah:
+			user.save(ignore_permissions=True)
+	else:
+		ditambah = list(ADMIN_USER_ROLES)
+		user = frappe.get_doc(
+			{
+				"doctype": "User",
+				"email": email,
+				"first_name": depan,
+				"last_name": belakang or None,
+				"user_type": "System User",
+				"send_welcome_email": 0,
+				"roles": [{"role": role} for role in ADMIN_USER_ROLES],
+			}
+		).insert(ignore_permissions=True)
+
+	# Frappe's own method, not a hand-written column: it stores the sha256 of the key and
+	# puts the raw one in the link, and `_get_user_for_update_password` hashes whatever the
+	# visitor brings before looking it up. Writing the raw key into the column produces a
+	# link that looks right and fails on use, saying it "has either been used before or is
+	# invalid" -- with no hint that the account was never openable to begin with.
+	#
+	# `send_email=False`: a fresh site has no outgoing mail account, and the link is handed
+	# to whoever ran the command instead.
+	return {
+		"user": user.name,
+		"roles_added": ditambah,
+		"reset_link": user._reset_password(send_email=False),
+	}
 
 
 def create_integration_user(email: str, full_name: str) -> dict:

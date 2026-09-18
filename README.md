@@ -1,7 +1,7 @@
 # AutoERP
 
-A fork of [ERPNext](https://github.com/frappe/erpnext) (develop line, `v16.0.0-beta.1` + ~1500 commits, Feb 2026)
-rebranded as **AutoERP**. It is the ERP app behind the PalmGrade / PKS palm-oil-mill demo.
+A fork of [ERPNext](https://github.com/frappe/erpnext), tracking the **`version-16`** release branch
+(moved off `develop` on 2026-09-16), rebranded as **AutoERP**. It is the ERP app behind the PalmGrade / PKS palm-oil-mill demo.
 
 Internally the app is still called `erpnext` (`app_name = "erpnext"` in `erpnext/hooks.py`), so it
 installs into `apps/erpnext` and is installed on a site as `erpnext`. Only `app_title`, logos and desk
@@ -32,13 +32,12 @@ Everything else is upstream ERPNext. See `git log` — each of the above is its 
 
 ```bash
 # 1. bench with frappe develop, pinned to the commit this fork is tested against
-bench init --frappe-branch develop --python python3.14 frappe-bench
+bench init --frappe-branch version-16 --python python3.14 frappe-bench
 cd frappe-bench
-git -C apps/frappe checkout 2231252
 bench setup requirements
 
 # 2. this app — note it lands in apps/erpnext, not apps/autoerp
-bench get-app https://github.com/samueljw/autoerp.git
+bench get-app git@github.com:delta-anugrah/autoerp.git --branch staging
 
 # 3. a site
 bench new-site autoerp.localhost --db-root-password <mariadb root pw> --admin-password admin
@@ -52,12 +51,45 @@ Frappe's bench needs redis running on the ports in `config/redis_*.conf` (13000/
 `redis-server config/redis_cache.conf --daemonize yes` (and the same for `redis_queue.conf`), plus
 `bench --site <site> worker` so background jobs (reposting, accounting-dimension propagation) run.
 
-## Getting the palm-oil-mill demo data
+## Documentation
+
+Start at **[`docs/README.md`](docs/README.md)** — an index of seven short guides
+(written in Indonesian): what AutoERP is, installing it, the data model, how a truck visit
+becomes a Purchase Receipt, the AutoGrade API, day-to-day operation, contributing, and every
+trap that has cost someone time.
+
+## Getting data into a fresh site
+
+Two ways. **Prefer the seeder** unless you specifically need Jesse's exact site.
+
+### The seeder — data built from code
+
+`erpnext/palm_mill/demo.py` builds the same *shape* of data as the demo dump: company, estates
+and blocks, plasma and agent suppliers, item and price, trucks, desk logins, console accounts,
+and seven days of truck visits pushed through the real controller.
+
+```bash
+bench --site <site> set-config demo_mode 1
+bench --site <site> execute erpnext.palm_mill.demo.seed
+bench --site <site> execute erpnext.palm_mill.demo.reset     # wipe its tickets, seed again
+bench --site <site> execute erpnext.palm_mill.demo.off       # wipe its tickets, stop there (no reseed)
+bench --site <site> execute erpnext.palm_mill.demo.summary   # what is there now
+```
+
+Same three via the `Makefile` (`BENCH`/`SITE` default to `~/frappe-bench` / `pks.localhost`):
+`make demo`, `make demo-reset`, `make demo-off` — AutoGrade has the identical three names.
+
+Unlike the dump this can be handed to a client or installed on their laptop: it carries no site
+encryption key and no real password hashes. It refuses to run on a site that has not declared
+itself a demo (`demo_mode 1`) unless forced — the demo passwords are identical across accounts
+and written in the source, so it must never land on a site in real use.
+
+### The database dump — Jesse's exact site
 
 The sawit demo (company *PT Sawit Rambang Lestari*, 3,848 weighbridge tickets, ~7.4k transactions
 May–Jul 2026, 58 trucks linked to their TBS supplier) is **data, not code**. It lives in a site's MariaDB database, so a fresh install of
 this app is empty. To get it, restore the database dump attached to the
-[`sawit-data-2026-09-09-truck`](https://github.com/samueljw/autoerp/releases/tag/sawit-data-2026-09-09-truck)
+[`sawit-data-2026-09-09-truck`](https://github.com/delta-anugrah/autoerp/releases/tag/sawit-data-2026-09-09-truck)
 release. The dump is tied to this app at commit `915bcc2` and frappe at `2231252` — use the bench
 from the section above.
 
@@ -65,7 +97,7 @@ Follow these steps top to bottom from the bench directory (`frappe-bench/`):
 
 ```bash
 # 1. download the dump (needs collaborator access to this repo; or grab it from the Releases page)
-gh release download sawit-data-2026-09-09-truck --repo samueljw/autoerp -D /tmp/sawit
+gh release download sawit-data-2026-09-09-truck --repo delta-anugrah/autoerp -D /tmp/sawit
 
 # 2. a fresh site to restore into (install-app is NOT needed — the dump already contains the app)
 bench new-site pks.localhost --db-root-password <mariadb root pw> --admin-password admin
@@ -118,7 +150,7 @@ Things to know:
 - **The dump predates the Palm Mill module.** It was taken at app commit `915bcc2`, when the mill DocTypes
   were `custom: 1` records; `bench migrate` on this branch syncs the shipped JSON over them and the patches
   bring the data up to date. Only the Accounting Dimensions remain database-only records.
-- **Full developer walkthrough:** [`docs/dev-setup.md`](docs/dev-setup.md).
+- **Install from scratch:** [`docs/installation.md`](docs/installation.md).
 - **Don't restore onto a much newer app.** Restore first, then `migrate`. If you merge a lot of
   upstream ERPNext, take a fresh backup of your working site before migrating it.
 - The dataset was generated by the private `delta-anugrah/palmgrade-erp-demo` pipeline. If it ever
@@ -165,14 +197,16 @@ display, never rename them. Group-by chart legends show the stored value in both
 ```bash
 git remote add upstream https://github.com/frappe/erpnext.git   # once
 git fetch upstream
-git merge upstream/develop
+git merge upstream/version-16
 ```
 
 Expect conflicts in the branding files listed above; keep ours.
 
 ## Working on it
 
-Clone this repo (collaborator access is enough), branch off `main`, and open a PR back here. `CLAUDE.md` has notes for AI-assisted work.
+Clone this repo (collaborator access is enough), branch off **`staging`**, and open a PR back into
+`staging`; releases go out as a `staging` → `main` **merge commit**. `CLAUDE.md` has notes for
+AI-assisted work, and [`docs/contributing.md`](docs/contributing.md) covers style, tests and CI.
 
 ## Palm Mill module
 

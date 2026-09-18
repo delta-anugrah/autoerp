@@ -1,0 +1,65 @@
+# Image AutoERP: image resmi frappe/erpnext sebagai dasar, erpnext bawaannya
+# ditukar dengan fork kita.
+#
+# Kenapa tidak membangun bench dari nol seperti frappe_docker images/custom:
+# `bench init` meng-clone frappe dan erpnext lewat HTTPS, dan dari jaringan di
+# sini clone sebesar itu putus di tengah transfer berulang kali --
+# "fetch-pack: unexpected disconnect", "early EOF", "invalid index-pack output"
+# -- di dalam maupun di luar Docker. Enam percobaan, dua berhasil. Image resmi
+# sudah memuat frappe, semua dependensi Python/Node, wkhtmltopdf dan nginx,
+# jadi tidak ada satu pun clone besar yang perlu berhasil di sini.
+#
+# Fork kita menyimpang 682 commit / 155 berkas dari upstream, jadi erpnext
+# bawaan image TIDAK bisa dipakai apa adanya -- modul palm_mill dan semua
+# perubahan DocType-nya ada di fork. Yang ditukar seluruh direktori app-nya.
+ARG BASE_IMAGE=frappe/erpnext:v16
+FROM ${BASE_IMAGE}
+
+USER frappe
+WORKDIR /home/frappe/frappe-bench
+
+# Cermin dangkal dari checkout lokal (12 MB lewat filesystem), bukan clone dari
+# GitHub. Lihat build.sh: isinya dipastikan sama dengan origin/<branch>.
+COPY --chown=frappe:frappe autoerp-mirror.git /tmp/autoerp-mirror.git
+
+ARG AUTOERP_BRANCH=main
+# `erpnext.pth` di virtualenv menunjuk ke apps/erpnext, jadi menukar isi
+# direktori itu sudah menukar kode yang benar-benar dijalankan; tidak perlu
+# pip install ulang. Versi dist-info bawaan image dibiarkan -- yang dibaca
+# Frappe saat runtime adalah erpnext/__init__.py di dalam app.
+RUN set -eux; \
+    rm -rf apps/erpnext; \
+    git clone --depth 1 --branch "${AUTOERP_BRANCH}" \
+        file:///tmp/autoerp-mirror.git apps/erpnext; \
+    rm -rf apps/erpnext/.git /tmp/autoerp-mirror.git; \
+    ls -1 apps > sites/apps.txt
+
+# Aset erpnext ikut direktori app (apps/erpnext/erpnext/public/dist), jadi yang
+# terbawa dari image dasar adalah aset upstream. Fork mengubah JS -- workspace
+# sawit, layar truk, kartu QR -- sehingga aset wajib dibangun ulang, kalau
+# tidak Desk memakai berkas lama tanpa ada yang memberi tahu.
+# Dua hal yang harus benar di sini, keduanya sudah pernah salah:
+#
+# 1. `yarn install` dulu. Image resmi tidak memuat node_modules erpnext sama
+#    sekali (asetnya sudah jadi), jadi bundling langsung gagal dengan
+#    "Could not resolve onscan.js".
+# 2. Script `build` di package.json harus dilucuti dulu. Sesudah esbuild
+#    selesai, bench menjalankan script itu -- isinya `cd banking && vite build`
+#    -- dan sub-app banking dependensinya tidak terpasang di sini, sehingga
+#    gagal "vite: not found" SESUDAH aset kita benar-benar jadi. `bench build`
+#    tidak punya flag untuk melewatinya. Fork tidak menyentuh banking/ sama
+#    sekali, jadi aset banking bawaan image dasar tetap sah dan tidak ada yang
+#    hilang karena dilewati.
+RUN set -eux; \
+    cd apps/erpnext; \
+    yarn install --frozen-lockfile --ignore-scripts; \
+    cp package.json package.json.orig; \
+    python3 -c "import json; p='package.json'; d=json.load(open(p)); d.get('scripts',{}).pop('build',None); json.dump(d,open(p,'w'),indent=2)"; \
+    cd /home/frappe/frappe-bench; \
+    bench build --app erpnext --production; \
+    mv apps/erpnext/package.json.orig apps/erpnext/package.json; \
+    rm -rf apps/erpnext/node_modules /home/frappe/.cache/yarn /home/frappe/.npm
+
+# Log build bukan artefak produksi, dan pernah memuat kredensial. Dikosongkan,
+# bukan disensor sebagian: menyensor berarti menebak semua bentuk yang mungkin.
+RUN find /home/frappe/frappe-bench/logs -type f -exec truncate -s 0 {} + 2>/dev/null || true

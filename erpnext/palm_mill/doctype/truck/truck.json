@@ -52,7 +52,8 @@
    "collapsible": 1,
    "fieldname": "integration_section",
    "fieldtype": "Section Break",
-   "label": "Integration"
+   "label": "Integration",
+   "hidden": 1
   },
   {
    "description": "Letters and digits only; the matching key shared with AutoGrade and the scale",
@@ -61,18 +62,21 @@
    "label": "Plate (Normalised)",
    "no_copy": 1,
    "read_only": 1,
-   "unique": 1
+   "unique": 1,
+   "hidden": 1
   },
   {
    "fieldname": "autograde_id",
    "fieldtype": "Data",
    "label": "AutoGrade ID",
    "no_copy": 1,
-   "read_only": 1
+   "read_only": 1,
+   "hidden": 1
   },
   {
    "fieldname": "integration_column",
-   "fieldtype": "Column Break"
+   "fieldtype": "Column Break",
+   "hidden": 1
   },
   {
    "default": "Manual",
@@ -80,7 +84,8 @@
    "fieldtype": "Select",
    "label": "Data Source",
    "options": "Manual\nAutoGrade\nScale",
-   "read_only": 1
+   "read_only": 1,
+   "hidden": 1
   }
  ],
  "grid_page_length": 50,

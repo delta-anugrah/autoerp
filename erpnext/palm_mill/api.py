@@ -222,12 +222,20 @@ def _apply_grading(ticket, grading, pct):
 	ticket.grading = []
 	for row in kept:
 		ticket.append("grading", row)
-	for kriteria, persen in (
-		("Mentah", mentah),
-		("Tangkai Panjang", tangkai),
-		("Matang", max(0.0, 100 - mentah - tangkai - other)),
+	# Jumlah janjang per kriteria. `matang` tidak pernah dikirim kamera — persennya
+	# diturunkan, jadi jumlahnya juga: `acc` sudah MEMUAT tangkai panjang (itu ACC
+	# yang ditandai, bukan kategori keempat), jadi harus dikurangi atau penjumlahan
+	# tiap baris melebihi `grading_total`. `max(0, ...)` menjaga layar krani dari
+	# jumlah buah negatif kalau kedua angka itu sempat tidak sinkron.
+	n_mentah = cint(counts.get("mentah") or counts.get("rej"))
+	n_tangkai = cint(counts.get("tangkai_panjang"))
+	n_matang = max(0, cint(counts.get("acc")) - n_tangkai)
+	for kriteria, persen, janjang in (
+		("Mentah", mentah, n_mentah),
+		("Tangkai Panjang", tangkai, n_tangkai),
+		("Matang", max(0.0, 100 - mentah - tangkai - other), n_matang),
 	):
-		ticket.append("grading", {"kriteria": kriteria, "persen": round(persen, 2)})
+		ticket.append("grading", {"kriteria": kriteria, "persen": round(persen, 2), "janjang": janjang})
 	ticket.update(
 		{
 			"autograde_assignment_id": grading.get("assignment_id") or ticket.autograde_assignment_id,

@@ -36,6 +36,9 @@ web_include_icons = [
 ]
 
 doctype_js = {
+	# Loaded alongside the DocType's own truck.js, and again for the list view below,
+	# so the form and the list open the same dialog from one file.
+	"Truck": ["public/js/palm_mill/qr_cards_dialog.js"],
 	"Address": "public/js/address.js",
 	"Communication": "public/js/communication.js",
 	"Event": "public/js/event.js",
@@ -43,6 +46,7 @@ doctype_js = {
 	"Contact": "public/js/contact.js",
 }
 doctype_list_js = {
+	"Truck": ["public/js/palm_mill/qr_cards_dialog.js"],
 	"Code List": [
 		"edi/doctype/code_list/code_list_import.js",
 	],
@@ -64,6 +68,10 @@ setup_wizard_requires = "assets/erpnext/js/setup_wizard.js"
 setup_wizard_stages = "erpnext.setup.setup_wizard.setup_wizard.get_setup_stages"
 
 after_install = ["erpnext.setup.install.after_install", "erpnext.palm_mill.setup.after_install"]
+
+# The seed masters this clears are created by the wizard itself, after `after_install`
+# has already run.
+setup_wizard_complete = ["erpnext.palm_mill.setup.setup_wizard_complete"]
 
 after_app_install = "erpnext.setup.install.after_app_install"
 after_app_uninstall = "erpnext.setup.install.after_app_uninstall"
