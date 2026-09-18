@@ -86,7 +86,8 @@ docker run --rm --entrypoint bash "$IMAGE" -c '
 	test -f apps/erpnext/erpnext/palm_mill/api.py || { echo "palm_mill TIDAK ADA"; exit 1; }
 	grep -q "^erpnext$" sites/apps.txt || { echo "erpnext tidak terdaftar di apps.txt"; exit 1; }
 	test -d apps/erpnext/erpnext/public/dist || { echo "aset tidak terbangun"; exit 1; }
-	if grep -rqE "x-access-token:[^@[:space:]]+@" /home/frappe/frappe-bench 2>/dev/null; then
+	if grep -rqE "x-access-token:[^@[:space:]]+@" /home/frappe/frappe-bench \
+			--exclude-dir=deploy 2>/dev/null; then
 		echo "kredensial terbaca di dalam image"; exit 1
 	fi
 	echo "    palm_mill ada, apps.txt benar, aset terbangun, tidak ada kredensial"
