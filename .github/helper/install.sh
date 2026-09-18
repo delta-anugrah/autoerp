@@ -355,7 +355,11 @@ fi
 
 cd ~/frappe-bench || exit
 
-run_ci_step "Get payments app" bench get-app payments --branch develop
+# version-16, bukan `develop` yang diwarisi dari upstream: di sana `develop` memang
+# branch yang sedang diuji, di sini yang dibangun adalah version-16. Memasang payments
+# lintas-versi belum pernah menggagalkan satu run pun, dan justru itu bahayanya --
+# yang gagal nanti akan terlihat seperti masalah lain.
+run_ci_step "Get payments app" bench get-app payments --branch version-16
 
 # Opt-in: skip building erpnext's frontend assets. Server tests don't need them, but PDF
 # tests (print formats) do — they pass only if the PDF renderer ignores missing assets.
