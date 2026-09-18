@@ -27,7 +27,15 @@ class IntegrationTestRoleProfiles(IntegrationTestCase):
 			self.assertTrue(frappe.db.exists("Role Profile", nama), f"{nama} harus ada")
 
 	def test_each_profile_carries_the_roles_it_promises(self):
-		setup.setup_role_profiles()
+		"""Through the patch, because `setup_role_profiles` only ever creates.
+
+		A site that already has `Admin Pabrik` from before the module roles were added keeps
+		it as it was -- deliberately, so an edited profile survives a migrate. The patch is
+		what brings an existing profile up to date, so that is what this asserts.
+		"""
+		from erpnext.patches.v17_0 import palm_mill_dashboard_access
+
+		palm_mill_dashboard_access.execute()
 
 		for nama, peran in setup.ROLE_PROFILES.items():
 			doc = frappe.get_doc("Role Profile", nama)

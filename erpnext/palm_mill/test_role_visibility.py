@@ -33,6 +33,9 @@ class IntegrationTestRoleVisibility(IntegrationTestCase):
 				self.assertIn(role, offered, f"{role} harus tetap ditawarkan")
 		self.assertNotIn("HR Manager", offered)
 		self.assertNotIn("Projects User", offered)
+		# The picker grew to eight when `Admin Pabrik` started handing out `Accounts User`;
+		# pinned here so a later trim of MILL_ROLES has to face the profile that needs it.
+		self.assertEqual(len(offered & set(setup.MILL_ROLES)), len(setup.MILL_ROLES))
 
 	def test_hiding_a_role_does_not_take_it_away_from_anyone(self):
 		"""The failure this whole approach exists to avoid."""
@@ -98,6 +101,21 @@ class IntegrationTestRoleVisibility(IntegrationTestCase):
 		setup.hide_unused_roles()
 
 		self.assertFalse(frappe.db.get_value("Role", "All", "restrict_to_domain"))
+
+	def test_a_role_added_to_the_whitelist_later_is_let_back_out(self):
+		"""The whitelist grows; sites that ran the old one must not stay behind.
+
+		`Accounts User` joined when `Admin Pabrik` started reading the money cards. A site
+		that hid it earlier would otherwise keep it hidden while a profile hands it out --
+		granting by the back door a role the picker says does not exist.
+		"""
+		frappe.db.set_value("Role", "Accounts User", "restrict_to_domain", setup.ADVANCED_DOMAIN)
+
+		hasil = setup.hide_unused_roles()
+
+		self.assertIn("Accounts User", hasil["freed"])
+		self.assertFalse(frappe.db.get_value("Role", "Accounts User", "restrict_to_domain"))
+		self.assertIn("Accounts User", get_all_roles())
 
 	def test_a_role_already_restricted_by_erpnext_is_left_alone(self):
 		frappe.db.set_value("Role", "Sales User", "restrict_to_domain", "Manufacturing")
