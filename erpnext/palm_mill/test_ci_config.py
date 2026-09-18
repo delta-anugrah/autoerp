@@ -65,6 +65,27 @@ class IntegrationTestCIConfig(IntegrationTestCase):
 		"""Escape hatch for testing against an unreleased framework branch."""
 		self.assertEqual(frappe_branch_for("staging", override="develop"), "develop")
 
+	def test_payments_is_installed_from_the_same_version_as_the_rest(self):
+		"""`bench get-app payments --branch develop` is inherited from upstream, where
+		`develop` is the branch under test. This fork builds `version-16`, so that line
+		installs a payments built against a different framework version than everything
+		around it.
+
+		It has not broken a run yet, which is exactly why it is worth pinning: a
+		cross-version app fails at some later point that looks unrelated to CI config.
+		"""
+		line = next(
+			(l for l in INSTALL_SH.read_text().splitlines() if "get-app payments" in l),
+			None,
+		)
+		self.assertIsNotNone(line, "install.sh no longer installs payments")
+		self.assertIn(
+			"--branch version-16",
+			line,
+			"payments must be installed from version-16, like frappe and erpnext here",
+		)
+		self.assertNotIn("--branch develop", line)
+
 	def test_docs_checker_looks_at_this_repository(self):
 		"""Upstream hardcodes `frappe/erpnext`, so every PR here was looked up in a
 		repository it does not exist in and failed with "Pull Request Not Found" -
