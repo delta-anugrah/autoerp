@@ -70,6 +70,24 @@ class IntegrationTestAdminUser(IntegrationTestCase):
 		self.assertIn(setup.OPERATOR_ROLE, peran)
 		self.assertIn("System Manager", peran)
 
+	def test_the_reset_link_actually_works(self):
+		"""The key in the link must be the raw one; Frappe stores only its sha256.
+
+		Writing the raw key into `reset_password_key` produces a link that looks right and
+		fails on use: `_get_user_for_update_password` hashes what the visitor brings and
+		finds nothing, so the page says the link "has either been used before or is
+		invalid" -- with no hint that the account was never openable to begin with.
+		"""
+		from frappe.core.doctype.user.user import _get_user_for_update_password
+
+		hasil = setup.create_admin_user(self.EMAIL, "Admin Pelanggan")
+		kunci = hasil["reset_link"].split("key=")[1]
+
+		periksa = _get_user_for_update_password(kunci, None)
+
+		self.assertEqual(periksa.get("user"), self.EMAIL)
+		self.assertFalse(periksa.get("message"), periksa.get("message"))
+
 	def test_it_hands_back_a_reset_link_instead_of_a_password(self):
 		hasil = setup.create_admin_user(self.EMAIL, "Admin Pelanggan")
 
