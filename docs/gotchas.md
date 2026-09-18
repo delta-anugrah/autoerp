@@ -31,15 +31,24 @@ Yang kedua tidak bisa mengikat port redis, satu anaknya mati, lalu honcho
 menjatuhkan seluruh grupnya. Di layar terbaca seperti bench pertama crash —
 padahal dia masih melayani dengan baik. `make up` menolak menyalakan yang kedua.
 
-## 4. Site baru lahir tanpa kebijakan situs
+## 4. Site baru lahir tanpa kebijakan situs — **sudah diperbaiki**
 
-`install_app` menandai **semua patch selesai tanpa menjalankannya**. Jadi site
-baru tidak pernah mendapat: bahasa `id`, presisi 2 desimal, dan Stock Settings
-`enable_serial_and_batch_no_for_item`.
+`install_app` menandai **semua patch selesai tanpa menjalankannya**, jadi site baru
+dulu tidak pernah mendapat bahasa `id`, presisi 2 desimal, maupun Stock Settings
+`enable_serial_and_batch_no_for_item` — lahir berbahasa Inggris, 3 desimal, dan
+**TBS ber-batch gagal 417** saat finalisasi.
 
-Akibatnya site lahir berbahasa Inggris, 3 desimal, dan **TBS ber-batch gagal
-417** saat finalisasi. Langkahnya di [`installation.md`](installation.md) §3.
-(Utang yang tercatat sebagai E5 — belum dipindah ke `after_install`.)
+Sejak PR #17 kebijakan itu ikut `after_install` (`apply_site_policy()`), jadi site
+baru sudah benar tanpa perintah manual. Yang tetap perlu diketahui: pembersihan
+gudang/item group bawaan berjalan dari hook **`setup_wizard_complete`**, bukan
+`after_install` — gudang seed dibuat `Company.create_default_warehouses` dan item
+group oleh `install_fixtures`, keduanya **sesudah** `after_install`, jadi dipanggil
+di sana hasilnya nol kecocokan tanpa pesan apa pun.
+
+⚠️ Flag serial/batch disimpan di **dua** tempat: Single yang dibaca validasi server,
+dan default yang dibaca `item.js` untuk memutuskan field Batch No dirender atau tidak.
+`set_single_value` saja menghasilkan site yang bisa menerima TBS tapi
+**menyembunyikan centang "Has Batch No"** di form Item.
 
 ## 5. "Deadlock Occurred" padahal tidak ada deadlock
 
@@ -189,3 +198,23 @@ harus disetel sendiri.
 
 Jalankan `bench --site <site> clear-cache` **sebelum** `migrate`, di setiap
 site. Peta modul di-cache per site.
+
+## 21. Kolom "Percent" di sortasi, angka operator kilogram
+
+Baris sortasi punya kolom berlabel **Percent**, tapi angka yang ada di kepala operator
+timbangan adalah kilogram. Mengetik `500` untuk "500 kg sampah" alih-alih `5` dulu
+lolos `validate()` dan menghasilkan, pada muatan 10.000 kg:
+
+```
+sampah_kg : 50.000 kg
+kg_dibayar: -40.000 kg
+nilai     : -Rp 114.000.000
+```
+
+Tidak ada yang menahannya: `max_potongan_pct` hanya membatasi `potongan_pct`,
+sedangkan `sampah_kg` dipotong terpisah di atasnya, jadi batas itu tidak pernah
+melihat angka ini. Tiga baris @60 % juga lolos — masing-masing sah, bersama 180 %.
+
+Sejak PR #25 `validate_grading_percentages()` menolak baris di luar 0–100 dan jumlah
+di atas 100, dan `kg_dibayar` tidak pernah negatif. Kalau menambah kriteria baru,
+jangan lewati penjaga ini: angkanya yang dibayar ke pemasok.

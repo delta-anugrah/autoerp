@@ -92,25 +92,17 @@ tambahkan `127.0.0.1 pks.localhost` ke `/etc/hosts`.
 `External`**, setelan bawaan (aturan potongan, batas 18%, timeout 6 jam,
 jendela 2 jam), dan favicon.
 
-⚠️ **Situs baru tidak menjalankan patch.** `install_app` menandai semua patch
-selesai tanpa menjalankannya, jadi kebijakan situs ini masih harus dijalankan
-tangan (utang yang tercatat sebagai E5):
+`after_install` juga menerapkan **kebijakan situs** (`apply_site_policy()`): bahasa
+`id`, presisi 2 desimal, dan Stock Settings `enable_serial_and_batch_no_for_item`.
 
-```bash
-bench --site pks.localhost execute erpnext.patches.v17_0.palm_mill_language.execute
-bench --site pks.localhost execute erpnext.patches.v17_0.palm_mill_precision.execute
-bench --site pks.localhost execute frappe.db.set_single_value --kwargs \
-  '{"doctype":"Stock Settings","fieldname":"enable_serial_and_batch_no_for_item","value":1}'
-bench --site pks.localhost clear-cache
-```
+Dulu ketiganya harus diketik tangan — `install_app` menandai semua patch selesai
+tanpa menjalankannya, jadi situs baru tidak pernah mendapatkannya dan lahir
+berbahasa Inggris, 3 desimal, serta menolak TBS ber-batch dengan **417 "Activate
+Serial and Batch No"**. Sejak PR #17 tidak ada lagi langkah manual di sini.
 
-Jalankan **patch-nya**, jangan menyetel field satu per satu: `palm_mill_language`
-mengerjakan lima hal, bukan cuma bahasa — dia juga menyalakan Language `id`,
-melepas pengguna yang terpaku ke `en-US`, menyembunyikan empat gudang seed yang
-kosong, dan menghapus dua Item Group bawaan yang tidak terpakai.
-
-Yang terakhir wajib: tanpa itu TBS ber-batch gagal **417 "Activate Serial and
-Batch No"** saat finalisasi.
+Pembersihan gudang dan Item Group bawaan berjalan **sesudah wizard**, dari hook
+`setup_wizard_complete` — gudang seed baru dibuat oleh wizard itu sendiri, jadi
+`after_install` memang belum bisa melihatnya.
 
 ## 4. Isi data — pilih satu
 
