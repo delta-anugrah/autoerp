@@ -112,6 +112,99 @@ class IntegrationTestDashboardAccess(IntegrationTestCase):
 
 		self.assertEqual(frappe.db.count("Custom DocPerm", {"parent": "Batch"}), sebelum)
 
+	def test_make_admin_new_grants_the_same_roles_as_the_profile(self):
+		"""Two ways in, one set of roles.
+
+		`make admin-new` hands roles straight to the user; the dialog hands over a profile.
+		Left apart they drift, and they did: an admin made by the command opened the same
+		blank workspace the profile had just been fixed for.
+		"""
+		self.assertEqual(set(setup.ADMIN_USER_ROLES), set(setup.ROLE_PROFILES[setup.PROFILE_ADMIN]))
+
+	def test_an_admin_made_by_the_command_can_read_the_workspace(self):
+		email = "uji.admin.perintah@test.local"
+		if frappe.db.exists("User", email):
+			frappe.delete_doc("User", email, force=True, ignore_permissions=True)
+		setup.setup_batch_access()
+		setup.create_admin_user(email, "Uji Perintah")
+		frappe.set_user(email)
+		self.addCleanup(frappe.set_user, "Administrator")
+
+		gagal = [
+			dt
+			for dt in WORKSPACE_READS
+			if not (frappe.has_permission(dt, "read") and frappe.has_permission(dt, "report"))
+		]
+
+		self.assertEqual(gagal, [], f"admin dari make admin-new gagal membaca: {gagal}")
+
+	def test_the_patch_repairs_an_admin_made_before_this(self):
+		"""Admins created by the command are not profile holders, so the profile pass misses
+		them entirely -- they have to be found by the role they were given."""
+		from erpnext.patches.v17_0 import palm_mill_dashboard_access
+
+		email = "uji.admin.lama@test.local"
+		if frappe.db.exists("User", email):
+			frappe.delete_doc("User", email, force=True, ignore_permissions=True)
+		frappe.get_doc(
+			{
+				"doctype": "User",
+				"email": email,
+				"first_name": "Admin Lama",
+				"user_type": "System User",
+				"send_welcome_email": 0,
+				"roles": [{"role": "System Manager"}],
+			}
+		).insert(ignore_permissions=True)
+		# What an admin from before this looks like: the command's tag, the old single role.
+		setup._tandai_admin(email)
+
+		palm_mill_dashboard_access.execute()
+
+		peran = frappe.get_roles(email)
+		for role in setup.ADMIN_USER_ROLES:
+			self.assertIn(role, peran, f"{role} tidak sampai ke admin lama")
+
+	def test_the_patch_leaves_other_system_managers_alone(self):
+		"""Administrator holds `System Manager` too, and so may the site's own accounts.
+
+		Repairing by role rather than by tag would hand every one of them the module roles
+		-- widening access nobody asked to widen.
+		"""
+		from erpnext.patches.v17_0 import palm_mill_dashboard_access
+
+		email = "uji.sysman.bukan.admin@test.local"
+		if frappe.db.exists("User", email):
+			frappe.delete_doc("User", email, force=True, ignore_permissions=True)
+		frappe.get_doc(
+			{
+				"doctype": "User",
+				"email": email,
+				"first_name": "Bukan Admin",
+				"user_type": "System User",
+				"send_welcome_email": 0,
+				"roles": [{"role": "System Manager"}],
+			}
+		).insert(ignore_permissions=True)
+
+		palm_mill_dashboard_access.execute()
+
+		self.assertNotIn("Stock User", frappe.get_roles(email))
+
+	def test_the_command_tags_the_accounts_it_makes(self):
+		"""The tag is how a later repair tells a mill admin from any other System Manager."""
+		email = "uji.admin.tag@test.local"
+		if frappe.db.exists("User", email):
+			frappe.delete_doc("User", email, force=True, ignore_permissions=True)
+
+		setup.create_admin_user(email, "Uji Tag")
+
+		self.assertTrue(
+			frappe.db.exists(
+				"Tag Link", {"tag": setup.ADMIN_TAG, "document_type": "User", "document_name": email}
+			)
+		)
+
 	def test_the_admin_profile_still_carries_system_manager(self):
 		"""The roles added here are for reading; administering the site is still the point."""
 		self.assertIn("System Manager", setup.ROLE_PROFILES[setup.PROFILE_ADMIN])
