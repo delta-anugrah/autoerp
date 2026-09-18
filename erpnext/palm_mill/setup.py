@@ -13,6 +13,8 @@ from frappe import _
 from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
 from frappe.permissions import add_permission
 
+from erpnext.palm_mill.hidden_fields import hide_unused_fields
+
 # Namanya membawa "palem" supaya berbeda dari berkas huruf "A" yang pernah ada di
 # URL lama: browser menyimpan favicon per URL dan tidak menengok lagi selama URL-nya
 # sama, jadi mengganti isi berkas saja meninggalkan lambang lama di tab orang.
@@ -157,6 +159,7 @@ def after_install():
 	setup_sources()
 	set_defaults()
 	set_favicon()
+	hide_unused_fields()
 	apply_site_policy()
 
 
