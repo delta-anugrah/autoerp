@@ -1,242 +1,257 @@
 # AutoERP
 
-A fork of [ERPNext](https://github.com/frappe/erpnext), tracking the **`version-16`** release branch
-(moved off `develop` on 2026-09-16), rebranded as **AutoERP**. It is the ERP app behind the PalmGrade / PKS palm-oil-mill demo.
+Fork [ERPNext](https://github.com/frappe/erpnext) yang mengikuti branch rilis **`version-16`**
+(pindah dari `develop` pada 2026-09-16), dengan merek **AutoERP**. Inilah aplikasi ERP di balik
+demo pabrik kelapa sawit PalmGrade / PKS.
 
-Internally the app is still called `erpnext` (`app_name = "erpnext"` in `erpnext/hooks.py`), so it
-installs into `apps/erpnext` and is installed on a site as `erpnext`. Only `app_title`, logos and desk
-icons say AutoERP. This is deliberate — it keeps upstream merges and every `frappe.get_app("erpnext")`
-call working.
+Di dalamnya aplikasi ini tetap bernama `erpnext` (`app_name = "erpnext"` di `erpnext/hooks.py`),
+jadi ia terpasang di `apps/erpnext` dan dipasang ke site sebagai `erpnext`. Yang menyebut AutoERP
+cuma `app_title`, logo, dan ikon desk. Ini disengaja — supaya merge dari upstream dan setiap
+panggilan `frappe.get_app("erpnext")` tetap jalan.
 
-## What differs from upstream
+## Bedanya dengan upstream
 
-| Area | Change |
+| Bagian | Perubahan |
 |---|---|
-| Branding | `app_title`/`app_publisher` = AutoERP, AutoERP logo + favicon (`erpnext/public/images/autoerp-*.svg`), desk icons, footer, help links, "AutoERP Settings" workspace replacing "ERPNext Settings" |
-| Tweaks | small edits to Accounts/Buying/Stock settings doctypes, `stock_ledger.py`, `reorder_item.py`, Production Plan, Company, and the CRM/Support workspaces |
+| Merek | `app_title`/`app_publisher` = AutoERP, logo + favicon AutoERP (`erpnext/public/images/autoerp-*.svg`), ikon desk, footer, tautan bantuan, workspace "AutoERP Settings" menggantikan "ERPNext Settings" |
+| Penyesuaian | suntingan kecil di doctype setelan Accounts/Buying/Stock, `stock_ledger.py`, `reorder_item.py`, Production Plan, Company, dan workspace CRM/Support |
 
-Everything else is upstream ERPNext. See `git log` — each of the above is its own commit.
+Selebihnya ERPNext upstream apa adanya. Lihat `git log` — tiap baris di atas punya commit sendiri.
 
-## Tested environment
+## Lingkungan yang sudah diuji
 
-| Tool | Version used |
+| Alat | Versi yang dipakai |
 |---|---|
-| Python | 3.14 (`pyproject.toml` requires `>=3.14`) |
+| Python | 3.14 (`pyproject.toml` minta `>=3.14`) |
 | Node / yarn | 26.x / 1.22 |
-| MariaDB | 12.2 (10.6+ should work) |
+| MariaDB | 12.2 (10.6+ semestinya jalan) |
 | Redis | 8.x |
 | bench | 5.29 |
 | frappe | `develop` @ commit `2231252` |
 
-## Run it from scratch
+## Menjalankannya dari nol
 
 ```bash
-# 1. bench with frappe develop, pinned to the commit this fork is tested against
+# 1. bench dengan frappe develop, dipatok ke commit yang dipakai menguji fork ini
 bench init --frappe-branch version-16 --python python3.14 frappe-bench
 cd frappe-bench
 bench setup requirements
 
-# 2. this app — note it lands in apps/erpnext, not apps/autoerp
+# 2. aplikasi ini — perhatikan: mendarat di apps/erpnext, bukan apps/autoerp
 bench get-app git@github.com:delta-anugrah/autoerp.git --branch staging
 
-# 3. a site
-bench new-site autoerp.localhost --db-root-password <mariadb root pw> --admin-password admin
+# 3. sebuah site
+bench new-site autoerp.localhost --db-root-password <sandi root mariadb> --admin-password admin
 bench --site autoerp.localhost install-app erpnext
 bench use autoerp.localhost
 bench start          # http://localhost:8000
 ```
 
-Frappe's bench needs redis running on the ports in `config/redis_*.conf` (13000/11000/12000) —
-`bench start` launches them; if you run `bench serve` by hand, start them yourself:
-`redis-server config/redis_cache.conf --daemonize yes` (and the same for `redis_queue.conf`), plus
-`bench --site <site> worker` so background jobs (reposting, accounting-dimension propagation) run.
+Bench milik Frappe butuh redis jalan di port yang tertulis di `config/redis_*.conf`
+(13000/11000/12000) — `bench start` menyalakannya sendiri. Kalau kamu menjalankan `bench serve`
+manual, nyalakan sendiri: `redis-server config/redis_cache.conf --daemonize yes` (begitu juga
+`redis_queue.conf`), plus `bench --site <site> worker` supaya pekerjaan latar (reposting,
+propagasi accounting dimension) jalan.
 
-## Documentation
+## Dokumentasi
 
-Start at **[`docs/README.md`](docs/README.md)** — an index of seven short guides
-(written in Indonesian): what AutoERP is, installing it, the data model, how a truck visit
-becomes a Purchase Receipt, the AutoGrade API, day-to-day operation, contributing, and every
-trap that has cost someone time.
+Mulai dari **[`docs/README.md`](docs/README.md)** — indeks sembilan panduan pendek berbahasa
+Indonesia: apa itu AutoERP, cara memasangnya, model data, bagaimana satu kunjungan truk menjadi
+Purchase Receipt, API AutoGrade, kontrak integrasi AutoGrade, operasional harian, cara
+berkontribusi, dan tiap jebakan yang pernah memakan waktu orang.
 
-## Getting data into a fresh site
+## Mengisi data ke site yang baru
 
-Two ways. **Prefer the seeder** unless you specifically need Jesse's exact site.
+Ada dua cara. **Pakai seeder** kecuali kamu memang butuh site Jesse yang persis.
 
-### The seeder — data built from code
+### Seeder — data dibangun dari kode
 
-`erpnext/palm_mill/demo.py` builds the same *shape* of data as the demo dump: company, estates
-and blocks, plasma and agent suppliers, item and price, trucks, desk logins, console accounts,
-and seven days of truck visits pushed through the real controller.
+`erpnext/palm_mill/demo.py` membangun data dengan *bentuk* yang sama seperti dump demo: perusahaan,
+kebun dan blok, pemasok plasma dan agen, item dan harga, truk, login desk, akun konsol, dan tujuh
+hari kunjungan truk yang didorong lewat controller sungguhan.
 
 ```bash
 bench --site <site> set-config demo_mode 1
 bench --site <site> execute erpnext.palm_mill.demo.seed
-bench --site <site> execute erpnext.palm_mill.demo.reset     # wipe its tickets, seed again
-bench --site <site> execute erpnext.palm_mill.demo.off       # wipe its tickets, stop there (no reseed)
-bench --site <site> execute erpnext.palm_mill.demo.summary   # what is there now
+bench --site <site> execute erpnext.palm_mill.demo.reset     # hapus tiketnya, isi ulang
+bench --site <site> execute erpnext.palm_mill.demo.off       # hapus tiketnya, berhenti (tanpa isi ulang)
+bench --site <site> execute erpnext.palm_mill.demo.summary   # sekarang isinya apa
 ```
 
-Same three via the `Makefile` (`BENCH`/`SITE` default to `~/frappe-bench` / `pks.localhost`):
-`make demo`, `make demo-reset`, `make demo-off` — AutoGrade has the identical three names.
+Tiga perintah yang sama lewat `Makefile` (`BENCH`/`SITE` bawaannya `~/frappe-bench` /
+`pks.localhost`): `make demo`, `make demo-reset`, `make demo-off` — AutoGrade punya tiga nama yang
+persis sama.
 
-To empty a site completely — not just its demo rows — `make reset-data` shows what is there and
-`make reset-data-fresh` wipes it, asking for the site name to be typed first. It runs `bench
-reinstall` rather than `drop-site`, so `site_config.json` survives and the API key it holds is
-not silently replaced. Everything else goes: tickets, masters, and every user but Administrator.
-Follow it with `make migrate` and `make key-new`, because the AutoGrade integration user is
-deleted along with the rest and the factory PC is refused with a 401 until a new key is issued.
-AutoGrade has the same two target names.
+Untuk mengosongkan site sepenuhnya — bukan cuma baris demonya — `make reset-data` memperlihatkan
+apa yang ada dan `make reset-data-fresh` menghapusnya, dengan meminta nama site diketik lebih
+dulu. Ia menjalankan `bench reinstall`, bukan `drop-site`, jadi `site_config.json` selamat dan
+kunci API yang tersimpan di situ tidak diganti diam-diam. Sisanya habis: tiket, master, dan semua
+pengguna kecuali Administrator. Lanjutkan dengan `make migrate` dan `make key-new`, karena
+pengguna integrasi AutoGrade ikut terhapus dan PC pabrik ditolak dengan 401 sampai kunci baru
+diterbitkan. AutoGrade punya dua nama target yang sama.
 
-Unlike the dump this can be handed to a client or installed on their laptop: it carries no site
-encryption key and no real password hashes. It refuses to run on a site that has not declared
-itself a demo (`demo_mode 1`) unless forced — the demo passwords are identical across accounts
-and written in the source, so it must never land on a site in real use.
+Beda dengan dump, seeder ini boleh diserahkan ke klien atau dipasang di laptop mereka: ia tidak
+membawa kunci enkripsi site maupun hash sandi sungguhan. Ia menolak jalan di site yang belum
+menyatakan dirinya demo (`demo_mode 1`) kecuali dipaksa — sandi demo sama persis di semua akun
+dan tertulis di kode sumber, jadi ia tidak boleh mendarat di site yang benar-benar dipakai.
 
-### The database dump — Jesse's exact site
+### Dump database — site Jesse yang persis
 
-The sawit demo (company *PT Sawit Rambang Lestari*, 3,848 weighbridge tickets, ~7.4k transactions
-May–Jul 2026, 58 trucks linked to their TBS supplier) is **data, not code**. It lives in a site's MariaDB database, so a fresh install of
-this app is empty. To get it, restore the database dump attached to the
-[`sawit-data-2026-09-09-truck`](https://github.com/delta-anugrah/autoerp/releases/tag/sawit-data-2026-09-09-truck)
-release. The dump is tied to this app at commit `915bcc2` and frappe at `2231252` — use the bench
-from the section above.
+Demo sawit (perusahaan *PT Sawit Rambang Lestari*, 3.848 tiket timbangan, ~7,4 ribu transaksi
+Mei–Juli 2026, 58 truk yang tertaut ke pemasok TBS-nya) itu **data, bukan kode**. Ia hidup di
+database MariaDB milik sebuah site, jadi pemasangan aplikasi ini dari nol akan kosong. Untuk
+mendapatkannya, pulihkan dump database yang menempel di rilis
+[`sawit-data-2026-09-09-truck`](https://github.com/delta-anugrah/autoerp/releases/tag/sawit-data-2026-09-09-truck).
+Dump itu terikat ke aplikasi ini pada commit `915bcc2` dan frappe pada `2231252` — pakai bench dari
+bagian di atas.
 
-Follow these steps top to bottom from the bench directory (`frappe-bench/`):
+Ikuti langkah ini dari atas ke bawah, dijalankan dari direktori bench (`frappe-bench/`):
 
 ```bash
-# 1. download the dump (needs collaborator access to this repo; or grab it from the Releases page)
+# 1. unduh dumpnya (butuh akses collaborator ke repo ini; atau ambil dari halaman Releases)
 gh release download sawit-data-2026-09-09-truck --repo delta-anugrah/autoerp -D /tmp/sawit
 
-# 2. a fresh site to restore into (install-app is NOT needed — the dump already contains the app)
-bench new-site pks.localhost --db-root-password <mariadb root pw> --admin-password admin
+# 2. site baru buat tempat memulihkan (install-app TIDAK perlu — dump sudah membawa aplikasinya)
+bench new-site pks.localhost --db-root-password <sandi root mariadb> --admin-password admin
 
-# 3. restore the dump over it, then align the schema with the installed code
-bench --site pks.localhost restore /tmp/sawit/*-pks_localhost-database.sql.gz --db-root-password <mariadb root pw>
+# 3. pulihkan dump ke situ, lalu samakan skemanya dengan kode yang terpasang
+bench --site pks.localhost restore /tmp/sawit/*-pks_localhost-database.sql.gz --db-root-password <sandi root mariadb>
 bench --site pks.localhost migrate
 
-# 4. the dump carries the old Administrator hash — set your own
+# 4. dump membawa hash Administrator yang lama — pasang sandimu sendiri
 bench --site pks.localhost set-admin-password admin
 
-# 5. run it
+# 5. jalankan
 bench use pks.localhost
 bench start                       # http://pks.localhost:8000  (login: Administrator / admin)
 ```
 
-On Linux add `127.0.0.1 pks.localhost` to `/etc/hosts`; macOS resolves `*.localhost` on its own.
-A worker must be running (`bench start` launches one) or accounting dimensions never reach GL Entry.
+Di Linux, tambahkan `127.0.0.1 pks.localhost` ke `/etc/hosts`; macOS menyelesaikan `*.localhost`
+sendiri. Satu worker harus jalan (`bench start` menyalakan satu) atau accounting dimension tidak
+akan pernah sampai ke GL Entry.
 
-**Day to day, once the bench exists**, use the `Makefile` in this repo (`make help` lists all targets):
+**Sehari-hari, begitu benchnya ada**, pakai `Makefile` di repo ini (`make help` mendaftar semua
+target):
 
 ```bash
-make up          # start in the background, return once the site answers
-make status      # running? answering? which checkout does the bench serve?
+make up          # nyalakan di latar, kembali begitu site menjawab
+make status      # jalan? menjawab? bench melayani checkout yang mana?
 make stop
-make key-show    # AutoGrade's ERP_API_KEY / ERP_API_SECRET, without rotating them
+make key-show    # ERP_API_KEY / ERP_API_SECRET milik AutoGrade, tanpa merotasinya
 ```
 
-`make up` refuses to start a second bench. Running `bench start` twice looks like a crash — the
-second one cannot bind the redis ports and honcho takes its whole group down — while the first
-bench is still serving. Never re-run `create_integration_user` just to read the credentials: it
-rotates the secret and every AutoGrade still holding the old one gets 401.
+`make up` menolak menyalakan bench kedua. Menjalankan `bench start` dua kali terbaca seperti crash
+— yang kedua tidak bisa mengikat port redis dan honcho mematikan seluruh grupnya — padahal bench
+pertama masih melayani. Jangan pernah menjalankan ulang `create_integration_user` cuma untuk
+membaca kredensialnya: itu merotasi secret, dan setiap AutoGrade yang masih memegang yang lama
+kena 401.
 
-**What you should see.** One company, PT Sawit Rambang Lestari (abbr `S`). A **Pabrik Kelapa Sawit** workspace on the
-desk, Weighbridge Ticket list with ~3.8k rows, Purchase Receipts (~1.8k), and a Stock Ledger for
-TBS / CPO / PK.
-Sanity check without the browser:
+**Yang semestinya kamu lihat.** Satu perusahaan, PT Sawit Rambang Lestari (singkatan `S`).
+Workspace **Pabrik Kelapa Sawit** di desk, daftar Weighbridge Ticket berisi ~3,8 ribu baris,
+Purchase Receipt (~1,8 ribu), dan Stock Ledger untuk TBS / CPO / PK. Cek cepat tanpa browser:
 
 ```bash
 bench --site pks.localhost execute frappe.get_all --kwargs '{"doctype":"Company","fields":["name","abbr"]}'
 # [{"name": "PT Sawit Rambang Lestari", "abbr": "S"}]
 ```
 
-Things to know:
+Yang perlu diketahui:
 
-- **Fictional data.** A 45 t/h mill with a 5,000 ha nucleus estate, generated deterministically.
-  Nothing here is any real mill's operating result; do not present it otherwise.
-- **The dump contains credentials** (user password hashes, the site encryption key). It is on a
-  private release for that reason — do not commit it or reshare it outside this repo's collaborators.
-- **The dump predates the Palm Mill module.** It was taken at app commit `915bcc2`, when the mill DocTypes
-  were `custom: 1` records; `bench migrate` on this branch syncs the shipped JSON over them and the patches
-  bring the data up to date. Only the Accounting Dimensions remain database-only records.
-- **Install from scratch:** [`docs/installation.md`](docs/installation.md).
-- **Don't restore onto a much newer app.** Restore first, then `migrate`. If you merge a lot of
-  upstream ERPNext, take a fresh backup of your working site before migrating it.
-- The dataset was generated by the private `delta-anugrah/palmgrade-erp-demo` pipeline. If it ever
-  needs to be rebuilt from scratch rather than restored, ask Jesse.
-- **A saved Desktop Layout freezes the launcher.** The desktop grid renders each user's
-  `Desktop Layout` snapshot in preference to `tabDesktop Icon`, and nothing invalidates it — so
-  after anyone presses Save in the launcher's edit mode, later changes to the shipped icon JSON
-  stop reaching them. Right-click → **Reset Layout**, or delete the `Desktop Layout` row.
+- **Datanya fiktif.** Pabrik 45 t/jam dengan kebun inti 5.000 ha, dibangkitkan secara
+  deterministik. Tidak ada satu pun di sini yang merupakan hasil operasi pabrik sungguhan; jangan
+  menyajikannya seolah-olah begitu.
+- **Dump ini berisi kredensial** (hash sandi pengguna, kunci enkripsi site). Karena itu ia ada di
+  rilis privat — jangan di-commit dan jangan dibagikan ke luar daftar collaborator repo ini.
+- **Dump ini lebih tua dari modul Palm Mill.** Ia diambil pada commit `915bcc2`, waktu DocType
+  pabrik masih berupa record `custom: 1`; `bench migrate` di branch ini menyelaraskan JSON yang
+  dikirim aplikasi di atasnya, dan patch-nya memperbarui datanya. Yang tersisa sebagai record
+  database saja tinggal Accounting Dimensions.
+- **Pasang dari nol:** [`docs/installation.md`](docs/installation.md).
+- **Jangan memulihkan ke aplikasi yang jauh lebih baru.** Pulihkan dulu, baru `migrate`. Kalau
+  kamu merge banyak ERPNext upstream, ambil backup baru dari site yang sedang jalan sebelum
+  memigrasinya.
+- Dataset ini dibangkitkan oleh pipeline privat `delta-anugrah/palmgrade-erp-demo`. Kalau suatu
+  saat ia harus dibangun ulang dari nol alih-alih dipulihkan, tanya Jesse.
+- **Desktop Layout yang tersimpan membekukan launcher.** Grid desktop menampilkan snapshot
+  `Desktop Layout` tiap pengguna lebih dulu ketimbang `tabDesktop Icon`, dan tidak ada yang
+  membatalkannya — jadi begitu ada yang menekan Save di mode edit launcher, perubahan berikutnya
+  pada JSON ikon yang dikirim aplikasi berhenti sampai ke dia. Klik kanan → **Reset Layout**, atau
+  hapus baris `Desktop Layout`-nya.
 
-## Translations
+## Terjemahan
 
-The desk is switchable between Indonesian and English per user (user menu → **Bahasa
-Indonesia** / **English**; site default is Indonesian). Everything in the mill layer is authored
-in **English in the source files** and translated to Indonesian — the same mechanism Frappe and
-ERPNext use — so one setting flips every label, button, status and heading.
+Desk bisa dipindah antara bahasa Indonesia dan Inggris per pengguna (menu pengguna → **Bahasa
+Indonesia** / **English**; bawaan site-nya Indonesia). Semua yang ada di lapisan pabrik ditulis
+**dalam bahasa Inggris di berkas sumber** lalu diterjemahkan ke Indonesia — mekanisme yang sama
+dengan yang dipakai Frappe dan ERPNext — sehingga satu setelan membalik semua label, tombol,
+status, dan judul.
 
-Two channels, and the reason for both:
+Dua kanal, dan alasan keduanya ada:
 
-- **`erpnext/locale/id.po`** — every string ERPNext or the mill layer owns. Also
-  `erpnext/locale/en.po`, for the few Indonesian *stored* values (the grading kriteria, the
-  estate DocType names, `Non-sertifikasi`) so English users see "Unripe", "Block", "Uncertified".
-- **`erpnext/fixtures/translation.json`** — `Translation` rows for strings **Frappe** owns
-  (`hooks.py` `ignore_translatable_strings_from = ["frappe"]` keeps them out of ERPNext's catalog,
-  so its `.po` can never override Frappe's *Rumah* for Home). Translation rows outrank every `.po`.
-  Synced on migrate.
+- **`erpnext/locale/id.po`** — tiap string milik ERPNext atau lapisan pabrik. Ada juga
+  `erpnext/locale/en.po`, untuk sedikit nilai *tersimpan* yang berbahasa Indonesia (kriteria
+  grading, nama DocType kebun, `Non-sertifikasi`) supaya pengguna Inggris melihat "Unripe",
+  "Block", "Uncertified".
+- **`erpnext/fixtures/translation.json`** — baris `Translation` untuk string milik **Frappe**
+  (`hooks.py` `ignore_translatable_strings_from = ["frappe"]` menjaga mereka tetap di luar katalog
+  ERPNext, jadi `.po`-nya tidak akan pernah bisa menimpa *Rumah* milik Frappe untuk Home). Baris
+  Translation mengalahkan semua `.po`. Disinkronkan saat migrate.
 
-Workflow when you add or change a user-visible string:
+Alur kerja waktu kamu menambah atau mengubah string yang dilihat pengguna:
 
 ```bash
-bench generate-pot-file --app erpnext            # source → main.pot (never hand-add msgids)
-bench update-po-files --app erpnext --locale id  # and --locale en
-#   fill msgstr in erpnext/locale/id.po (babel's write_po formatting; sorted)
-bench compile-po-to-mo --app erpnext --force     # runtime reads .mo, not .po — migrate does NOT compile
-bench --site <site> migrate && bench --site <site> clear-cache   # bootinfo caches the whole dict per user
+bench generate-pot-file --app erpnext            # sumber → main.pot (jangan pernah menambah msgid manual)
+bench update-po-files --app erpnext --locale id  # dan --locale en
+#   isi msgstr di erpnext/locale/id.po (format tulisan babel write_po; urut)
+bench compile-po-to-mo --app erpnext --force     # runtime membaca .mo, bukan .po — migrate TIDAK mengompilasi
+bench --site <site> migrate && bench --site <site> clear-cache   # bootinfo menyimpan seluruh kamus per pengguna
 ```
 
-Rules: author English in source; ship context-free msgids (the extractor emits no `msgctxt`,
-and the list view / read-only field / export never pass one); `update-po-files` silently drops
-any `.po` entry whose msgid is not in the POT. Stored values are data — translate them for
-display, never rename them. Group-by chart legends show the stored value in both languages.
+Aturannya: tulis bahasa Inggris di sumber; kirim msgid tanpa konteks (ekstraktornya tidak
+memancarkan `msgctxt`, dan tampilan daftar / field read-only / ekspor tidak pernah mengirim satu
+pun); `update-po-files` diam-diam membuang tiap entri `.po` yang msgid-nya tidak ada di POT. Nilai
+tersimpan itu data — terjemahkan untuk ditampilkan, jangan pernah mengganti namanya. Legenda
+chart group-by memperlihatkan nilai tersimpan dalam dua bahasa.
 
-## Keeping up with upstream ERPNext
+## Mengikuti ERPNext upstream
 
 ```bash
-git remote add upstream https://github.com/frappe/erpnext.git   # once
+git remote add upstream https://github.com/frappe/erpnext.git   # sekali saja
 git fetch upstream
 git merge upstream/version-16
 ```
 
-Expect conflicts in the branding files listed above; keep ours.
+Harap siap konflik di berkas merek yang didaftar di atas; ambil punya kita.
 
-## Working on it
+## Ikut mengerjakan
 
-Clone this repo (collaborator access is enough), branch off **`staging`**, and open a PR back into
-`staging`; releases go out as a `staging` → `main` **merge commit**. `CLAUDE.md` has notes for
-AI-assisted work, and [`docs/contributing.md`](docs/contributing.md) covers style, tests and CI.
+Clone repo ini (akses collaborator sudah cukup), bikin branch dari **`staging`**, lalu buka PR
+balik ke `staging`; rilis keluar sebagai **merge commit** `staging` → `main`. `CLAUDE.md` berisi
+catatan untuk kerja berbantuan AI, dan [`docs/contributing.md`](docs/contributing.md) membahas
+gaya, tes, dan CI.
 
-## Palm Mill module
+## Modul Palm Mill
 
-`erpnext/palm_mill` is the palm-oil-mill module of this fork: the sawit DocTypes (Weighbridge
-Ticket, Weighbridge Grading, Truck, Blok, Kebun, Divisi, Sumber TBS, Sertifikasi),
-Palm Mill Settings, the "Pabrik Kelapa Sawit" workspace with its cards and charts, the ticket
-finalisation logic, and the inbound endpoints for AutoGrade, the one system that talks to the ERP
-(`erpnext.palm_mill.api.upsert_truck` and `upsert_visit`; the scale program feeds AutoGrade). The design is
-in `docs/autograde-integration.md`.
+`erpnext/palm_mill` adalah modul pabrik kelapa sawit milik fork ini: DocType sawitnya (Weighbridge
+Ticket, Weighbridge Grading, Truck, Blok, Kebun, Divisi, Sumber TBS, Sertifikasi), Palm Mill
+Settings, workspace "Pabrik Kelapa Sawit" beserta kartu dan chart-nya, logika penyelesaian tiket,
+dan endpoint masuk untuk AutoGrade — satu-satunya sistem yang berbicara dengan ERP
+(`erpnext.palm_mill.api.upsert_truck` dan `upsert_visit`; program timbangan memberi makan
+AutoGrade). Rancangannya ada di `docs/autograde-integration.md`.
 
-Rules that keep a site healthy:
+Aturan yang menjaga sebuah site tetap sehat:
 
-- **Never run `bench migrate` on a checkout without `erpnext/palm_mill`.** Frappe deletes any
-  standard DocType whose controller it cannot import, and that drops the table with it.
-- After changing `modules.txt`, run `bench --site <site> clear-cache` before `migrate` on every site;
-  the module map is cached per site.
-- Integration users are created with `bench --site <site> execute
+- **Jangan pernah menjalankan `bench migrate` di checkout yang tidak punya `erpnext/palm_mill`.**
+  Frappe menghapus setiap DocType standar yang controller-nya tidak bisa ia impor, **beserta
+  tabelnya**.
+- Sesudah mengubah `modules.txt`, jalankan `bench --site <site> clear-cache` sebelum `migrate` di
+  tiap site; peta modulnya di-cache per site.
+- Pengguna integrasi dibuat dengan `bench --site <site> execute
   erpnext.palm_mill.setup.create_integration_user --kwargs '{"email": "...", "full_name": "..."}'`.
-  They hold Palm Mill Integration, Purchase User and Stock User; the key and secret are printed once.
-- Tests (`bench --site test_site run-tests --module erpnext.palm_mill.test_api` and the DocType
-  tests) need a dedicated `test_site` with `allow_tests`. Never run them on a site with real data:
-  ERPNext's test setup deletes transactions.
-- Editing these DocTypes through the UI requires `developer_mode` on the site (it is on for
-  `pks.localhost`); Frappe then re-exports the JSON into the module.
-
+  Mereka memegang Palm Mill Integration, Purchase User, dan Stock User; kunci dan secret-nya
+  dicetak sekali saja.
+- Tes (`bench --site test_site run-tests --module erpnext.palm_mill.test_api` dan tes DocType)
+  butuh `test_site` khusus dengan `allow_tests`. Jangan pernah menjalankannya di site berisi data
+  sungguhan: penyiapan tes milik ERPNext menghapus transaksi.
+- Menyunting DocType ini lewat UI butuh `developer_mode` menyala di site-nya (di `pks.localhost`
+  menyala); Frappe lalu mengekspor ulang JSON-nya ke dalam modul.
