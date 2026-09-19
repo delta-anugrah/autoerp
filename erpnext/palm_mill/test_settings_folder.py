@@ -124,16 +124,13 @@ class IntegrationTestSettingsFolder(IntegrationTestCase):
 		import erpnext
 
 		folder = os.path.join(os.path.dirname(erpnext.__file__), "desktop_icon")
-		files = {"Organization": "organization.json", "AutoERP Settings": "autoerp_settings.json"}
 
 		with open(os.path.join(folder, "pengaturan.json")) as f:
 			self.assertEqual(json.load(f)["icon_type"], "Folder")
 
-		for name, filename in files.items():
+		for filename in ("organization.json", "autoerp_settings.json"):
 			with open(os.path.join(folder, filename)) as f:
-				self.assertEqual(
-					json.load(f)["parent_icon"], FOLDER, f"{filename} still points elsewhere"
-				)
+				self.assertEqual(json.load(f)["parent_icon"], FOLDER, f"{filename} still points elsewhere")
 
 	def test_applying_it_twice_reports_nothing_left_to_do(self):
 		group_settings_icons()
