@@ -527,3 +527,4 @@ erpnext.patches.v17_0.palm_mill_role_profiles
 erpnext.patches.v17_0.palm_mill_hidden_fields
 erpnext.patches.v17_0.palm_mill_dashboard_access
 erpnext.patches.v17_0.palm_mill_hidden_icons
+erpnext.patches.v17_0.palm_mill_dead_settings
