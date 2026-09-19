@@ -38,5 +38,6 @@ import "./financial_statements.js";
 import "./sales_trends_filters.js";
 import "./purchase_trends_filters.js";
 import "./palm_mill/sidebar_memory.js";
+import "./palm_mill/number_card_zero.js";
 
 // import { sum } from 'frappe/public/utils/util.js'
