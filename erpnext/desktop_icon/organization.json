@@ -6,7 +6,7 @@
  "doctype": "Desktop Icon",
  "hidden": 0,
  "icon_type": "Link",
- "idx": 0,
+ "idx": 1,
  "label": "Organization",
  "link_to": "Organization",
  "link_type": "Workspace Sidebar",
@@ -14,7 +14,7 @@
  "modified_by": "Administrator",
  "name": "Organization",
  "owner": "Administrator",
- "parent_icon": "",
+ "parent_icon": "Pengaturan",
  "restrict_removal": 0,
  "roles": [],
  "standard": 1

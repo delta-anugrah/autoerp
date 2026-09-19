@@ -6,7 +6,7 @@
  "hidden": 0,
  "icon": "setting",
  "icon_type": "Link",
- "idx": 10,
+ "idx": 2,
  "label": "AutoERP Settings",
  "link_to": "AutoERP Settings",
  "link_type": "Workspace Sidebar",
@@ -15,7 +15,7 @@
  "modified_by": "Administrator",
  "name": "AutoERP Settings",
  "owner": "Administrator",
- "parent_icon": "",
+ "parent_icon": "Pengaturan",
  "restrict_removal": 0,
  "roles": [],
  "standard": 1
