@@ -49,8 +49,12 @@ echo "==> cermin autoerp dari $AUTOERP_REF (${WANT_SHA:0:10})"
 
 MIRROR="$WORK/autoerp-mirror.git"
 SRC_URL="file://$(cd "$AUTOERP_SRC" && pwd)"
-git clone -q --bare --depth 1 --branch "$AUTOERP_BRANCH" "$SRC_URL" "$MIRROR"
-# `--branch` mengikuti branch LOKAL; timpa dengan ref yang benar-benar diminta.
+# Cermin kosong dulu, lalu diisi SHA yang diminta. TANPA `--branch`: di CI
+# `actions/checkout` pada sebuah tag menghasilkan detached HEAD dan branch
+# lokal `main` tidak pernah ada, jadi `--branch main` gagal dengan "Remote
+# branch main not found" sebelum baris fetch di bawah sempat memperbaikinya.
+# Di laptop jebakan ini tidak terlihat, karena di sana `main` lokal ada.
+git init -q --bare "$MIRROR"
 git -C "$MIRROR" fetch -q --depth 1 --force "$SRC_URL" \
 	"$WANT_SHA:refs/heads/$AUTOERP_BRANCH"
 
