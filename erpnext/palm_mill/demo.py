@@ -29,7 +29,7 @@ import random
 import frappe
 from frappe.utils import add_days, flt, getdate, nowdate
 
-from erpnext.palm_mill.setup import OPERATOR_ROLE
+from erpnext.palm_mill.setup import ADMIN_USER_ROLES, OPERATOR_ROLE
 from erpnext.palm_mill.utils import relax_snapshot_isolation
 
 DEMO_COMPANY = "PT Sawit Rambang Lestari"
@@ -98,6 +98,15 @@ DESK_USERS = (
 		"Pabrik",
 		(OPERATOR_ROLE, "Stock User", "Stock Manager", "Purchase User", "Purchase Manager", "Accounts User"),
 	),
+	# The client's own administrator — the account that adds users, which none of the
+	# three above can do: that takes `System Manager`, and they deliberately lack it.
+	# A demo offering only `Administrator` teaches the wrong habit, because that one is
+	# the site's superuser and is meant to be put away after handover.
+	#
+	# Roles come from `ROLE_PROFILES[PROFILE_ADMIN]` rather than a list typed out again.
+	# The two drifted once already (#26): the profile gained the module roles, a second
+	# copy did not, and the account opened a blank workspace.
+	("admin@demo.autoerp.test", "Admin", "Perusahaan", ADMIN_USER_ROLES),
 )
 
 # The console accounts AutoGrade pulls down (AutoGrade Operator DocType). Kept in step
