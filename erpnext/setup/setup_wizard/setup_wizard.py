@@ -4,7 +4,6 @@
 
 import frappe
 from frappe import _
-from frappe.utils.telemetry import capture
 
 from erpnext.setup.demo import setup_demo_data
 from erpnext.setup.setup_wizard.operations import install_fixtures as fixtures
@@ -29,13 +28,6 @@ def get_setup_stages(args=None):  # nosemgrep
 				{"fn": setup_defaults, "args": args, "fail_msg": _("Failed to setup defaults")},
 			],
 		},
-		{
-			"status": _("Personalizing your setup"),
-			"fail_msg": _("Failed to personalize your setup"),
-			"tasks": [
-				{"fn": capture_user_persona, "args": args, "fail_msg": _("Failed to personalize your setup")}
-			],
-		},
 	]
 
 	if args.get("setup_demo"):
@@ -48,29 +40,6 @@ def get_setup_stages(args=None):  # nosemgrep
 		)
 
 	return stages
-
-
-def capture_user_persona(args):  # nosemgrep
-	"""Send the persona answers captured on the setup slide to telemetry."""
-	if not args:
-		return
-
-	capture(
-		"user_persona_submitted",
-		"erpnext",
-		properties={
-			"implementing_for": args.get("persona_implementing_for"),
-			"company_size": args.get("persona_company_size"),
-			"industry": args.get("persona_industry"),
-			"current_system": args.get("persona_current_system"),
-			"module_accounting": bool(args.get("module_accounting")),
-			"module_stock": bool(args.get("module_stock")),
-			"module_manufacturing": bool(args.get("module_manufacturing")),
-			"module_projects": bool(args.get("module_projects")),
-			"country": args.get("country"),
-			"language": args.get("language"),
-		},
-	)
 
 
 def stage_fixtures(args):  # nosemgrep
