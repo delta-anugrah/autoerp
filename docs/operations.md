@@ -111,6 +111,85 @@ make backup      # database + files
 Hasilnya di `sites/<site>/private/backups/`. Sebelum `migrate` besar (misalnya
 setelah merge upstream banyak), ambil backup dulu.
 
+### Di droplet produksi — otomatis tiap hari
+
+`deploy/droplet/backup.sh` jalan lewat cron tiap **02:15 WIB**: `bench backup
+--with-files` → kirim ke Cloudflare R2 → buang yang lebih tua dari 14 hari (di R2
+**dan** di dalam container).
+
+| | |
+|---|---|
+| Script | `/opt/autoerp/backup.sh` ← `deploy/droplet/backup.sh` |
+| Pemeriksa | `/opt/autoerp/backup-check.sh`, cron 08:00 |
+| Kredensial | `/opt/autoerp/.backup-env`, `chmod 600` |
+| Bucket | `autoerp-backups` — **privat**, bukan `palmgrade-captures` yang publik |
+| Log | `/var/log/autoerp/backup.log`, logrotate mingguan × 8 |
+| Status | `/var/log/autoerp/backup.status` — satu baris, `OK <stamp>` atau `GAGAL …` |
+
+Kredensial sengaja **tidak** di `.env`: workflow deploy menulis ulang berkas itu
+tiap rilis dan akan menghapusnya.
+
+Isi `.backup-env`:
+
+```bash
+R2_ACCOUNT_ID=…
+R2_ACCESS_KEY_ID=…
+R2_SECRET_ACCESS_KEY=…
+R2_BUCKET=autoerp-backups
+SITE_NAME=app.smagri.id
+KEEP_DAYS=14
+ALERT_WEBHOOK=            # opsional; kosong = cukup logger/journalctl
+```
+
+Pasang cron-nya:
+
+```bash
+( crontab -l 2>/dev/null
+  echo "15 2 * * * /opt/autoerp/backup.sh"
+  echo "0  8 * * * /opt/autoerp/backup-check.sh" ) | crontab -
+```
+
+Lihat hasil terakhir:
+
+```bash
+cat /var/log/autoerp/backup.status
+tail -20 /var/log/autoerp/backup.log
+journalctl -t autoerp-backup -t autoerp-backup-check --since '2 days ago'
+```
+
+### Uji restore — wajib, dan jangan ke site produksi
+
+Backup yang belum pernah di-restore bukan backup. Restore ke site sementara:
+
+```bash
+cd /opt/autoerp
+C="docker compose -f docker-compose.prod.yml"
+PW="$(grep '^DB_PASSWORD=' .env | cut -d= -f2-)"
+
+$C exec -T backend bench new-site restoretest.localhost \
+  --db-root-password "$PW" --admin-password admin --install-app erpnext
+
+$C exec -T backend bench --site restoretest.localhost --force restore \
+  "sites/app.smagri.id/private/backups/<stamp>-database.sql.gz" --db-root-password "$PW"
+
+# Bukti isinya sampai: harus 11, sama dengan produksi
+$C exec -T backend bench --site restoretest.localhost execute \
+  frappe.client.get_count --args '["DocType",{"module":"Palm Mill"}]'
+
+$C exec -T backend bench drop-site restoretest.localhost \
+  --db-root-password "$PW" --force --no-backup
+```
+
+⚠️ **`bench` tanpa `--site` mengenai `app.smagri.id`** (situs `--set-default`).
+`restore` yang salah sasaran **menimpa produksi**. Periksa tiap baris sebelum Enter.
+
+⚠️ **`rclone` + R2: `exit 0` bisa menyembunyikan `501 Not Implemented`.** Sesudah
+unggah, rclone menyetel mtime lewat CopyObject (`x-amz-copy-source`); R2 tidak
+punya CopyObject, menjawab 501, dan rclone mengulang **seluruh** percobaan —
+padahal unggahannya sudah berhasil. Karena itu `backup.sh` memakai
+`--no-update-modtime`. Kalau muncul lagi, diagnosisnya `--dump headers`, bukan
+menebak ACL.
+
 ## Setelah menarik perubahan kode
 
 ```bash
