@@ -7,7 +7,7 @@
 # SITE  = autoerp.localhost
 #
 # These drive a bench that ALREADY EXISTS. Creating one is a separate job —
-# see docs/instalasi.md. And this is for development only: `make up` runs
+# see docs/installation.md. And this is for development only: `make up` runs
 # `bench start`, which dies with the terminal and is not restarted on boot or
 # after a crash. A server runs `bench setup production` (supervisor + nginx)
 # instead.

@@ -157,6 +157,9 @@ DEFAULT_SETTINGS = {
 # Seed masters ERPNext creates for every company but a mill never uses. Defined here
 # rather than in the patch so the patch and the install hook cannot drift apart.
 SEED_WAREHOUSES = ("Finished Goods", "Goods In Transit", "Stores", "Work In Progress")
+# The replacement for them. Named in Indonesian like the rest of what an operator sees,
+# and deliberately not one of the four above -- those are disabled on purpose.
+FFB_WAREHOUSE = "Gudang TBS"
 SEED_ITEM_GROUPS = ("Services", "Sub Assemblies")
 
 
@@ -197,6 +200,7 @@ def setup_wizard_complete(wizard_args=None):
 	"""
 	apply_site_policy()
 	hide_seed_masters()
+	ensure_ffb_warehouse()
 
 
 def apply_site_policy():
@@ -262,6 +266,56 @@ def hide_seed_masters():
 			and not frappe.db.exists("Item Group", {"parent_item_group": ig})
 		):
 			frappe.delete_doc("Item Group", ig, ignore_permissions=True, force=True)
+
+
+def ensure_ffb_warehouse():
+	"""One warehouse a mill can actually receive FFB into, pointed at by the settings.
+
+	`hide_seed_masters()` above disables all four of ERPNext's starter warehouses, and
+	nothing creates a replacement. What stays enabled is `All Warehouses - <ABBR>`, which
+	is a **group node** -- a container, not a place stock sits. ERPNext refuses it with
+	"Group node warehouse is not allowed to select for transactions", and it refuses it
+	when somebody presses Receive Stock, long after install reported success.
+
+	So a fresh site ends up with zero usable warehouses and cannot take a load of FFB at
+	all. Measured on `app.smagri.id` on 2026-09-21: four non-group warehouses all
+	`disabled: 1`, the only enabled one a group node, and the first real truck stuck.
+
+	Creating the warehouse is not enough on its own -- `tbs_warehouse` is the field the
+	ticket path reads, so leaving it empty just moves the same failure one step
+	downstream, onto the customer's screen. Both halves belong here.
+
+	Deliberately NOT re-enabling the seed warehouses instead: `Stores` means nothing to a
+	mill, and hiding it is the point.
+	"""
+	company = frappe.defaults.get_global_default("company")
+	if not company:
+		return  # no company yet: the wizard has not finished, there is nothing to attach to
+	abbr = frappe.db.get_value("Company", company, "abbr")
+	usable = {"company": company, "is_group": 0, "disabled": 0}
+	name = frappe.db.exists(
+		"Warehouse", dict(usable, name=f"{FFB_WAREHOUSE} - {abbr}")
+	) or frappe.db.get_value("Warehouse", usable, "name")
+	if not name:
+		name = (
+			frappe.get_doc(
+				{
+					"doctype": "Warehouse",
+					"warehouse_name": FFB_WAREHOUSE,
+					"company": company,
+					"parent_warehouse": f"All Warehouses - {abbr}",
+					"is_group": 0,
+				}
+			)
+			.insert(ignore_permissions=True)
+			.name
+		)
+	settings = frappe.get_single("Palm Mill Settings")
+	if not settings.tbs_warehouse:
+		settings.tbs_warehouse = name
+		settings.flags.ignore_mandatory = True
+		settings.save(ignore_permissions=True)
+	return name
 
 
 def hide_unused_roles() -> dict:

@@ -98,8 +98,8 @@ dibayar  = 9.160 × (1 − 0,1155) = 8.102 kg  ×  Rp 2.850
 | Endpoint buat AutoGrade | 2 | `upsert_truck`, `upsert_visit` |
 | Laporan | 1 | Oil Extraction Rate |
 | Workspace | 1 | "Pabrik Kelapa Sawit" (7 kartu angka, 5 grafik, 10 pintasan) |
-| Patch migrasi | 11 | `setup_palm_mill`, `palm_mill_language`, … |
-| Test | 48 | `bench --site test_site run-tests --module erpnext.palm_mill.test_api` |
+| Patch migrasi | 19 | `setup_palm_mill`, `palm_mill_language`, … |
+| Test | 208 | `bench --site test_site run-tests --module erpnext.palm_mill.test_api` |
 
 Rinciannya di [`data-model.md`](data-model.md).
 

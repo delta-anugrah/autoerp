@@ -218,3 +218,54 @@ melihat angka ini. Tiga baris @60 % juga lolos — masing-masing sah, bersama 18
 Sejak PR #25 `validate_grading_percentages()` menolak baris di luar 0–100 dan jumlah
 di atas 100, dan `kg_dibayar` tidak pernah negatif. Kalau menambah kriteria baru,
 jangan lewati penjaga ini: angkanya yang dibayar ke pemasok.
+
+## 22. Enam penghalang berurutan antara tiket dan dokumen stok
+
+Ditemukan 2026-09-21 saat membuktikan rantai AutoGrade → AutoERP di site produksi
+yang baru lahir. Semuanya muncul **satu per satu**, masing-masing hanya setelah yang
+sebelumnya ditutup, dan tidak satu pun menyebut yang berikutnya.
+
+| # | Pesannya | Sebabnya |
+|---|---|---|
+| 1 | "Please set FFB Item, CPO Item, Kernel Item" | Item `TBS`/`CPO`/`PK` belum dibuat |
+| 2 | "Please set FFB Receiving Warehouse, Internal FFB Transfer Income Account" | Belum diisi di Palm Mill Settings. `Internal` butuh **dua-duanya**; `External` cukup gudang |
+| 3 | tombol **Receive Stock** tidak ada | Tiket harus **Submit** dulu (`weighbridge_ticket.js` menuntut `docstatus === 1`) |
+| 4 | "The selected item cannot have Batch" | Item TBS perlu **Has Batch No** |
+| 5 | "Group node warehouse is not allowed to select for transactions" | Gudang yang dipilih group node |
+| 6 | "Item TBS has zero rate but 'Allow Zero Valuation Rate' is not enabled" | Belum ada **Item Price** TBS |
+
+⚠️ **#4 — checkbox-nya tidak hilang, sectionnya kolaps.** "Has Batch No" ada di
+**Serial Nos / Batches** yang tertutup di tab Inventory. Flag site
+`enable_serial_and_batch_no_for_item` sudah `1` di **kedua** penyimpanannya; memeriksa
+flag itu dan membersihkan cache adalah jalan buntu. **Jangan** centang "Automatically
+Create New Batch": AutoGrade menamai batch sendiri `TBS-YYYYMMDD`
+(`get_or_create_daily_batch`), sedangkan auto-create ERPNext memakai `AAAA.00001`.
+
+⚠️ **#5 — dulu site baru lahir tanpa gudang yang bisa dipakai.**
+`hide_seed_masters()` menonaktifkan keempat gudang bawaan, dan `All Warehouses` yang
+tersisa adalah group node, jadi site itu punya **nol** gudang yang bisa menerima
+barang — dan penolakannya baru muncul saat orang menekan Receive Stock.
+
+**Sudah ditutup:** `ensure_ffb_warehouse()` (`setup.py`) membuat `Gudang TBS` dan
+langsung menunjuknya di `tbs_warehouse`. Dipanggil dari `setup_wizard_complete`
+**sesudah** `hide_seed_masters` (urutannya penting: dijalankan duluan, ia akan
+menunjuk `Stores` yang dimatikan sesaat kemudian), dan dari patch
+`v17_0.palm_mill_ffb_warehouse` untuk site yang sudah ada. Fungsinya idempoten —
+site yang sudah punya gudang layak tidak disentuh.
+
+Site lama yang belum di-`migrate` masih butuh gudang dibuat dengan tangan:
+
+```bash
+bench --site <site> execute frappe.client.insert --args '[{"doctype":"Warehouse",
+  "warehouse_name":"Gudang TBS","company":"<Company>",
+  "parent_warehouse":"All Warehouses - <ABBR>","is_group":0}]'
+```
+
+⚠️ **#6 hanya PERINGATAN, bukan kegagalan** — Stock Entry tetap dibuat. Tapi
+`harga_per_kg` **dikunci saat finalisasi** (`weighbridge_ticket.py`: `if not
+self.harga_per_kg`) dan tidak pernah dibaca ulang, jadi tiket yang difinalisasi
+sebelum Item Price ada bernilai **Rp 0 selamanya**: stoknya benar, pembukuannya
+bohong. Menguji ulang berarti **truk baru**, bukan tiket yang sama.
+
+UOM di Item Price harus sama dengan `stock_uom` Item — `get_price()` membacanya dari
+sana, dan UOM yang berbeda membuat harganya tidak ketemu tanpa pesan apa pun.
