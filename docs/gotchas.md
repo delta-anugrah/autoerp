@@ -241,10 +241,19 @@ flag itu dan membersihkan cache adalah jalan buntu. **Jangan** centang "Automati
 Create New Batch": AutoGrade menamai batch sendiri `TBS-YYYYMMDD`
 (`get_or_create_daily_batch`), sedangkan auto-create ERPNext memakai `AAAA.00001`.
 
-⚠️ **#5 — site baru lahir tanpa gudang yang bisa dipakai.** `hide_seed_masters()`
-menonaktifkan keempat gudang bawaan, dan `All Warehouses` yang tersisa adalah group
-node. Sampai `after_install` membuat gudang sendiri, tiap site baru butuh satu gudang
-dibuat dengan tangan:
+⚠️ **#5 — dulu site baru lahir tanpa gudang yang bisa dipakai.**
+`hide_seed_masters()` menonaktifkan keempat gudang bawaan, dan `All Warehouses` yang
+tersisa adalah group node, jadi site itu punya **nol** gudang yang bisa menerima
+barang — dan penolakannya baru muncul saat orang menekan Receive Stock.
+
+**Sudah ditutup:** `ensure_ffb_warehouse()` (`setup.py`) membuat `Gudang TBS` dan
+langsung menunjuknya di `tbs_warehouse`. Dipanggil dari `setup_wizard_complete`
+**sesudah** `hide_seed_masters` (urutannya penting: dijalankan duluan, ia akan
+menunjuk `Stores` yang dimatikan sesaat kemudian), dan dari patch
+`v17_0.palm_mill_ffb_warehouse` untuk site yang sudah ada. Fungsinya idempoten —
+site yang sudah punya gudang layak tidak disentuh.
+
+Site lama yang belum di-`migrate` masih butuh gudang dibuat dengan tangan:
 
 ```bash
 bench --site <site> execute frappe.client.insert --args '[{"doctype":"Warehouse",
