@@ -171,6 +171,26 @@ sudah dicoba dan meleset; docs Cloudflare menyesatkan di sini. Diagnosis yang be
 ⚠️ `/var/log` di Ubuntu `775 root:syslog` itu **normal**; logrotate tetap menolak
 tanpa `su`. Log AutoERP karena itu di direktorinya sendiri `/var/log/autoerp/`.
 
+## Pintasan `make` di droplet
+
+`/opt/autoerp/Makefile` (sumber: `autoerp/deploy/droplet/Makefile`). Makefile di akar
+repo autoerp menyetir bench **lokal** dan **tidak jalan di sini** — bench-nya di dalam
+container, jadi target yang sama dibungkus `docker compose exec`.
+
+```bash
+cd /opt/autoerp
+make help · make ping · make status · make company
+make key-show      # kunci AutoGrade siap tempel, TIDAK merotasi
+make key-new       # MEROTASI secret, minta ketik `yes`
+make backup        # jalur yang sama dengan cron
+```
+
+⚠️ `make` **tidak terpasang bawaan** di droplet ini (`apt install make`, ~180 KB).
+
+⚠️ **Company terpasang: `PT Nexio` / `PN` / IDR sejak 2026-09-21** — nama SEMENTARA
+untuk uji sambungan, bukan pelanggan. Diganti nanti lewat `bench reinstall` + wizard
+ulang; sesudah itu `make key-new` **wajib**, karena user integrasi ikut terhapus.
+
 ## Cara ukur ulang
 
 ```bash
