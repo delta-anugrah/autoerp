@@ -529,3 +529,4 @@ erpnext.patches.v17_0.palm_mill_dashboard_access
 erpnext.patches.v17_0.palm_mill_hidden_icons
 erpnext.patches.v17_0.palm_mill_dead_settings
 erpnext.patches.v17_0.palm_mill_settings_folder
+erpnext.patches.v17_0.palm_mill_ffb_warehouse
