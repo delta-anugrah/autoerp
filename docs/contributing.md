@@ -98,7 +98,7 @@ Perubahan yang butuh menyentuh data site yang sudah ada masuk sebagai patch:
 2. Daftarkan di `erpnext/patches.txt`
 3. Idempoten — patch bisa jalan ulang
 
-Sekarang ada 11 patch `palm_mill_*`.
+Sekarang ada 19 patch `palm_mill_*`.
 
 ⚠️ Site **baru** tidak menjalankan patch sama sekali (`install_app` menandainya
 selesai). Kalau perubahanmu juga harus berlaku di site baru, taruh di
@@ -109,15 +109,17 @@ selesai). Kalau perubahanmu juga harus berlaku di site baru, taruh di
 PR memicu: linter pre-commit (Ruff + Prettier + ESLint), Semgrep, dan 4 kontainer
 test paralel di MariaDB.
 
-Dua yang diketahui merah dan **bukan** salah kodemu:
+`triage` merah di **setiap** PR fork ini — utang lama dari upstream, bukan
+salah kodemu dan bukan penghalang.
 
-- **Patch Test selalu merah** — `patch.yml` mem-`fetch` branch `$GITHUB_BASE_REF`
-  dari `frappe/frappe`; branch `staging`/`main` tidak ada di sana. Merah sejak
-  PR #5, bukan cuma di PR-mu.
-- `.github/helper/install.sh` memasang `payments --branch develop`, padahal app
-  ini sudah `version-16`.
+Dua kegagalan CI lama sudah **diperbaiki**, jadi kalau ketemu lagi itu regresi,
+bukan hal yang sudah diketahui:
 
-Keduanya tercatat sebagai E6 dan E7 di `sawit/docs/TODO-AUTOGRADE-AUTOERP.md`.
+- **Patch Test** dulu selalu merah karena `patch.yml` mem-`fetch` `$GITHUB_BASE_REF`
+  dari `frappe/frappe`, yang tidak punya `staging`/`main`. Sekarang dipetakan ke
+  `version-16` (`.github/workflows/patch.yml:155`).
+- `install.sh` dulu memasang `payments --branch develop`. Sekarang `version-16`
+  (`.github/helper/install.sh:362`), dikunci `test_ci_config.py`.
 
 ## Menambah string yang dilihat pengguna
 

@@ -35,7 +35,6 @@ remote ERPNext asli bernama `erpnext`.
 | Kontrak penuh AutoGrade ↔ AutoERP (rancangan Mas Samuel) | `docs/autograde-integration.md` |
 | Cara berkontribusi, alur PR | `docs/contributing.md` |
 | Gejala aneh → sebabnya | `docs/gotchas.md` |
-| Setup dev yang lebih dalam | `docs/dev-setup.md` |
 
 ## Angka yang benar (diverifikasi 2026-09-17)
 

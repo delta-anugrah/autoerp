@@ -98,6 +98,7 @@ Tiga hal dihitung sendiri, jangan diketik:
 |---|---|---|
 | `kriteria` | Select | Mentah / Tangkai Panjang / Matang / Lewat Matang / Sampah |
 | `persen` | Percent | |
+| `janjang` | Int | jumlah janjang; diisi AutoGrade tiap kiriman grading |
 | `berat_kg` | Float | dihitung: neto × persen |
 
 ⚠️ **Tiga kriteria pertama milik AI**, dua terakhir diketik operator. Tiap
@@ -120,7 +121,7 @@ ditimbang, bukan dilihat.
 | `driver_name` | Data | |
 | `plate_normalized` | Data | read-only, huruf+angka saja, HURUF BESAR |
 | `autograde_id` | Data | read-only |
-| `source` | Select | Manual / AutoGrade / Scale — jejak asal saja |
+| `source` | Select | **read-only**, bawaan `Manual` — Manual / AutoGrade / Scale, jejak asal saja |
 
 **Kunci lintas sistem adalah `plate_normalized`**, bukan `plate_number`.
 `normalize_plate()` membuang semua selain huruf dan angka lalu meng-uppercase.
@@ -173,7 +174,7 @@ AutoERP yang memiliki dan meng-hash; AutoGrade menariknya lalu memverifikasi
 | `email` | Data/Email | wajib, jadi nama dokumen, dinormalkan huruf kecil |
 | `full_name` | Data | wajib |
 | `active` | Check | bawaan nyala |
-| `role` | Select | `operator` / `support` — `support` membuka menu developer konsol |
+| `role` | Select | **wajib**, bawaan `operator`. `support` membuka menu developer konsol — hanya `Administrator` yang boleh memberikannya |
 | `new_password` | Data/Password | **input form saja**, tidak pernah disimpan |
 | `password_hash` | Data | read-only, hash passlib |
 
@@ -182,12 +183,17 @@ Frappe disimpan di tabel `__Auth` yang sengaja tidak pernah dilayani lewat REST.
 Kalau dipakai, AutoGrade tidak bisa menariknya dan login offline mustahil. Yang
 keluar dari site cuma hash `pbkdf2_sha256`, tidak pernah sandi asli.
 
-Dua penjagaan di controller:
+Tiga penjagaan di controller:
 - `before_naming` menormalkan email **sebelum** nama dokumen diambil. Kalau
   ditaruh di `validate` sudah telat: `Operator.DUA@x` dan `operator.dua@x` jadi
   dua akun dengan dua sandi.
 - `new_password` di-hash lalu **dikosongkan** sebelum disimpan. `track_changes`
   nyala, jadi sandi mentah yang tertinggal akan abadi di riwayat versi.
+- `_guard_support_role` menolak siapa pun selain `Administrator` yang **menaikkan**
+  role jadi `support` (`frappe.PermissionError`). Dijaga di server, bukan cuma di
+  form: DocType yang sama bisa disentuh lewat REST dengan kunci System Manager mana
+  pun. Akun yang **sudah** `support` tetap bisa disimpan siapa saja yang berhak
+  menulis — kalau tidak, backoffice tidak bisa membetulkan nama atau menonaktifkannya.
 
 Minimal 8 karakter, satu aturan dipakai dua jalan masuk (form dan `set_password`).
 
@@ -221,7 +227,11 @@ Dibuat `erpnext/palm_mill/setup.py` saat install:
 | Purchase Receipt Item | `custom_grading_note` | Small Text | ringkasan sortasi terbaca manusia |
 | Purchase Receipt | `custom_weighbridge_ticket` | Link Weighbridge Ticket | tautan balik |
 
-Modul ini **tidak** mengirim Property Setter apa pun.
+Modul ini **mengirim Property Setter**, lewat `hidden_fields.py` yang dipanggil
+`after_install` dan patch `palm_mill_hidden_fields`: 6 field bawaan Stock Entry dan
+Purchase Receipt disembunyikan dengan **tiga** properti sekaligus (`hidden`,
+`in_list_view`, `in_standard_filter`) — `hidden` saja tidak cukup, field-nya tetap
+muncul di daftar dan filter.
 
 ## Peran
 

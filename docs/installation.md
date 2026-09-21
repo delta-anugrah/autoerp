@@ -183,7 +183,7 @@ bench --site pks.localhost clear-cache
 ```
 
 `migrate` yang mengangkat dump ke keadaan sekarang: DocType JSON yang dikirim
-app menimpa rekaman `custom: 1` milik dump, lalu **11 patch `palm_mill_*`**
+app menimpa rekaman `custom: 1` milik dump, lalu **19 patch `palm_mill_*`**
 berjalan. Di site hasil restore patch **jalan sendiri** — jadi step patch manual
 (§3) tidak perlu di sini.
 
@@ -267,7 +267,7 @@ Yang paling sering:
 |---|---|---|
 | `bench init` mati separuh jalan | `uv` / `pkgconf` belum ada | §0, lalu `rm -rf autoerp-bench` dan ulang |
 | Port jadi 8001 | ada bench lain jalan | matikan yang lain dulu |
-| TBS gagal **417** | Stock Settings belum disetel | §3 baris terakhir |
+| TBS gagal **417** | `after_install` tidak jalan — sejak PR #17 ini otomatis, jadi 417 berarti hook-nya terlewat | `bench --site … execute erpnext.palm_mill.setup.apply_site_policy` |
 | "Could not find FFB Source" | `after_install` tidak jalan | `bench --site … execute erpnext.palm_mill.setup.after_install` |
 | Kunci API 401 padahal benar | ada `default_site` di `common_site_config.json` | hapus key itu, `bench restart` |
 | Desk tetap Inggris | cache | `clear-cache` + Ctrl-Shift-R |

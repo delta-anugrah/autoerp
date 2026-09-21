@@ -175,8 +175,8 @@ Rancangan itu ditulis 2026-09-10 dan sebagian sudah didahului kode.
 | `source` = Manual / AutoGrade | Ada nilai ketiga: `Scale` |
 | Status tiket tanpa `Cancelled` | `Cancelled` ada |
 | Kriteria AI termasuk `Sampah` (§7.1) | Kode: cuma `Mentah`, `Tangkai Panjang`, `Matang`. **Sampah ditimbang, bukan dilihat kamera** — belum disamakan (item E2) |
-| "Weighbridge Ticket tanpa controller logic" (§0) | Benar saat ditulis; sekarang controllernya 461 baris |
-| Branch `feat/palm-mill-module` | Sudah merge; kerjaan sekarang di `staging` |
+| "Weighbridge Ticket tanpa controller logic" (§0) | Benar saat ditulis; sekarang controllernya 494 baris |
+| Branch `feat/palm-mill-module` | Sudah merge; kerjaan harian lewat branch fitur → `staging` → `main` |
 
 ## Menguji tanpa AutoGrade
 
