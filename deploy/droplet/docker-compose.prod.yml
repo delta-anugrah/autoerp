@@ -106,9 +106,20 @@ services:
     environment:
       BACKEND: backend:8000
       SOCKETIO: websocket:9000
-      # Nama situs diambil dari Host header yang diteruskan nginx host. Situsnya
-      # bernama app.smagri.id supaya header itu cocok apa adanya.
-      FRAPPE_SITE_NAME_HEADER: ${SITE_NAME:?SITE_NAME must be set}
+      # Nama situs diambil dari Host header yang diteruskan nginx host, supaya satu
+      # container melayani beberapa situs (app. dan demo.) apa adanya.
+      #
+      # ⚠️ SENGAJA BUKAN ${SITE_NAME}. Dulu keduanya satu variabel, dan itu tidak punya
+      # isi yang benar: `bench --site` menuntut nama situs sungguhan, sedangkan nginx
+      # menuntut `$$host`. Diisi `$$host` demi nginx, backup pra-migrate memanggil
+      # `bench --site '$$host'` dan deploy berhenti ("Backup failed for Site $$host");
+      # diisi nama situs demi bench, nginx dipakukan ke satu situs dan login di
+      # demo.smagri.id dicari di situs app.smagri.id -- "Invalid credentials" padahal
+      # sandinya benar. Dua-duanya sudah terjadi.
+      #
+      # `$$host` (dua dolar) wajib: Compose menerjemahkannya jadi `$host` yang dibaca
+      # nginx. `$host` satu dolar ditolak Compose sebagai variabel yang tidak ada.
+      FRAPPE_SITE_NAME_HEADER: ${FRAPPE_SITE_NAME_HEADER:-$$host}
       UPSTREAM_REAL_IP_ADDRESS: 127.0.0.1
       UPSTREAM_REAL_IP_HEADER: X-Forwarded-For
       UPSTREAM_REAL_IP_RECURSIVE: "off"
