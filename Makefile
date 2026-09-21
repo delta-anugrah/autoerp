@@ -9,7 +9,7 @@
 #
 # ...or write them once into Makefile.local (gitignored) and just `make up`.
 #
-# Setting a bench up from scratch is docs/dev-setup.md; this file only drives
+# Setting a bench up from scratch is docs/installation.md; this file only drives
 # one that already exists.
 
 # Per-machine settings live in Makefile.local, which is gitignored. Write the
@@ -39,7 +39,8 @@ SUPERVISOR = honcho start
 BOOT_LOG   = $(BENCH)/logs/bench-start.log
 
 .DEFAULT_GOAL := help
-.PHONY: help up start stop down restart status ping key-show key-new admin-new migrate backup shell where
+.PHONY: help up start stop down restart status ping key-show key-new admin-new migrate backup shell where \
+        demo demo-reset demo-off reset-data reset-data-fresh
 
 help:
 	@echo "Bench: $(BENCH)   Site: $(SITE)   $(URL)"

@@ -1,7 +1,10 @@
 # Alur tiket — dari truk sampai jadi dokumen stok
 
-Semua logika di `erpnext/palm_mill/doctype/weighbridge_ticket/weighbridge_ticket.py`
-(461 baris). Dokumen ini menjelaskan isinya tanpa perlu membaca kodenya.
+Logikanya tersebar di **dua** berkas, dan itu penting kalau kamu mau membacanya:
+penerimaan kiriman AutoGrade (§1–§3, §8) ada di `erpnext/palm_mill/api.py`, sedangkan
+perhitungan, finalisasi, dan dokumen stok (§4–§7) ada di
+`erpnext/palm_mill/doctype/weighbridge_ticket/weighbridge_ticket.py` (494 baris).
+Dokumen ini menjelaskan isinya tanpa perlu membaca kodenya.
 
 ## 1. Tiket yang mana? — pencocokan kunjungan
 
@@ -84,6 +87,10 @@ di atasnya. `max(0, ...)` pada `kg_dibayar` adalah pertahanan terakhirnya.
 Kalau sortasi tidak ada **dan** `grading_missing` menyala → pakai
 `default_potongan_pct`. Kalau tidak ada dua-duanya → potongan 0.
 
+⚠️ Batas `max_potongan_pct` dikenakan **sesudah** percabangan itu, jadi berlaku untuk
+semua jalur — termasuk `default_potongan_pct`. Menyetelnya di atas 18 tidak akan
+menghasilkan potongan di atas 18.
+
 **Harga** (`get_price()`): Item Price untuk `tbs_item` pada `ticket_date` —
 harga khusus supplier dulu, baru harga umum di price list yang sama.
 
@@ -95,7 +102,7 @@ scheduler tiap 15 menit.
 ```
 Tidak jalan kalau: bukan draft, atau neto ≤ 0
 Sortasi belum ada?
-  └─ belum lewat grading_timeout_hours (6 jam sejak time_out)  → berhenti, tunggu
+  └─ belum lewat grading_timeout_hours (6 jam sejak time_out, atau time_in kalau belum keluar)  → berhenti, tunggu
   └─ sudah lewat  → grading_missing = 1, lanjut
 Hitung ulang, simpan
 harga_per_kg ≤ 0?  → tulis Error Log, BERHENTI (tidak submit)
