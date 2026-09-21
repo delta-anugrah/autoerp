@@ -157,6 +157,25 @@ tail -20 /var/log/autoerp/backup.log
 journalctl -t autoerp-backup -t autoerp-backup-check --since '2 days ago'
 ```
 
+### Pintasan di droplet
+
+`deploy/droplet/Makefile` dipasang sebagai `/opt/autoerp/Makefile`. Makefile di akar
+repo menyetir bench **lokal**; di droplet bench itu ada di dalam container, jadi
+target yang sama dibungkus `docker compose exec`.
+
+```bash
+cd /opt/autoerp
+make help        # daftar target
+make ping        # situsnya hidup?
+make company     # nama Company yang terpasang
+make key-show    # kunci AutoGrade, TIDAK merotasi
+make key-new     # terbitkan kunci baru — MEROTASI secret, minta ketik `yes`
+make backup      # jalur yang sama dengan cron, bukan jalur kedua
+```
+
+`key-show` mencetak dalam bentuk siap tempel ke `.env` AutoGrade
+(`ERP_URL`/`ERP_API_KEY`/`ERP_API_SECRET`).
+
 ### Uji restore — wajib, dan jangan ke site produksi
 
 Backup yang belum pernah di-restore bukan backup. Restore ke site sementara:
