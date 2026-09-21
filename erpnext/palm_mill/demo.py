@@ -443,10 +443,40 @@ def configure_settings():
 
 
 def _warehouse():
-	for name in (f"Stores - {ABBR}", f"All Warehouses - {ABBR}"):
-		if frappe.db.exists("Warehouse", name):
+	"""Gudang yang benar-benar bisa menerima barang, dibuat kalau belum ada.
+
+	Dua saringan yang mudah terlewat, dan dua-duanya sudah memakan waktu di site nyata:
+
+	* `hide_seed_masters()` MENONAKTIFKAN `Stores` dan tiga gudang bawaan lain di
+	  setiap site. Memilihnya karena barisnya "ada" berarti menunjuk gudang mati.
+	* `All Warehouses` adalah **group node** — wadah, bukan tempat barang. ERPNext
+	  menolaknya dengan "Group node warehouse is not allowed to select for
+	  transactions", dan penolakan itu baru muncul saat orang menekan Receive Stock,
+	  jauh sesudah seeder mengaku berhasil.
+
+	Karena keduanya, sebuah site bisa sama sekali tidak punya gudang yang layak.
+	Mengembalikan None di situ meninggalkan `tbs_warehouse` kosong dan memindahkan
+	kegagalannya ke layar pertama yang dilihat klien, jadi gudangnya dibuat di sini.
+	"""
+	layak = {"company": DEMO_COMPANY, "is_group": 0, "disabled": 0}
+	for name in (f"Gudang TBS - {ABBR}", f"Stores - {ABBR}"):
+		if frappe.db.exists("Warehouse", dict(layak, name=name)):
 			return name
-	return frappe.db.get_value("Warehouse", {"company": DEMO_COMPANY, "is_group": 0}, "name")
+	if ada := frappe.db.get_value("Warehouse", layak, "name"):
+		return ada
+	return (
+		frappe.get_doc(
+			{
+				"doctype": "Warehouse",
+				"warehouse_name": "Gudang TBS",
+				"company": DEMO_COMPANY,
+				"parent_warehouse": f"All Warehouses - {ABBR}",
+				"is_group": 0,
+			}
+		)
+		.insert(ignore_permissions=True)
+		.name
+	)
 
 
 def make_trucks():
