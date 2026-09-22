@@ -1,0 +1,150 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "LIC-.YYYY.-.####",
+ "creation": "2026-09-22 09:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 0,
+ "engine": "InnoDB",
+ "field_order": [
+  "company",
+  "license_expires_on",
+  "column_break_terms",
+  "grace_days",
+  "warning_days",
+  "status",
+  "section_break_token",
+  "token",
+  "column_break_issued",
+  "issued_at",
+  "issued_by",
+  "grace_ends_on",
+  "kid",
+  "nonce"
+ ],
+ "fields": [
+  {
+   "description": "Must match ERP_COMPANY in the mill PC's .env exactly.",
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1
+  },
+  {
+   "description": "The subscription runs until the end of this day, mill time.",
+   "fieldname": "license_expires_on",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Active Until",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_terms",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "60",
+   "description": "Days the mill keeps grading after expiry. Baked into the token: an offline PC cannot be told later that this changed.",
+   "fieldname": "grace_days",
+   "fieldtype": "Int",
+   "label": "Grace Days",
+   "non_negative": 1
+  },
+  {
+   "default": "30",
+   "description": "Days before expiry the console starts warning the operator.",
+   "fieldname": "warning_days",
+   "fieldtype": "Int",
+   "label": "Warning Days",
+   "non_negative": 1
+  },
+  {
+   "default": "ACTIVE",
+   "description": "CANCEL stops the mill as soon as the token is installed, ignoring the dates.",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "ACTIVE\nCANCEL",
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_break_token",
+   "fieldtype": "Section Break",
+   "label": "Issued Token"
+  },
+  {
+   "description": "Install at the mill with: autograde.sh licence &lt;token&gt;",
+   "fieldname": "token",
+   "fieldtype": "Small Text",
+   "label": "Token",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_issued",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "issued_at",
+   "fieldtype": "Datetime",
+   "label": "Issued At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "issued_by",
+   "fieldtype": "Data",
+   "label": "Issued By",
+   "read_only": 1
+  },
+  {
+   "description": "Grading stops for good after this moment.",
+   "fieldname": "grace_ends_on",
+   "fieldtype": "Datetime",
+   "label": "Grace Ends",
+   "read_only": 1
+  },
+  {
+   "fieldname": "kid",
+   "fieldtype": "Data",
+   "label": "Key ID",
+   "read_only": 1
+  },
+  {
+   "fieldname": "nonce",
+   "fieldtype": "Data",
+   "label": "Nonce",
+   "read_only": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-09-22 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Palm Mill",
+ "name": "AutoGrade Licence",
+ "naming_rule": "Expression (old style)",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "company",
+ "track_changes": 1
+}
