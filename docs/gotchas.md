@@ -269,3 +269,46 @@ bohong. Menguji ulang berarti **truk baru**, bukan tiket yang sama.
 
 UOM di Item Price harus sama dengan `stock_uom` Item — `get_price()` membacanya dari
 sana, dan UOM yang berbeda membuat harganya tidak ketemu tanpa pesan apa pun.
+
+## 23. Semua situs mati `Access denied` sesudah container dibuat ulang
+
+Gejalanya: setiap situs menjawab **HTTP 500**, dan log backend memuat
+
+```
+MySQLdb.OperationalError: (1045, "Access denied for user '_d6ea...'@'172.20.0.9'")
+```
+
+Sandinya benar dan tidak ada yang mengubahnya. Yang berubah **alamatnya**.
+
+`bench new-site` memberi `GRANT` ke **host tempat ia kebetulan berjalan saat itu**
+— sebuah alamat IP container, mis. `_d6ea..@172.20.0.7`. Alamat itu milik jaringan
+Docker dan **berganti setiap container dibuat ulang**: deploy, `compose up
+--force-recreate`, bahkan reboot droplet biasa. Begitu berganti, grant-nya tidak
+cocok lagi dan seluruh situs kehilangan databasenya sekaligus.
+
+⚠️ **Pesannya menyesatkan.** "Access denied … (using password: YES)" terbaca
+seperti sandi salah, jadi yang pertama dicurigai biasanya `site_config.json` atau
+`.env` — padahal keduanya tidak pernah disentuh.
+
+Terjadi 2026-09-21 malam saat rilis `v1.0.3`: `app.` dan `demo.` dua-duanya mati,
+dan penyebabnya bukan rilis itu — container yang dibuat ulang memang memicunya,
+dan reboot pun akan.
+
+**Obatnya** — jalankan di droplet:
+
+```bash
+cd /opt/autoerp && make db-grants
+```
+
+Ia memberi grant `%` untuk setiap situs di samping grant lama, jadi alamat baru
+mana pun diterima. Idempoten: aman dijalankan ulang.
+
+🔴 **Jalankan sekali setiap kali `bench new-site` membuat situs baru** — situs baru
+lahir dengan grant per-IP yang sama, dan bomnya baru meledak saat container
+berikutnya dibuat ulang, mungkin berminggu-minggu kemudian.
+
+⚠️ **`%` aman di sini, dan hanya di sini**: port 3306 **tidak** dipublikasikan
+(`docker inspect autoerp-mariadb-1` menunjukkan `"3306/tcp": null`), jadi `%`
+berarti "mana pun di dalam jaringan Docker ini", bukan "dari internet". Sandinya
+tetap sandi per-situs yang dibuat Frappe dan dibaca dari `site_config.json` —
+tidak ada yang diketik tangan.
