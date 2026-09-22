@@ -18,6 +18,7 @@ upstream dan setiap `frappe.get_app("erpnext")` tetap jalan.
 | Menyambungkan AutoGrade / sistem lain | [`autograde-api.md`](autograde-api.md) |
 | Sudah terpasang, mau kerja harian | [`operations.md`](operations.md) |
 | Mau ubah kode dan kirim PR | [`contributing.md`](contributing.md) |
+| Menerbitkan token langganan untuk sebuah pabrik | [`lisensi-autograde.md`](lisensi-autograde.md) |
 | Error dan tidak tahu kenapa | [`gotchas.md`](gotchas.md) — semua jebakan yang pernah memakan waktu |
 
 ## Dokumen rancangan (bukan panduan)
