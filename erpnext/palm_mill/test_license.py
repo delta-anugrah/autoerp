@@ -317,13 +317,35 @@ class IntegrationTestLicence(IntegrationTestCase):
 
 		self.assertNotEqual(first, second)
 
-	def test_system_manager_cannot_create_a_licence(self):
-		"""Read-only by design: the ledger is ours, not the customer's."""
+	def test_baris_bisa_dibuat_lewat_desk(self):
+		"""Tanpa izin `create` pada satu pun role, Frappe menyembunyikan tombol
+		tambah — untuk SEMUA orang, Administrator sekalian, karena tombol itu
+		digambar dari izin role dan bukan dari siapa yang sedang masuk.
+
+		Akibatnya DocType-nya ada, menunya ada, dan tidak ada cara membuat baris
+		dari layar sama sekali. Terjadi sungguhan di produksi 2026-09-22.
+		"""
 		user = self._make_system_manager()
 		frappe.set_user(user)
 
-		self.assertFalse(frappe.has_permission("AutoGrade Licence", "create"))
+		self.assertTrue(frappe.has_permission("AutoGrade Licence", "create"))
 		self.assertTrue(frappe.has_permission("AutoGrade Licence", "read"))
+
+	def test_membuat_baris_dan_menerbitkan_token_dipisah(self):
+		"""Boleh membuat baris bukan berarti boleh mencetak token.
+
+		Barisnya cuma niat: Company dan tanggal, belum ada tanda tangan. Yang
+		bernilai uang adalah tandatangannya, dan itu tetap Administrator saja —
+		role bisa diberikan dari dalam Desk, jadi memagari penerbitan dengan role
+		berarti System Manager pelanggan bisa memperpanjang langganannya sendiri.
+		"""
+		doc = self.make_licence()
+		user = self._make_system_manager()
+		frappe.set_user(user)
+
+		self.assertTrue(frappe.has_permission("AutoGrade Licence", "create"))
+		with self.assertRaises(frappe.PermissionError):
+			issue(doc.name)
 
 	# ----------------------------------------------------------------- helpers
 
