@@ -30,7 +30,10 @@ COMPOSE = ROOT / "deploy/droplet/docker-compose.prod.yml"
 
 # Tempat penampungan di luar `sites/`. Harus di luar, karena volume menutupi
 # seluruh isi `sites/` milik image begitu container jalan.
-STASH = "/opt/image-assets"
+# Di HOME-nya `frappe`, bukan `/opt`: build berjalan sebagai user `frappe` dan
+# `/opt` milik root, jadi `cp` ke sana menggagalkan seluruh build dengan
+# "Permission denied". Terjadi sungguhan saat merilis v1.0.6.
+STASH = "/home/frappe/image-assets"
 
 
 class IntegrationTestDeployAssets(IntegrationTestCase):
@@ -89,3 +92,12 @@ class IntegrationTestDeployAssets(IntegrationTestCase):
 		"""
 		self.assertIn("volume", self.compose.lower())
 		self.assertIn("assets.json", self.compose)
+
+	def test_penampungan_bukan_di_folder_milik_root(self):
+		"""Build berjalan sebagai user `frappe`. Menaruh penampungan di `/opt`
+		menggagalkan SELURUH build dengan "Permission denied" — terjadi sungguhan
+		saat merilis v1.0.6, dan tidak terlihat sampai CI menjalankannya."""
+		self.assertTrue(
+			STASH.startswith("/home/frappe/"),
+			f"{STASH} harus di HOME user frappe, bukan folder milik root",
+		)
