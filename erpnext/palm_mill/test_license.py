@@ -434,3 +434,67 @@ class UnitTestLicenceSigning(IntegrationTestCase):
 		)
 
 		self.assertGreater(payload["license_expires_at"], payload["iat"])
+
+
+class IntegrationTestPerintahPasang(IntegrationTestCase):
+	"""Perintah yang ditempel teknisi harus yang benar-benar ada di PC pabrik.
+
+	Tombol Copy Install Command itu satu-satunya sumber yang dibaca orang saat
+	memasang token lewat AnyDesk. Nama perintah yang salah di situ berarti
+	teknisi menempel sesuatu yang dijawab "command not found" — di tengah shift,
+	dengan pabrik menunggu.
+	"""
+
+	def _baca(self, jalur: str) -> str:
+		import pathlib
+
+		import erpnext
+
+		return (pathlib.Path(erpnext.__file__).parent / jalur).read_text()
+
+	def test_tombol_copy_memakai_nama_symlink(self):
+		"""`autograde`, bukan `autograde.sh`: symlink di /usr/local/bin jalan dari
+		folder mana pun, sedangkan `./autograde.sh` cuma kalau kebetulan sedang
+		berada di /opt/palmgrade."""
+		js = self._baca("palm_mill/doctype/autograde_licence/autograde_licence.js")
+
+		self.assertIn("autograde licence ${frm.doc.token}", js)
+		self.assertNotIn("autograde.sh licence ${frm.doc.token}", js)
+
+	def test_keterangan_di_database_ikut_berkas(self):
+		"""`bench migrate` tidak memperbarui `description` DocField yang sudah ada.
+
+		Jadi mengubah teksnya di JSON hanya menjangkau site baru; site yang sudah
+		jalan tetap menampilkan kalimat lama sampai patch menyamakannya. Terbukti
+		di produksi 2026-09-22 — kolom Token masih menyuruh `autograde.sh licence`
+		sesudah rilis yang mengubahnya naik.
+		"""
+		import json
+
+		meta = json.loads(self._baca("palm_mill/doctype/autograde_licence/autograde_licence.json"))
+		berkas = next(f for f in meta["fields"] if f["fieldname"] == "token")["description"]
+		db = frappe.db.get_value(
+			"DocField", {"parent": "AutoGrade Licence", "fieldname": "token"}, "description"
+		)
+
+		self.assertEqual(db, berkas, "jalankan patch palm_mill_licence_hint")
+
+	def test_patch_penyamaan_keterangan_terdaftar(self):
+		"""Tanpa patch ini, perubahan teks tidak pernah sampai ke site yang ada."""
+		import pathlib
+
+		import erpnext
+
+		patches = (pathlib.Path(erpnext.__file__).parent / "patches.txt").read_text()
+		self.assertIn("palm_mill_licence_hint", patches)
+
+	def test_keterangan_kolom_token_sama_dengan_tombol(self):
+		"""Dua tempat menyebut perintah yang sama; kalau menyimpang, yang satu
+		mengajari teknisi mengetik yang salah."""
+		import json
+
+		meta = json.loads(self._baca("palm_mill/doctype/autograde_licence/autograde_licence.json"))
+		token = next(f for f in meta["fields"] if f["fieldname"] == "token")
+
+		self.assertIn("autograde licence", token["description"])
+		self.assertNotIn("autograde.sh", token["description"])

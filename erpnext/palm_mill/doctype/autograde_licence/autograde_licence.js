@@ -3,7 +3,7 @@
 
 // The token is a single long string that has to survive a trip through AnyDesk into
 // a mill PC terminal. A broken copy is the failure this screen exists to prevent:
-// `autograde.sh licence` rejects a mangled token with "signature does not match",
+// `autograde licence` rejects a mangled token with "signature does not match",
 // which reads like a bad token rather than a bad paste. So the whole command line is
 // offered ready-made, and copying is one button rather than a drag-select.
 
@@ -42,7 +42,10 @@ function issue(frm) {
 }
 
 function copy_command(frm) {
-	const command = `autograde.sh licence ${frm.doc.token}`;
+	// `autograde`, bukan `autograde.sh`: itu symlink di /usr/local/bin milik PC
+	// pabrik, jadi perintahnya jalan dari folder mana pun. Bentuk `./autograde.sh`
+	// tetap sah, tapi cuma kalau teknisi kebetulan sedang berada di /opt/palmgrade.
+	const command = `autograde licence ${frm.doc.token}`;
 
 	// `navigator.clipboard` is unavailable over plain HTTP, and Desk is reached over
 	// HTTP on some internal setups - so fall back rather than fail silently.
