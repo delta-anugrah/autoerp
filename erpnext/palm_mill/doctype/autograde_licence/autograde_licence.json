@@ -78,7 +78,7 @@
    "label": "Issued Token"
   },
   {
-   "description": "Install at the mill with: autograde.sh licence &lt;token&gt;",
+   "description": "Install at the mill with: autograde licence &lt;token&gt;",
    "fieldname": "token",
    "fieldtype": "Small Text",
    "label": "Token",
