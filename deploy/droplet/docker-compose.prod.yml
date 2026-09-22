@@ -72,7 +72,7 @@ services:
     command:
       - >
         ls -1 apps > sites/apps.txt;
-        cp -a /opt/image-assets/. sites/assets/;
+        cp -a /home/frappe/image-assets/. sites/assets/;
         bench set-config -g db_host $$DB_HOST;
         bench set-config -gp db_port $$DB_PORT;
         bench set-config -g redis_cache "redis://$$REDIS_CACHE";
