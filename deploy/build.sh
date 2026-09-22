@@ -71,7 +71,13 @@ if ! git -C "$MIRROR" cat-file -e "$AUTOERP_BRANCH:erpnext/palm_mill/api.py" 2>/
 	exit 1
 fi
 
+# Konteks build adalah $WORK (cermin git), BUKAN repo — jadi apa pun yang
+# di-COPY di Containerfile harus disalin ke sini dulu. Ketinggalan satu
+# berkas dan build berhenti dengan "not found", seperti yang terjadi
+# pada v1.0.8.
 cp "$HERE/Containerfile" "$WORK/Containerfile"
+mkdir -p "$WORK/deploy"
+cp "$HERE/merge_assets.py" "$WORK/deploy/merge_assets.py"
 
 echo "==> build $IMAGE (dasar: $BASE_IMAGE)"
 DOCKER_BUILDKIT=1 docker build \
