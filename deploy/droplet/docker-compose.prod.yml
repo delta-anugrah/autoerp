@@ -47,6 +47,13 @@ services:
   # Menulis common_site_config.json lalu keluar. Service lain menunggu dia SELESAI,
   # bukan sekadar hidup: tanpa itu backend start dengan konfigurasi setengah jadi.
   #
+  configurator:
+      condition: service_completed_successfully
+
+services:
+  # Menulis common_site_config.json lalu keluar. Service lain menunggu dia SELESAI,
+  # bukan sekadar hidup: tanpa itu backend start dengan konfigurasi setengah jadi.
+  #
   # Dia juga yang MENYALIN ASET dari image ke volume, dan itu bukan hiasan.
   # `sites/` adalah volume, jadi `sites/assets/` BERTAHAN lintas rilis sementara
   # aset yang sudah dibangun datang dari image yang baru. Tiap build menghasilkan
@@ -72,7 +79,6 @@ services:
     command:
       - >
         ls -1 apps > sites/apps.txt;
-        cp -a /home/frappe/image-assets/. sites/assets/;
         bench set-config -g db_host $$DB_HOST;
         bench set-config -gp db_port $$DB_PORT;
         bench set-config -g redis_cache "redis://$$REDIS_CACHE";
