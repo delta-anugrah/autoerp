@@ -77,8 +77,10 @@ def private_key() -> Ed25519PrivateKey:
 	try:
 		key = load_pem_private_key(_pem(raw).encode(), password=None)
 	except Exception as exc:
+		# `str(exc)` rather than the exception object: an exception's own __str__ can
+		# carry markup that a translated format string would then render.
 		frappe.throw(
-			_("The licence signing key could not be read: {0}").format(exc),
+			_("The licence signing key could not be read: {0}").format(str(exc)),
 			title=_("Broken signing key"),
 		)
 
