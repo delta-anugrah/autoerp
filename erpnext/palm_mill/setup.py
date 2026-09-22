@@ -214,6 +214,40 @@ def apply_site_policy():
 	set_site_language()
 	set_float_precision()
 	enable_serial_and_batch()
+	set_administrator_email()
+
+
+# Alamat yang dipakai akun Administrator di setiap site kita. Frappe memaku
+# `admin@example.com` di `frappe/utils/install.py`, dan alamat itu bukan cuma
+# jelek dilihat: dia domain contoh milik IANA, jadi apa pun yang dikirim ke sana
+# tidak pernah sampai — termasuk tautan atur-ulang sandi untuk akun yang paling
+# berkuasa di site ini.
+ADMINISTRATOR_EMAIL = "administrator@smagri.id"
+
+
+def set_administrator_email():
+	"""Ganti alamat bawaan Frappe untuk akun Administrator.
+
+	Tidak bisa disetel lewat `site_config` atau flag `bench new-site` — nilainya
+	dipaku di kode Frappe, jadi satu-satunya cara adalah menimpanya sesudah site
+	jadi. Di sini, bukan di patch saja: site baru tidak pernah menjalankan patch
+	(`install_app` menandainya selesai tanpa mengeksekusi apa pun), jadi tanpa
+	baris ini setiap site berikutnya lahir dengan alamat contoh lagi.
+
+	`db.set_value`, bukan `doc.save()`: menyimpan dokumen User memicu validasi
+	dan notifikasi yang tidak ada gunanya di tengah install, dan pernah membuat
+	`after_install` berhenti di tengah jalan.
+	"""
+	sekarang = frappe.db.get_value("User", "Administrator", "email")
+	if sekarang == ADMINISTRATOR_EMAIL:
+		return
+
+	# Hanya alamat contoh bawaan yang ditimpa. Site yang alamatnya sudah diganti
+	# orang — sengaja, ke alamat lain — tidak boleh ikut ditarik balik.
+	if sekarang and not sekarang.endswith("@example.com"):
+		return
+
+	frappe.db.set_value("User", "Administrator", "email", ADMINISTRATOR_EMAIL, update_modified=False)
 
 
 def set_site_language():
