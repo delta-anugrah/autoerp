@@ -75,9 +75,9 @@ class AutoGradeLicence(Document):
 		days_left = frappe.utils.date_diff(self.license_expires_on, frappe.utils.nowdate())
 		if days_left >= 0 and self.warning_days > days_left:
 			frappe.msgprint(
-				_("The warning window ({0} days) is longer than the time left ({1} days), so the console will warn from the moment this is installed.").format(
-					self.warning_days, days_left
-				),
+				_(
+					"The warning window ({0} days) is longer than the time left ({1} days), so the console will warn from the moment this is installed."
+				).format(self.warning_days, days_left),
 				indicator="orange",
 				alert=True,
 			)

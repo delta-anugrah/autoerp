@@ -114,6 +114,8 @@ class IntegrationTestLicence(IntegrationTestCase):
 		frappe.conf[CONF_KEY_ID] = "v1"
 		self.addCleanup(frappe.conf.pop, CONF_PRIVATE_KEY, None)
 		self.addCleanup(frappe.conf.pop, CONF_KEY_ID, None)
+		# Registered FIRST so it runs LAST: cleanups unwind in reverse, and the row
+		# deletions queued after this one need Administrator to be back.
 		self.addCleanup(frappe.set_user, "Administrator")
 
 	def make_licence(self, **overrides):
@@ -128,7 +130,11 @@ class IntegrationTestLicence(IntegrationTestCase):
 				**overrides,
 			}
 		).insert(ignore_permissions=True)
-		self.addCleanup(lambda: frappe.delete_doc("AutoGrade Licence", doc.name, force=True))
+		# `ignore_permissions`: a test that switched to a System Manager to prove they
+		# cannot issue would otherwise fail in teardown rather than in the assertion.
+		self.addCleanup(
+			lambda: frappe.delete_doc("AutoGrade Licence", doc.name, force=True, ignore_permissions=True)
+		)
 		return doc
 
 	# ---------------------------------------------------------------- contract
@@ -343,8 +349,8 @@ class UnitTestLicenceSigning(IntegrationTestCase):
 	def test_one_line_pem_is_restored_before_use(self):
 		r"""site_config.json is JSON, so the key is stored with literal \n."""
 		key = Ed25519PrivateKey.generate()
-		one_line = key.private_bytes(Encoding.PEM, PrivateFormat.PKCS8, NoEncryption()).decode().replace(
-			"\n", "\\n"
+		one_line = (
+			key.private_bytes(Encoding.PEM, PrivateFormat.PKCS8, NoEncryption()).decode().replace("\n", "\\n")
 		)
 
 		frappe.conf[CONF_PRIVATE_KEY] = one_line
