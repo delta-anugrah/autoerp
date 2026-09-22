@@ -60,6 +60,18 @@ RUN set -eux; \
     mv apps/erpnext/package.json.orig apps/erpnext/package.json; \
     rm -rf apps/erpnext/node_modules /home/frappe/.cache/yarn /home/frappe/.npm
 
+# Simpan aset yang baru dibangun DI LUAR `sites/`, karena `sites/` adalah volume
+# di produksi: begitu container jalan, volume menutupi seluruh isi folder itu
+# milik image, termasuk `sites/assets/`. Tanpa salinan ini, aset yang barusan
+# dibangun tidak punya jalan untuk sampai ke volume, dan `configurator` tidak
+# punya apa pun untuk disalin.
+#
+# Yang dibawa termasuk `assets.json` — peta nama-ber-hash yang dibaca Desk. Peta
+# basi adalah bentuk kegagalan yang paling senyap di sini: tidak ada error, tidak
+# ada 404, browser cuma memuat bundle lama. Lihat komentar panjang di
+# `deploy/droplet/docker-compose.prod.yml` untuk kejadian nyatanya (2026-09-22).
+RUN cp -a /home/frappe/frappe-bench/sites/assets /opt/image-assets
+
 # Log build bukan artefak produksi, dan pernah memuat kredensial. Dikosongkan,
 # bukan disensor sebagian: menyensor berarti menebak semua bentuk yang mungkin.
 RUN find /home/frappe/frappe-bench/logs -type f -exec truncate -s 0 {} + 2>/dev/null || true
