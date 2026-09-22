@@ -46,6 +46,25 @@ x-backend: &backend
 services:
   # Menulis common_site_config.json lalu keluar. Service lain menunggu dia SELESAI,
   # bukan sekadar hidup: tanpa itu backend start dengan konfigurasi setengah jadi.
+  #
+  # Dia juga yang MENYALIN ASET dari image ke volume, dan itu bukan hiasan.
+  # `sites/` adalah volume, jadi `sites/assets/` BERTAHAN lintas rilis sementara
+  # aset yang sudah dibangun datang dari image yang baru. Tiap build menghasilkan
+  # nama berkas ber-hash baru (`erpnext.bundle.<HASH>.js`) dan peta
+  # `assets.json` yang menyertainya, jadi tanpa penyalinan ini volume menyimpan
+  # peta LAMA yang menunjuk berkas yang sudah tidak ada.
+  #
+  # Gagalnya senyap total: tidak ada 404 yang terlihat, tidak ada error di log,
+  # browser cuma memuat bundle basi dari cache. Terbukti di produksi 2026-09-22 —
+  # `assets.json` tertanggal 17 September masih menunjuk `erpnext.bundle.ALITV7QQ.js`
+  # sementara image v1.0.5 membawa `KIPLZ2KM`, jadi setiap perbaikan JavaScript
+  # sejak tanggal itu tidak pernah sampai ke layar. Yang pertama terlihat: kartu
+  # angka bernilai nol mencetak "Rp NaN" walau penambalnya sudah ikut di image.
+  #
+  # ⚠️ TIDAK BISA diperbaiki dengan `bench build` di server: `node_modules`
+  # sengaja dihapus dari image (lihat Containerfile), jadi build di sana berhenti
+  # di "Could not resolve onscan.js". Aset dibangun saat image dibangun; di sini
+  # tugasnya cuma menyalin.
   configurator:
     <<: *image
     restart: "no"
@@ -53,6 +72,7 @@ services:
     command:
       - >
         ls -1 apps > sites/apps.txt;
+        cp -a /opt/image-assets/. sites/assets/;
         bench set-config -g db_host $$DB_HOST;
         bench set-config -gp db_port $$DB_PORT;
         bench set-config -g redis_cache "redis://$$REDIS_CACHE";
