@@ -18,8 +18,11 @@ from erpnext.palm_mill.workspace_shortcuts import (
 	AFTER,
 	LABEL,
 	LINK_TO,
+	SIDEBAR,
 	WORKSPACE,
+	ensure_licence_entries,
 	ensure_licence_shortcut,
+	ensure_licence_sidebar_item,
 )
 
 
@@ -122,3 +125,82 @@ class IntegrationTestWorkspaceShortcut(IntegrationTestCase):
 			if b.get("type") == "shortcut"
 		]
 		self.assertIn(LABEL, drawn)
+
+
+class IntegrationTestSidebarItem(IntegrationTestCase):
+	"""Menu kiri itu `Workspace Sidebar`, DOKUMEN LAIN dari shortcut.
+
+	v1.0.5 cuma menambah shortcut, jadi kartunya muncul di badan halaman tapi
+	menu kirinya tetap kosong — satu-satunya jalan masuk masih mengetik nama
+	DocType di kotak pencarian. Dua-duanya harus ditulis.
+	"""
+
+	def setUp(self):
+		super().setUp()
+		# Sengaja GAGAL, bukan skip. `SIDEBAR` sempat diisi nama berkas fixture
+		# (`pabrik_kelapa_sawit`) padahal dokumennya bernama "Pabrik Kelapa Sawit";
+		# dengan skip, kelima test ini diam-diam dilewati dan salah nama itu lolos
+		# sampai produksi.
+		self.assertTrue(
+			frappe.db.exists("Workspace Sidebar", SIDEBAR),
+			f"Workspace Sidebar {SIDEBAR!r} tidak ada — periksa konstanta SIDEBAR",
+		)
+		self.addCleanup(frappe.db.rollback)
+
+	def _remove_item(self):
+		doc = frappe.get_doc("Workspace Sidebar", SIDEBAR)
+		doc.items = [i for i in doc.items if i.link_to != LINK_TO]
+		doc.save(ignore_permissions=True)
+
+	def test_menambahkan_entri_menu(self):
+		self._remove_item()
+
+		self.assertTrue(ensure_licence_sidebar_item())
+
+		doc = frappe.get_doc("Workspace Sidebar", SIDEBAR)
+		self.assertIn(LINK_TO, [i.link_to for i in doc.items])
+
+	def test_duduk_tepat_sesudah_operator(self):
+		"""Kalau hanyut, dia mendarat di bawah Accounting Dimensions — bagian
+		yang sama sekali berbeda, dan terbaca seperti salah taruh."""
+		self._remove_item()
+		ensure_licence_sidebar_item()
+
+		links = [i.link_to for i in frappe.get_doc("Workspace Sidebar", SIDEBAR).items]
+		if AFTER in links:
+			self.assertEqual(links.index(LINK_TO), links.index(AFTER) + 1)
+
+	def test_dijalankan_dua_kali_tidak_menggandakan(self):
+		self._remove_item()
+		ensure_licence_sidebar_item()
+
+		self.assertFalse(ensure_licence_sidebar_item())
+
+		links = [i.link_to for i in frappe.get_doc("Workspace Sidebar", SIDEBAR).items]
+		self.assertEqual(links.count(LINK_TO), 1)
+
+	def test_fungsi_payung_mengurus_keduanya(self):
+		"""Yang dipanggil patch. Kalau dia cuma mengurus salah satu, separuh
+		perbaikan ini tidak pernah sampai ke site yang sudah ada."""
+		self._remove_item()
+		doc = frappe.get_doc("Workspace", WORKSPACE)
+		doc.shortcuts = [x for x in doc.shortcuts if x.link_to != LINK_TO]
+		doc.save(ignore_permissions=True)
+
+		self.assertTrue(ensure_licence_entries())
+
+		sidebar = [i.link_to for i in frappe.get_doc("Workspace Sidebar", SIDEBAR).items]
+		shortcuts = [x.link_to for x in frappe.get_doc("Workspace", WORKSPACE).shortcuts]
+		self.assertIn(LINK_TO, sidebar)
+		self.assertIn(LINK_TO, shortcuts)
+
+	def test_fixture_sidebar_ikut_memuat_entri(self):
+		"""Site BARU dapat menunya dari fixture, bukan dari patch."""
+		import pathlib
+
+		import erpnext
+
+		f = pathlib.Path(erpnext.__file__).parent / "workspace_sidebar/pabrik_kelapa_sawit.json"
+		data = json.loads(f.read_text())
+		labels = {i["label"] for i in data["items"] if i.get("link_to") == LINK_TO}
+		self.assertEqual(labels, {LABEL})
