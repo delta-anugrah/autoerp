@@ -533,3 +533,4 @@ erpnext.patches.v17_0.palm_mill_ffb_warehouse
 erpnext.patches.v17_0.palm_mill_licence_shortcut
 erpnext.patches.v17_0.palm_mill_licence_sidebar
 erpnext.patches.v17_0.palm_mill_administrator_email
+erpnext.patches.v17_0.palm_mill_administrator_timezone

@@ -215,6 +215,7 @@ def apply_site_policy():
 	set_float_precision()
 	enable_serial_and_batch()
 	set_administrator_email()
+	set_administrator_timezone()
 
 
 # Alamat yang dipakai akun Administrator di setiap site kita. Frappe memaku
@@ -248,6 +249,32 @@ def set_administrator_email():
 		return
 
 	frappe.db.set_value("User", "Administrator", "email", ADMINISTRATOR_EMAIL, update_modified=False)
+
+
+def set_administrator_timezone():
+	"""Samakan zona waktu Administrator dengan zona site.
+
+	Frappe memberi user baru `Asia/Kolkata` — zona pengembangnya, bukan zona
+	site. Akibatnya setiap tanggal-jam yang dilihat Administrator di layar
+	digeser 1,5 jam dari waktu pabrik, tanpa satu pun tanda selain label kecil
+	di sebelah kolom.
+
+	Yang membuatnya berbahaya: nilainya di database SUDAH benar, jadi tidak ada
+	yang rusak dan tidak ada yang bisa dilihat salah kecuali dibaca tanggalnya.
+	Terlihat pertama kali pada layar lisensi 2026-09-22, di kolom "Grace Ends" —
+	tanggal yang menentukan kapan sebuah pabrik berhenti menggiling.
+
+	Kolom `time_zone` pada User menang atas System Settings, jadi menyetel zona
+	site saja tidak cukup.
+	"""
+	zona = frappe.db.get_single_value("System Settings", "time_zone")
+	if not zona:
+		return
+
+	if frappe.db.get_value("User", "Administrator", "time_zone") == zona:
+		return
+
+	frappe.db.set_value("User", "Administrator", "time_zone", zona, update_modified=False)
 
 
 def set_site_language():

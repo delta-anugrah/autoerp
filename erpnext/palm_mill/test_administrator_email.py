@@ -17,7 +17,11 @@ patch) dan sebuah patch untuk site yang sudah jalan.
 import frappe
 from frappe.tests import IntegrationTestCase
 
-from erpnext.palm_mill.setup import ADMINISTRATOR_EMAIL, set_administrator_email
+from erpnext.palm_mill.setup import (
+	ADMINISTRATOR_EMAIL,
+	set_administrator_email,
+	set_administrator_timezone,
+)
 
 BAWAAN_FRAPPE = "admin@example.com"
 
@@ -97,3 +101,79 @@ class IntegrationTestAdministratorEmail(IntegrationTestCase):
 
 		patches = (pathlib.Path(erpnext.__file__).parent / "patches.txt").read_text()
 		self.assertIn("palm_mill_administrator_email", patches)
+
+
+class IntegrationTestAdministratorTimezone(IntegrationTestCase):
+	"""Zona waktu Administrator harus mengikuti zona site.
+
+	Frappe memberi user baru `Asia/Kolkata`. Kolom `time_zone` pada User menang
+	atas System Settings, jadi setiap tanggal-jam yang dilihat Administrator
+	digeser 1,5 jam dari waktu pabrik — tanpa tanda apa pun selain label kecil
+	di sebelah kolom, dan dengan nilai di database yang sudah benar.
+
+	Terlihat pertama kali di kolom "Grace Ends" layar lisensi (2026-09-22):
+	tanggal yang menentukan kapan sebuah pabrik berhenti menggiling.
+	"""
+
+	def setUp(self):
+		super().setUp()
+		self.semula = frappe.db.get_value("User", "Administrator", "time_zone")
+		self.addCleanup(
+			lambda: frappe.db.set_value(
+				"User", "Administrator", "time_zone", self.semula, update_modified=False
+			)
+		)
+
+	def _pasang(self, zona):
+		frappe.db.set_value("User", "Administrator", "time_zone", zona, update_modified=False)
+
+	def _baca(self):
+		return frappe.db.get_value("User", "Administrator", "time_zone")
+
+	def test_zona_bawaan_frappe_diganti(self):
+		self._pasang("Asia/Kolkata")
+
+		set_administrator_timezone()
+
+		zona_site = frappe.db.get_single_value("System Settings", "time_zone")
+		self.assertEqual(self._baca(), zona_site)
+
+	def test_mengikuti_zona_site_apa_pun_isinya(self):
+		"""Bukan dipatok ke Asia/Jakarta: site pelanggan di zona lain harus tetap
+		benar, dan memaku satu zona akan salah di sana."""
+		self._pasang("Asia/Kolkata")
+		semula_site = frappe.db.get_single_value("System Settings", "time_zone")
+		self.addCleanup(frappe.db.set_single_value, "System Settings", "time_zone", semula_site)
+		frappe.db.set_single_value("System Settings", "time_zone", "Asia/Makassar")
+
+		set_administrator_timezone()
+
+		self.assertEqual(self._baca(), "Asia/Makassar")
+
+	def test_dijalankan_dua_kali_tidak_berubah(self):
+		self._pasang("Asia/Kolkata")
+		set_administrator_timezone()
+		zona = self._baca()
+
+		set_administrator_timezone()
+
+		self.assertEqual(self._baca(), zona)
+
+	def test_ikut_dipasang_saat_install(self):
+		"""Site baru tidak pernah menjalankan patch, jadi tanpa baris ini setiap
+		site berikutnya lahir dengan zona India lagi."""
+		import pathlib
+
+		import erpnext
+
+		setup = (pathlib.Path(erpnext.__file__).parent / "palm_mill/setup.py").read_text()
+		blok = setup[setup.index("def apply_site_policy") : setup.index("def set_administrator_email")]
+		self.assertIn("set_administrator_timezone()", blok)
+
+	def test_patch_terdaftar(self):
+		import pathlib
+
+		import erpnext
+
+		patches = (pathlib.Path(erpnext.__file__).parent / "patches.txt").read_text()
+		self.assertIn("palm_mill_administrator_timezone", patches)
