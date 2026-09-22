@@ -70,10 +70,38 @@ RUN set -eux; \
 # basi adalah bentuk kegagalan yang paling senyap di sini: tidak ada error, tidak
 # ada 404, browser cuma memuat bundle lama. Lihat komentar panjang di
 # `deploy/droplet/docker-compose.prod.yml` untuk kejadian nyatanya (2026-09-22).
-# Di HOME-nya `frappe`, bukan `/opt`: Containerfile ini berjalan sebagai user
-# `frappe` (image dasar menyetelnya), dan `/opt` milik root — `cp` ke sana
-# berhenti dengan "Permission denied" dan membatalkan seluruh build.
-RUN cp -a /home/frappe/frappe-bench/sites/assets /home/frappe/image-assets
+# Satukan aset hasil build ke folder yang BENAR-BENAR dilayani saat runtime.
+#
+# Image dasar punya `entrypoint.sh` yang, tiap container start, MENGHAPUS
+# `sites/assets` lalu menggantinya dengan symlink ke `frappe-bench/assets`:
+#
+#     rm -rf sites/assets && ln -s /home/frappe/frappe-bench/assets sites/assets
+#
+# Sementara `bench build` menulis ke `sites/assets`. Jadi selama build keduanya
+# folder terpisah, dan begitu container jalan yang dipakai adalah `assets` —
+# hasil build tadi dibuang mentah-mentah.
+#
+# Akibatnya paling terasa di `assets.json`, peta nama-ber-hash yang dibaca Desk:
+# `assets/assets.json` tetap bawaan image dasar dan menunjuk
+# `erpnext.bundle.ALITV7QQ.js`, sementara bundle yang benar-benar ada di situ
+# bernama `erpnext.bundle.KIPLZ2KM.js`. Desk memuat berkas yang tidak ada:
+# tidak ada error, tidak ada 404 yang terlihat, browser cuma memakai salinan
+# lama dari cache. Terbukti di produksi 2026-09-22 — setiap perubahan JavaScript
+# sejak 17 September tidak pernah sampai ke layar, dan yang pertama terlihat
+# adalah kartu angka bernilai nol yang mencetak "Rp NaN" walau penambalnya
+# sudah ikut di image.
+#
+# `cp -a` isi `sites/assets/.` ke `assets/`, bukan mengganti foldernya: aset
+# app lain (frappe, payments) hidup di `assets/` dan tidak boleh ikut terhapus.
+#
+# ⚠️ `assets.json` dan `assets-rtl.json` harus DIGABUNG, bukan ditimpa. Peta
+# hasil build cuma memuat 8 kunci milik erpnext, sementara peta di `assets/`
+# memuat 44 — termasuk `desk.bundle.js` milik frappe. Menimpanya membuat Desk
+# kehilangan bundle-nya sendiri dan berhenti memuat apa pun. Ketahuan saat
+# mensimulasikan langkah ini di dalam image sebelum dirilis; kalau tidak, ini
+# rilis ketiga berturut-turut yang gagal.
+COPY --chown=frappe:frappe deploy/merge_assets.py /tmp/merge_assets.py
+RUN python3 /tmp/merge_assets.py && rm /tmp/merge_assets.py
 
 # Log build bukan artefak produksi, dan pernah memuat kredensial. Dikosongkan,
 # bukan disensor sebagian: menyensor berarti menebak semua bentuk yang mungkin.
