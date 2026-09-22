@@ -38,6 +38,7 @@ from frappe.tests import IntegrationTestCase
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 CONTAINERFILE = ROOT / "deploy/Containerfile"
 COMPOSE = ROOT / "deploy/droplet/docker-compose.prod.yml"
+BUILD_SH = ROOT / "deploy/build.sh"
 
 # Ke mana `bench build` menulis, dan dari mana runtime membaca.
 BUILD_KE = "/home/frappe/frappe-bench/sites/assets"
@@ -52,6 +53,7 @@ class IntegrationTestDeployAssets(IntegrationTestCase):
 			self.skipTest("berkas deploy tidak ada di checkout ini")
 		self.containerfile = CONTAINERFILE.read_text()
 		self.compose = COMPOSE.read_text()
+		self.build_sh = BUILD_SH.read_text() if BUILD_SH.exists() else ""
 
 	def test_image_membangun_aset(self):
 		"""Langkah 1. Tanpa ini tidak ada apa pun untuk disatukan."""
@@ -141,3 +143,25 @@ class IntegrationTestDeployAssets(IntegrationTestCase):
 		"""
 		self.assertIn("entrypoint.sh", self.containerfile)
 		self.assertIn("assets.json", self.containerfile)
+
+	def test_setiap_COPY_disalin_ke_konteks_build(self):
+		"""Konteks build adalah `$WORK` (cermin git), BUKAN repo.
+
+		`build.sh` menyalin ke sana satu per satu, jadi `COPY` atas berkas yang
+		tidak ikut disalin membuat build berhenti dengan "not found" — terjadi
+		sungguhan pada v1.0.8, sesudah lolos seluruh CI.
+		"""
+		import re
+
+		disalin = self.build_sh
+		for baris in self.containerfile.splitlines():
+			m = re.match(r"COPY\s+(?:--\S+\s+)*(\S+)\s", baris)
+			if not m:
+				continue
+			sumber = m.group(1)
+			nama = pathlib.Path(sumber).name
+			self.assertIn(
+				nama,
+				disalin,
+				f"Containerfile meng-COPY {sumber!r} tapi build.sh tidak menyalinnya ke $WORK",
+			)
