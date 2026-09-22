@@ -16,7 +16,7 @@ BENCH    = $(COMPOSE) exec -T backend bench --site $(SITE)
 AG_USER ?= autograde@pks.local
 
 .DEFAULT_GOAL := help
-.PHONY: help ping status logs key-show key-new admin-new migrate backup restore-test shell company
+.PHONY: help ping status logs key-show key-new admin-new migrate backup restore-test shell company db-grants
 
 help:
 	@echo "AutoERP di droplet — site $(SITE)"
@@ -25,6 +25,7 @@ help:
 	@echo "  make status       container mana yang jalan"
 	@echo "  make logs         log backend, ikuti"
 	@echo "  make company      nama Company yang terpasang"
+	@echo "  make db-grants    izin DB ikut IP container yang berubah — WAJIB tiap site baru"
 	@echo ""
 	@echo "  make key-show     tampilkan kunci AutoGrade (TIDAK merotasi)"
 	@echo "  make key-new      terbitkan kunci AutoGrade — MEROTASI secret"
@@ -46,6 +47,40 @@ logs:
 company:
 	@$(BENCH) execute frappe.client.get_list \
 		--kwargs '{"doctype":"Company","fields":["name","abbr","default_currency"]}' | tail -1
+
+# Izin database yang tidak mati saat container dibuat ulang.
+#
+# `bench new-site` memberi GRANT ke HOST tempat ia kebetulan berjalan saat itu --
+# sebuah alamat IP container, mis. `_d6ea..@172.20.0.7`. Alamat itu milik jaringan
+# Docker dan BERUBAH setiap container dibuat ulang: deploy, `compose up
+# --force-recreate`, bahkan reboot droplet biasa. Begitu berubah, grant-nya tidak
+# cocok lagi dan SELURUH situs menjawab:
+#
+#     MySQLdb.OperationalError: (1045, "Access denied for user '_d6ea...'@'172.20.0.9'")
+#
+# Sudah terjadi 2026-09-21 malam: `app.` dan `demo.` dua-duanya mati 500 sesudah
+# deploy, dan pesannya terbaca seperti sandi salah, bukan seperti alamat berubah.
+#
+# ⚠️ Aman memakai `%`: port 3306 TIDAK dipublikasikan ke luar (`docker inspect`
+# menunjukkan `"3306/tcp": null`), jadi `%` di sini berarti "mana pun di dalam
+# jaringan Docker ini", bukan "dari internet". Sandinya tetap sandi per-situs yang
+# dibuat Frappe, dan dibaca dari `site_config.json` -- tidak ada yang diketik.
+#
+# Idempoten: `CREATE USER IF NOT EXISTS` + `GRANT`, jadi aman dijalankan ulang.
+db-grants:
+	@pw=$$(grep '^DB_PASSWORD=' /opt/autoerp/.env | cut -d= -f2-) && \
+	for s in $$($(COMPOSE) exec -T backend sh -c \
+		'for d in sites/*/; do [ -f "$$d/site_config.json" ] && basename "$$d"; done' \
+		| tr -d '\r'); do \
+		db=$$($(COMPOSE) exec -T backend python -c \
+			"import json;print(json.load(open('sites/$$s/site_config.json'))['db_name'])" | tr -d '\r') && \
+		dbpw=$$($(COMPOSE) exec -T backend python -c \
+			"import json;print(json.load(open('sites/$$s/site_config.json'))['db_password'])" | tr -d '\r') && \
+		$(COMPOSE) exec -T mariadb mariadb -uroot -p"$$pw" -e \
+			"CREATE USER IF NOT EXISTS '$$db'@'%' IDENTIFIED BY '$$dbpw'; \
+			 GRANT ALL PRIVILEGES ON \`$$db\`.* TO '$$db'@'%'; FLUSH PRIVILEGES;" && \
+		echo "$$s -> $$db OK"; \
+	done
 
 # `bench execute` mencetak dict sebagai JSON dan string apa adanya — karena itu
 # dua bentuk yang berbeda di bawah. Sama persis dengan Makefile akar.
