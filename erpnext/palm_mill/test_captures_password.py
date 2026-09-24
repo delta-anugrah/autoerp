@@ -73,11 +73,12 @@ def _field(fieldname: str) -> dict:
 
 
 class IntegrationTestCapturesPassword(IntegrationTestCase):
+	# No `tearDown`. `IntegrationTestCase` rolls the transaction back after every
+	# test, and `setUp` below clears the password again before the next one -- so
+	# an explicit teardown was doing the same work twice. Removed after checking
+	# rather than assuming: with it gone the suite still passes, and the password
+	# reads back empty afterwards, so nothing leaks into the next module.
 	def setUp(self):
-		frappe.set_user("Administrator")
-		set_password("")
-
-	def tearDown(self):
 		frappe.set_user("Administrator")
 		set_password("")
 

@@ -57,7 +57,7 @@ class E2ETestCapturesPasswordGate(FrappeAPITestCase):
 		# database yang BERBEDA dari koneksi tes ini. Tanpa commit, sandi yang
 		# baru ditulis belum terlihat oleh Worker-nya dan seluruh berkas ini
 		# menguji site yang sandinya masih kosong.
-		# nosemgrep: frappe-semgrep-rules.rules.frappe-manual-commit
+		# nosemgrep: frappe-semgrep-rules.rules.frappe-manual-commit, semgrep.Dont-commit
 		frappe.db.commit()
 		self._reset_rate_limit()
 
@@ -87,7 +87,7 @@ class E2ETestCapturesPasswordGate(FrappeAPITestCase):
 		# database yang BERBEDA dari koneksi tes ini. Tanpa commit, sandi yang
 		# baru ditulis belum terlihat oleh Worker-nya dan seluruh berkas ini
 		# menguji site yang sandinya masih kosong.
-		# nosemgrep: frappe-semgrep-rules.rules.frappe-manual-commit
+		# nosemgrep: frappe-semgrep-rules.rules.frappe-manual-commit, semgrep.Dont-commit
 		frappe.db.commit()
 		super().tearDown()
 
@@ -156,7 +156,7 @@ class E2ETestCapturesPasswordGate(FrappeAPITestCase):
 		# database yang BERBEDA dari koneksi tes ini. Tanpa commit, sandi yang
 		# baru ditulis belum terlihat oleh Worker-nya dan seluruh berkas ini
 		# menguji site yang sandinya masih kosong.
-		# nosemgrep: frappe-semgrep-rules.rules.frappe-manual-commit
+		# nosemgrep: frappe-semgrep-rules.rules.frappe-manual-commit, semgrep.Dont-commit
 		frappe.db.commit()
 		for kandidat in ("", "apa saja", SANDI):
 			jawaban = self._post(kandidat)
@@ -214,7 +214,7 @@ class E2ETestCapturesPasswordGate(FrappeAPITestCase):
 			# database yang BERBEDA dari koneksi tes ini. Tanpa commit, sandi yang
 			# baru ditulis belum terlihat oleh Worker-nya dan seluruh berkas ini
 			# menguji site yang sandinya masih kosong.
-			# nosemgrep: frappe-semgrep-rules.rules.frappe-manual-commit
+			# nosemgrep: frappe-semgrep-rules.rules.frappe-manual-commit, semgrep.Dont-commit
 			frappe.db.commit()
 			benar = self._post(sandi)
 			self.assertEqual(benar.status_code, 200, f"{sandi!r}: {benar.data[:200]}")
