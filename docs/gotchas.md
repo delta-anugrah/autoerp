@@ -312,3 +312,59 @@ berikutnya dibuat ulang, mungkin berminggu-minggu kemudian.
 berarti "mana pun di dalam jaringan Docker ini", bukan "dari internet". Sandinya
 tetap sandi per-situs yang dibuat Frappe dan dibaca dari `site_config.json` —
 tidak ada yang diketik tangan.
+
+## 24. Sandi foto grading: menggantinya memutus semua yang sedang membuka
+
+**Palm Mill Settings → Capture Photo Access → Capture Viewer Password** mengunci
+`captures.smagri.id`. Satu sandi untuk satu perusahaan, dipakai bersama.
+
+⚠️ **Menggantinya langsung berlaku di semua proses** — tidak ada cache yang
+menahan sandi lama. Artinya setiap orang yang sedang membuka foto **langsung
+tertolak** dan harus diberi sandi baru. Itu memang tuasnya kalau ada laptop
+hilang atau karyawan keluar, bukan efek samping.
+
+⚠️ **Mengosongkannya berarti MENOLAK SEMUA ORANG, bukan membuka semuanya.** Site
+yang sandinya kosong adalah site yang fotonya tidak bisa dibuka siapa pun. Arah
+gagal ini disengaja.
+
+⚠️ **AutoERP mati = foto tidak bisa dibuka.** Gerbangnya bertanya ke situs ini
+setiap kali ada yang memasukkan sandi (keputusan 2026-09-23, opsi 4b: satu sumber
+kebenaran, nol token Cloudflare di droplet). Layar gerbang membedakan "Sandi
+salah" dari "Tidak bisa menghubungi AutoERP" — kalau yang muncul pesan kedua,
+periksa `app.smagri.id`, bukan sandinya.
+
+Krani (`Weighbridge Operator`) **tidak bisa** membaca maupun mengubahnya: fieldnya
+`Password` (nilainya di tabel `__Auth`, kolom Settings cuma berisi `**************`)
+dan duduk di `permlevel 1`.
+
+⚠️ **Frappe tidak melempar galat untuk field di atas permlevel** — ia **membuang**
+field itu dari perubahan lalu menyimpan sisanya tanpa pesan apa pun. Jadi sebuah
+percobaan menulis terbaca "sukses" sementara nilainya tidak berubah. Tes yang
+menunggu exception akan hijau walau permlevelnya dicabut; yang benar memeriksa
+nilainya sesudahnya.
+
+Cara pasang Worker dan uji 4 langkahnya: `sawit/workers/captures-gate/README.md`.
+
+## 25. Deploy gagal `Run Command Timeout` tepat di menit ke-10
+
+Bukan kode, bukan jaringan: `appleboy/ssh-action` memutus perintah di **10 menit**,
+dan mengekstrak image ~4,4 GB di droplet 2 vCPU yang sedang menjalankan sembilan
+container bisa lebih lama dari itu. Terjadi di rilis `v1.2.0` (2026-09-24).
+
+Gejalanya menyesatkan: seluruh layer sudah `Download complete`, lalu berhenti.
+**Produksi tidak tersentuh** — container lama tetap jalan di versi sebelumnya dan
+kedua situs tetap 200, karena kegagalannya sebelum apa pun di-restart.
+
+Penanganannya, tanpa mengubah apa pun di produksi:
+
+```bash
+ssh autoerpprod 'nohup docker pull ghcr.io/delta-anugrah/autoerp:<tag> \
+  > /tmp/pull.log 2>&1 &'
+# tunggu sampai `docker images <tag>` muncul, lalu rerun job deploy-nya.
+```
+
+Sesudah image ada di disk, `docker pull` di workflow menjawab "Already exists" dan
+sisanya jauh di bawah 10 menit.
+
+⚠️ **Akan terulang di rilis berikutnya** selama `command_timeout` di
+`.github/workflows/` belum dinaikkan.
