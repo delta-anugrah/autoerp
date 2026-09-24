@@ -142,14 +142,41 @@ bench --site test_site run-tests --module erpnext.palm_mill.test_api
 
 48 tests across `test_api.py` (11), `test_qr_card.py` (6), `weighbridge_ticket` (8), `autograde_operator` (18), `truck` (5). `test_fixtures.py` pins the worked example: net 9,160 kg → 11.55 % potongan → 8,102 kg payable.
 
-Two more files need **no site and no bench** — they parse the source and the DocType
+Three more files need **no site and no bench** — they parse the source and the DocType
 JSON instead of running against a database, so they work on any machine:
 
 ```bash
 python3 -m unittest discover -s erpnext/palm_mill -p "test_demo_off.py" -t erpnext/palm_mill
 python3 -m unittest discover -s erpnext/palm_mill -p "test_grading_janjang.py" -t erpnext/palm_mill
+python3 -m unittest discover -s erpnext/palm_mill -p "test_captures_password_unit.py" -t erpnext/palm_mill
 ```
 
 `test_demo_off.py` (5) pins that `demo.off()` never re-seeds and always passes the
 `demo_mode` guard. `test_grading_janjang.py` (9) pins the per-criterion bunch count
 and keeps the AutoGrade result out of the collapsed Integration section.
+
+### `captures.smagri.id` password gate — three layers, 67 tests
+
+The one feature in `palm_mill` tested at all three levels, because a mistake in it
+exposes every grading photo the mill has ever taken:
+
+| File | Kind | Count | Needs |
+|---|---|---|---|
+| `test_captures_password_unit.py` | unit | 27 | nothing |
+| `test_captures_password.py` | integration | 26 | site |
+| `test_captures_password_e2e.py` | E2E over real HTTP | 14 | site |
+
+The layers are **not** redundant — each one caught something the others could not:
+
+- **Unit** found that `compare_digest` raises `TypeError` on any `str` above U+00FF,
+  so a password with `é` or an emoji would have made every photo request a 500.
+- **Integration** found that `permlevel` protects *writing*, not reading; reading is
+  protected by the `Password` fieldtype, which stores the secret in `__Auth` and
+  leaves `**************` in the column.
+- **E2E** found that Frappe answers **417**, not 200, for a wrongly-typed argument,
+  and that the rate limit is real enough to fail the suite against itself.
+
+⚠️ The Worker reads `body.message.ok`, not `body.ok` — Frappe wraps every whitelisted
+return value in `message`. Reading the wrong one means nobody can ever get in, while
+the endpoint looks perfectly healthy. `test_bentuk_jawaban_persis_yang_dibaca_worker`
+is what stops that from shipping.
