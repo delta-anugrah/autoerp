@@ -19,6 +19,7 @@ class PalmMillSettings(Document):
 		)
 
 		buying_price_list: DF.Link | None
+		captures_password: DF.Password | None
 		cpo_item: DF.Link | None
 		create_stock_documents_on_submit: DF.Check
 		default_potongan_pct: DF.Percent
