@@ -115,6 +115,25 @@ def matches(candidate: object, stored: str) -> bool:
 	return compare_digest(candidate.encode("utf-8"), stored.encode("utf-8"))
 
 
+# Semgrep menandai SETIAP endpoint tamu untuk ditinjau manusia, dan itu benar --
+# ini satu-satunya di `palm_mill`. Yang ditinjau, dan kenapa dibiarkan terbuka:
+#
+# * Kenapa harus tamu: penanyanya Cloudflare Worker, yang tidak punya akun Frappe.
+#   Memberinya akun berarti menaruh kredensial API di tepi jaringan -- persis yang
+#   dihindari rancangan ini.
+# * Yang bisa dilakukan penyerang: menebak satu sandi, 20 kali per IP per jam.
+#   Tidak ada data yang bisa dibaca, tidak ada yang bisa ditulis.
+# * Yang TIDAK pernah keluar: jawabannya `{"ok": bool}` dan tidak pernah yang lain
+#   -- tidak ada sandi, tidak ada panjangnya, tidak ada pesan galat yang berbeda
+#   antara "sandi salah" dan "sandi belum diatur". Dipatok tes di tiga lapis.
+# * Bandingnya waktu-tetap (`compare_digest` pada bytes), jadi lamanya jawaban
+#   tidak membocorkan berapa huruf yang sudah benar.
+# * Menulis TIDAK ikut terbuka: `set_password` sengaja tidak di-whitelist, dan
+#   sebuah tes menolak kalau ia pernah jadi endpoint.
+#
+# Dengan batas laju di baris berikutnya, ini lebih sempit daripada layar login
+# Frappe sendiri, yang juga terbuka untuk tamu dan menerima tebakan sandi.
+# nosemgrep: frappe-semgrep-rules.rules.security.guest-whitelisted-method
 @frappe.whitelist(allow_guest=True, methods=["POST"])
 @rate_limit(limit=GUESS_LIMIT, seconds=GUESS_WINDOW_SECONDS, methods=["POST"])
 def check(password: str | None = None) -> dict:

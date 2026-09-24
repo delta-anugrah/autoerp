@@ -19,7 +19,7 @@ AutoERP (app.smagri.id)          PC pabrik (offline)
 │ kunci PRIVAT          │        │ kunci PUBLIK           │
 │ → menandatangani      │ token  │ → memeriksa saja       │
 │                       │ ──────▶│                        │
-│ Administrator saja    │ (copy) │ autograde.sh licence   │
+│ Administrator saja    │ (copy) │ autograde licence      │
 └───────────────────────┘        └────────────────────────┘
 ```
 
@@ -50,7 +50,7 @@ apa pun ke server.
 5. Tombol **Copy Install Command** menyalin baris yang siap ditempel:
 
    ```
-   autograde.sh licence eyJhbGciOiJFZERTQSIs...
+   autograde licence eyJhbGciOiJFZERTQSIs...
    ```
 
 6. Lewat AnyDesk, tempel baris itu di terminal PC pabrik, Enter.
