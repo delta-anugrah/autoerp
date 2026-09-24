@@ -23,7 +23,9 @@
   "grading_timeout_hours",
   "match_window_hours",
   "automation_section",
-  "create_stock_documents_on_submit"
+  "create_stock_documents_on_submit",
+  "captures_section",
+  "captures_password"
  ],
  "fields": [
   {
@@ -132,13 +134,25 @@
    "fieldname": "create_stock_documents_on_submit",
    "fieldtype": "Check",
    "label": "Create Stock Documents on Manual Submit"
+  },
+  {
+   "fieldname": "captures_section",
+   "fieldtype": "Section Break",
+   "label": "Capture Photo Access"
+  },
+  {
+   "description": "Password asked by captures.smagri.id before it shows any grading photo. Blank = nobody can open the photos. Changing it signs out everyone currently viewing.",
+   "fieldname": "captures_password",
+   "fieldtype": "Password",
+   "label": "Capture Viewer Password",
+   "permlevel": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-09-11 15:43:33.436118",
+ "modified": "2026-09-24 11:15:00.000000",
  "modified_by": "Administrator",
  "module": "Palm Mill",
  "name": "Palm Mill Settings",
@@ -157,6 +171,12 @@
   {
    "read": 1,
    "role": "Weighbridge Operator"
+  },
+  {
+   "permlevel": 1,
+   "read": 1,
+   "role": "System Manager",
+   "write": 1
   }
  ],
  "row_format": "Dynamic",
