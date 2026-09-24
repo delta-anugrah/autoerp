@@ -88,6 +88,33 @@ def set_password(value: str) -> None:
 	doc.save(ignore_permissions=True)
 
 
+def matches(candidate: object, stored: str) -> bool:
+	"""Does `candidate` equal `stored`? The whole decision, and nothing else.
+
+	Split out from `check` on purpose. This function touches no database, no
+	session and no request, so it is testable without a site -- which means the
+	rules below are pinned by tests that run anywhere, in milliseconds, including
+	on a machine that has never had bench installed.
+
+	Every branch here refuses. That is the design: the only path to `True` is a
+	non-empty stored password and a candidate that matches it byte for byte.
+	"""
+	if not stored or not isinstance(candidate, str) or not candidate:
+		# `compare_digest` is skipped here on purpose: there is no secret whose
+		# timing could leak. Either nothing is configured, or the caller sent
+		# something that is not a password -- neither depends on `stored`.
+		return False
+
+	# Constant-time. `==` on a string returns at the first differing byte, and that
+	# difference is measurable across a network; `compare_digest` does not.
+	#
+	# Both sides are encoded first. `compare_digest` on `str` raises TypeError for
+	# any character above U+00FF, so a password with an emoji or an "ā" in it would
+	# turn every check into a 500 -- and only for the sites unlucky enough to have
+	# picked one. On `bytes` it compares cleanly whatever was typed.
+	return compare_digest(candidate.encode("utf-8"), stored.encode("utf-8"))
+
+
 @frappe.whitelist(allow_guest=True, methods=["POST"])
 @rate_limit(limit=GUESS_LIMIT, seconds=GUESS_WINDOW_SECONDS, methods=["POST"])
 def check(password: str | None = None) -> dict:
@@ -105,13 +132,4 @@ def check(password: str | None = None) -> dict:
 	set one yet is a site whose photos are unreachable -- never one whose photos
 	are open again, which is the state being fixed.
 	"""
-	disimpan = stored_password()
-	if not disimpan or not isinstance(password, str) or not password:
-		# `compare_digest` is skipped here on purpose: there is no secret to leak
-		# the timing of. Either no password is configured, or the caller sent
-		# something that is not one -- neither depends on the stored value.
-		return {"ok": False}
-
-	# Constant-time. `==` on a string returns at the first differing byte, and that
-	# difference is measurable across a network; `compare_digest` does not.
-	return {"ok": compare_digest(password, disimpan)}
+	return {"ok": matches(password, stored_password())}
